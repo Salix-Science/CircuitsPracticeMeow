@@ -1,0 +1,1118 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>Circuits Practice</title>
+<link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;500;600&family=Raleway:ital,wght@0,300;0,400;0,500;0,600;1,300&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet"/>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@latest/tabler-icons.min.css"/>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#0a0612;--bg2:#110d1f;--bg3:#1a1430;--bg4:#221b3d;--bg5:#2c2350;
+  --border:#3d2f6b;--border2:#5a4490;--border3:#7c5fc0;
+  --text:#ede8ff;--text2:#b8a8e8;--text3:#7a6aaa;--text4:#4a3d77;
+  --accent:#9d7de8;--accent2:#c4a8ff;--accent3:#6b3fa0;
+  --green:#4ade80;--green-bg:#052010;--green-border:#134d2a;
+  --red:#f87171;--red-bg:#200505;--red-border:#4d1313;
+  --warn:#fbbf24;--warn-bg:#1a1200;
+  --gold:#e8c96b;--gold2:#c9a83c;
+  --font:'Raleway',sans-serif;--font-display:'Cinzel',serif;--mono:'IBM Plex Mono',monospace;
+  --r:6px;--r2:10px;--r3:16px;
+  --glow:0 0 20px rgba(157,125,232,0.15);--glow2:0 0 40px rgba(157,125,232,0.25);
+}
+body{background:var(--bg);color:var(--text);font-family:var(--font);font-size:14px;line-height:1.6;min-height:600px;
+  background-image:radial-gradient(ellipse at 20% 0%,rgba(107,63,160,0.12) 0%,transparent 60%),radial-gradient(ellipse at 80% 100%,rgba(60,30,100,0.1) 0%,transparent 60%);}
+.hidden{display:none!important}
+.mono{font-family:var(--mono)}
+input,select,textarea{background:var(--bg3);border:0.5px solid var(--border);border-radius:var(--r);padding:8px 12px;color:var(--text);font-family:var(--font);font-size:13px;outline:none;transition:border .2s,box-shadow .2s;width:100%}
+input:focus,select:focus,textarea:focus{border-color:var(--accent);box-shadow:0 0 0 3px rgba(157,125,232,0.12)}
+textarea{resize:vertical;line-height:1.6}
+label{font-size:10px;font-weight:600;color:var(--text3);text-transform:uppercase;letter-spacing:.1em;display:block;margin-bottom:5px}
+.field{margin-bottom:12px}
+.btn{display:inline-flex;align-items:center;gap:6px;padding:8px 16px;border-radius:var(--r);border:0.5px solid var(--border2);background:transparent;color:var(--text2);font-family:var(--font);font-size:13px;font-weight:500;cursor:pointer;transition:all .2s;white-space:nowrap}
+.btn:hover{border-color:var(--accent);color:var(--text);box-shadow:var(--glow)}
+.btn-accent{background:linear-gradient(135deg,var(--accent3),var(--accent));color:#fff;border-color:transparent;font-weight:600}
+.btn-accent:hover{opacity:.9;box-shadow:var(--glow2);color:#fff}
+.btn-red{border-color:var(--red);color:var(--red)}
+.btn-red:hover{background:var(--red-bg);box-shadow:none}
+.btn-sm{padding:5px 10px;font-size:12px}
+.btn:disabled{opacity:.3;cursor:not-allowed;box-shadow:none}
+.pill{display:inline-block;font-size:10px;padding:2px 9px;border-radius:99px;font-family:var(--mono);white-space:nowrap;font-weight:500}
+.pill-purple{background:rgba(157,125,232,.15);color:var(--accent2);border:0.5px solid rgba(157,125,232,.3)}
+.pill-admin{background:rgba(232,201,107,.12);color:var(--gold);border:0.5px solid rgba(232,201,107,.3)}
+.pill-green{background:rgba(74,222,128,.1);color:var(--green);border:0.5px solid rgba(74,222,128,.25)}
+.pill-red{background:rgba(248,113,113,.1);color:var(--red);border:0.5px solid rgba(248,113,113,.25)}
+.pill-warn{background:rgba(251,191,36,.1);color:var(--warn);border:0.5px solid rgba(251,191,36,.25)}
+.pill-disabled{background:rgba(74,61,119,.2);color:var(--text4);border:0.5px solid var(--border)}
+
+/* ── Enable toggle ── */
+.enable-toggle{display:inline-flex;align-items:center;gap:6px;cursor:pointer;user-select:none}
+.toggle-track{width:32px;height:18px;border-radius:99px;background:var(--bg4);border:0.5px solid var(--border);position:relative;transition:all .2s;flex-shrink:0}
+.toggle-track.on{background:var(--accent3);border-color:var(--accent)}
+.toggle-thumb{width:12px;height:12px;border-radius:50%;background:var(--text3);position:absolute;top:2px;left:2px;transition:all .2s}
+.toggle-track.on .toggle-thumb{left:16px;background:#fff}
+.toggle-label{font-size:11px;font-family:var(--mono);color:var(--text3)}
+.toggle-track.on+.toggle-label{color:var(--accent2)}
+
+/* ── Auth ── */
+#screen-auth{display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:600px;padding:2rem;gap:2rem;
+  background:radial-gradient(ellipse at 50% 30%,rgba(107,63,160,0.2) 0%,transparent 70%)}
+.wordmark{font-family:var(--font-display);font-size:22px;font-weight:500;letter-spacing:.12em;color:var(--accent2);text-shadow:0 0 30px rgba(196,168,255,.4)}
+.auth-card{background:var(--bg2);border:0.5px solid var(--border);border-radius:var(--r3);padding:2rem;width:100%;max-width:360px;box-shadow:var(--glow2)}
+.auth-tabs{display:flex;margin-bottom:1.5rem;border:0.5px solid var(--border);border-radius:var(--r);overflow:hidden}
+.auth-tab{flex:1;padding:8px;text-align:center;font-size:12px;font-weight:500;cursor:pointer;color:var(--text3);background:transparent;border:none;font-family:var(--font);transition:all .2s}
+.auth-tab.active{background:var(--bg3);color:var(--text)}
+.err-msg{font-size:12px;color:var(--red);margin-top:8px;font-family:var(--mono);display:flex;align-items:center;gap:5px}
+.ok-msg{font-size:12px;color:var(--green);margin-top:8px;font-family:var(--mono)}
+
+/* ── Topbar ── */
+.topbar{display:flex;align-items:center;gap:10px;padding:10px 20px;border-bottom:0.5px solid var(--border);background:rgba(10,6,18,0.95);position:sticky;top:0;z-index:20;backdrop-filter:blur(8px)}
+.topbar-wordmark{font-family:var(--font-display);font-size:14px;letter-spacing:.1em;color:var(--accent2);text-shadow:0 0 20px rgba(196,168,255,.3)}
+.nav-tabs{display:flex;gap:2px;margin-left:20px}
+.nav-tab{padding:5px 14px;border-radius:var(--r);font-size:12px;font-weight:500;cursor:pointer;color:var(--text3);border:none;background:transparent;font-family:var(--font);transition:all .2s;letter-spacing:.04em}
+.nav-tab:hover{color:var(--text);background:var(--bg3)}
+.nav-tab.active{color:var(--accent2);background:var(--bg3);border:0.5px solid var(--border)}
+.topbar-right{margin-left:auto;display:flex;align-items:center;gap:10px}
+.avatar{width:28px;height:28px;border-radius:50%;background:linear-gradient(135deg,var(--accent3),var(--accent));display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;color:#fff;flex-shrink:0;box-shadow:0 0 10px rgba(157,125,232,.4)}
+.streak-badge{font-size:11px;color:var(--warn);font-family:var(--mono);display:flex;align-items:center;gap:3px}
+
+/* ── App layout ── */
+.app-layout{display:grid;grid-template-columns:210px 1fr;min-height:560px}
+.sidebar{background:var(--bg2);border-right:0.5px solid var(--border);padding:14px;display:flex;flex-direction:column;gap:2px;overflow-y:auto}
+.sidebar-label{font-size:9px;font-weight:700;color:var(--text4);text-transform:uppercase;letter-spacing:.14em;padding:10px 8px 4px}
+.sidebar-label:first-child{padding-top:2px}
+.sb-btn{display:flex;align-items:center;gap:8px;padding:8px 10px;border-radius:var(--r);font-size:12px;font-weight:500;color:var(--text2);cursor:pointer;border:none;background:none;width:100%;text-align:left;transition:all .2s}
+.sb-btn:hover{background:var(--bg3);color:var(--text)}
+.sb-btn.active{background:var(--bg3);color:var(--accent2);border:0.5px solid var(--border)}
+.sb-btn i{font-size:14px;flex-shrink:0;color:var(--text3)}
+.sb-btn.active i{color:var(--accent)}
+.sb-score{margin-left:auto;font-size:10px;font-family:var(--mono);color:var(--text4)}
+.sb-score.ok{color:var(--green)}
+.sb-folder{display:flex;flex-direction:column}
+.sb-folder-head{display:flex;align-items:center;gap:8px;padding:8px 10px;border-radius:var(--r);font-size:12px;font-weight:600;color:var(--text2);cursor:pointer;border:none;background:none;width:100%;text-align:left;transition:all .2s}
+.sb-folder-head:hover{background:var(--bg3);color:var(--text)}
+.sb-folder-children{display:flex;flex-direction:column;gap:1px;padding-left:14px}
+.sb-child-btn{display:flex;align-items:center;gap:7px;padding:6px 10px;border-radius:var(--r);font-size:11px;color:var(--text3);cursor:pointer;border:none;background:none;width:100%;text-align:left;transition:all .2s}
+.sb-child-btn:hover{background:var(--bg3);color:var(--text2)}
+.sb-child-btn.active{color:var(--accent);background:rgba(157,125,232,.08)}
+
+/* ── Main content ── */
+.main-content{overflow-y:auto;display:flex;flex-direction:column}
+.practice-pane{padding:1.5rem;display:flex;flex-direction:column;gap:1rem;flex:1}
+.topic-title{font-family:var(--font-display);font-size:18px;font-weight:500;color:var(--accent2);letter-spacing:.06em;margin-bottom:4px}
+.topic-sub{font-size:12px;color:var(--text3)}
+.prob-progress{display:flex;align-items:center;gap:12px;margin-bottom:1rem}
+.prog-track{flex:1;height:3px;background:var(--bg4);border-radius:99px;overflow:hidden}
+.prog-fill{height:100%;background:linear-gradient(90deg,var(--accent3),var(--accent));border-radius:99px;transition:width .4s}
+.prog-label{font-size:11px;font-family:var(--mono);color:var(--text3);white-space:nowrap}
+.nav-arrows{display:flex;gap:6px}
+.prob-card{background:var(--bg2);border:0.5px solid var(--border);border-radius:var(--r3);overflow:hidden;box-shadow:var(--glow)}
+.prob-head{display:flex;align-items:center;gap:10px;padding:12px 18px;border-bottom:0.5px solid var(--border);background:linear-gradient(135deg,var(--bg3),var(--bg2))}
+.prob-title{font-family:var(--font-display);font-size:13px;font-weight:500;letter-spacing:.06em;flex:1;color:var(--accent2)}
+.prob-body{padding:18px}
+.circuit-wrap{background:var(--bg3);border:0.5px solid var(--border);border-radius:var(--r2);margin-bottom:14px;display:flex;align-items:center;justify-content:center;min-height:90px;padding:12px;overflow:hidden}
+.circuit-wrap img{max-width:100%;max-height:180px;object-fit:contain;border-radius:4px}
+.question-text{font-size:13px;color:var(--text);margin-bottom:14px;line-height:1.8}
+.answer-row{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:12px}
+.answer-row input{width:120px}
+.answer-row select{width:78px}
+.action-row{display:flex;gap:6px;flex-wrap:wrap}
+.feedback{font-size:12px;padding:10px 14px;border-radius:var(--r);margin-top:10px;display:none;font-family:var(--mono);line-height:1.5}
+.feedback.correct{background:var(--green-bg);color:var(--green);border:0.5px solid var(--green-border)}
+.feedback.wrong{background:var(--red-bg);color:var(--red);border:0.5px solid var(--red-border)}
+.hint-box{font-size:12px;color:var(--text2);background:var(--bg3);border-left:2px solid var(--warn);padding:10px 14px;border-radius:0 var(--r) var(--r) 0;margin-top:10px;display:none;line-height:1.7}
+.shuffle-btn{border-color:var(--accent3);color:var(--accent)}
+.shuffle-btn:hover{background:rgba(157,125,232,.1)}
+
+/* ── Assignments (student) ── */
+.assign-list{padding:1.5rem;display:flex;flex-direction:column;gap:12px}
+.assign-card{background:var(--bg2);border:0.5px solid var(--border);border-radius:var(--r2);overflow:hidden;transition:border-color .2s}
+.assign-card:hover{border-color:var(--border2)}
+.assign-head{display:flex;align-items:center;gap:10px;padding:12px 16px;cursor:pointer}
+.assign-name{font-family:var(--font-display);font-size:13px;font-weight:500;letter-spacing:.05em;color:var(--accent2);flex:1}
+.assign-body{padding:0 16px 14px;display:none}
+.assign-body.open{display:block}
+
+/* ── Editor ── */
+.editor-shell{display:flex;flex-direction:column;flex:1}
+.editor-top-tabs{display:flex;gap:2px;padding:10px 20px 0;border-bottom:0.5px solid var(--border);background:var(--bg2)}
+.editor-top-tab{padding:7px 18px;border-radius:var(--r) var(--r) 0 0;font-size:12px;font-weight:500;cursor:pointer;color:var(--text3);border:0.5px solid transparent;background:transparent;font-family:var(--font);transition:all .2s;margin-bottom:-0.5px}
+.editor-top-tab:hover{color:var(--text)}
+.editor-top-tab.active{color:var(--accent2);background:var(--bg);border-color:var(--border);border-bottom-color:var(--bg)}
+.editor-view{display:none;flex:1;overflow:hidden}
+.editor-view.active{display:flex}
+.editor-two{display:grid;grid-template-columns:1fr 300px;flex:1;overflow:hidden}
+.editor-main{padding:1.25rem;overflow-y:auto;border-right:0.5px solid var(--border)}
+.editor-side{padding:1.25rem;overflow-y:auto;background:var(--bg2)}
+.section-card{background:var(--bg2);border:0.5px solid var(--border);border-radius:var(--r2);padding:14px;margin-bottom:14px}
+.section-card h4{font-size:11px;font-weight:600;color:var(--text3);margin-bottom:12px;display:flex;align-items:center;gap:6px;text-transform:uppercase;letter-spacing:.08em}
+.var-row{display:grid;grid-template-columns:80px 56px 62px 62px 24px;gap:6px;align-items:end;margin-bottom:6px}
+.var-row input,.var-row select{padding:6px 8px;font-size:12px}
+.add-var-btn{display:inline-flex;align-items:center;gap:5px;font-size:11px;color:var(--accent);cursor:pointer;padding:4px 0;border:none;background:none;font-family:var(--font);font-weight:500}
+.remove-var{background:none;border:none;color:var(--text4);cursor:pointer;padding:0;display:flex;align-items:center;justify-content:center;font-size:14px}
+.remove-var:hover{color:var(--red)}
+.formula-preview{font-family:var(--mono);font-size:12px;background:var(--bg3);border:0.5px solid var(--border);border-radius:var(--r);padding:8px 10px;margin-top:6px;color:var(--accent2);min-height:32px}
+.img-drop{border:1.5px dashed var(--border);border-radius:var(--r2);padding:16px;text-align:center;cursor:pointer;color:var(--text3);font-size:12px;transition:all .2s;position:relative}
+.img-drop:hover{border-color:var(--accent);color:var(--accent)}
+.img-drop input[type=file]{position:absolute;inset:0;opacity:0;cursor:pointer;width:100%;height:100%}
+.img-thumb{max-width:100%;max-height:100px;border-radius:var(--r);margin-top:8px;object-fit:contain}
+.syntax-tip{font-size:11px;color:var(--text3);background:var(--bg3);border:0.5px solid var(--border);border-radius:var(--r);padding:8px 10px;margin-top:6px;line-height:1.8}
+.syntax-tip code{font-family:var(--mono);color:var(--accent2);background:var(--bg4);padding:1px 5px;border-radius:3px}
+.var-chips-row{display:flex;flex-wrap:wrap;gap:4px;margin-top:8px}
+.var-chip-btn{font-family:var(--mono);font-size:11px;background:var(--bg4);border:0.5px solid var(--border);border-radius:99px;padding:2px 9px;cursor:pointer;color:var(--accent2);transition:all .2s}
+.var-chip-btn:hover{background:var(--accent3);border-color:transparent;color:#fff}
+
+/* ── Problem manager (right panel) ── */
+.pm-row{display:flex;align-items:center;gap:8px;padding:9px 12px;background:var(--bg2);border:0.5px solid var(--border);border-radius:var(--r2);margin-bottom:5px;cursor:pointer;transition:all .2s;user-select:none}
+.pm-row:hover{border-color:var(--border2)}
+.pm-row.selected{border-color:var(--accent);background:var(--bg3)}
+.pm-row.disabled-row{opacity:.45}
+.pm-row.dragging{opacity:.4}
+.pm-row.drag-over{border-color:var(--accent);border-style:dashed}
+.pm-drag-handle{color:var(--text4);cursor:grab;font-size:15px;display:flex;align-items:center}
+.pm-row-body{flex:1;min-width:0}
+.pm-row-title{font-size:12px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:var(--text)}
+.pm-row-meta{font-size:10px;color:var(--text3);font-family:var(--mono);margin-top:1px}
+.pm-row-actions{display:flex;gap:3px;flex-shrink:0;align-items:center}
+.pm-icon-btn{background:none;border:0.5px solid var(--border);border-radius:var(--r);padding:4px 7px;color:var(--text3);cursor:pointer;display:flex;align-items:center;font-size:12px;transition:all .2s}
+.pm-icon-btn:hover{border-color:var(--accent);color:var(--accent)}
+.pm-icon-btn.del:hover{border-color:var(--red);color:var(--red)}
+
+/* ── Topic folders ── */
+.topic-manager{padding:1.25rem;overflow-y:auto;flex:1}
+.folder-card{background:var(--bg2);border:0.5px solid var(--border);border-radius:var(--r2);margin-bottom:10px;overflow:hidden}
+.folder-head{display:flex;align-items:center;gap:8px;padding:10px 14px;background:var(--bg3)}
+.folder-name{font-family:var(--font-display);font-size:13px;font-weight:500;letter-spacing:.06em;flex:1;color:var(--accent2)}
+.folder-probs{padding:8px 14px;display:flex;flex-wrap:wrap;gap:6px}
+.folder-prob-chip{display:inline-flex;align-items:center;gap:5px;background:var(--bg3);border:0.5px solid var(--border);border-radius:99px;padding:3px 10px;font-size:11px;color:var(--text2)}
+.folder-prob-chip button{background:none;border:none;color:var(--text4);cursor:pointer;font-size:12px;display:flex;align-items:center;padding:0}
+.folder-prob-chip button:hover{color:var(--red)}
+.add-to-folder-row{display:flex;gap:6px;padding:0 14px 10px;align-items:center}
+.add-to-folder-row select{flex:1;font-size:12px;padding:5px 8px}
+
+/* ── Assignment editor ── */
+.assign-editor{padding:1.25rem;overflow-y:auto;flex:1}
+.assign-editor-two{display:grid;grid-template-columns:1fr 280px;gap:14px}
+.assign-prob-picker{background:var(--bg3);border:0.5px solid var(--border);border-radius:var(--r2);padding:10px;max-height:260px;overflow-y:auto}
+.assign-prob-picker-row{display:flex;align-items:center;gap:8px;padding:6px 4px;border-bottom:0.5px solid var(--border);font-size:12px}
+.assign-prob-picker-row:last-child{border-bottom:none}
+.assign-prob-picker-row label{text-transform:none;letter-spacing:0;font-size:12px;color:var(--text2);cursor:pointer;display:flex;align-items:center;gap:8px;flex:1;margin:0}
+.assign-prob-picker-row input[type=checkbox]{width:auto;cursor:pointer}
+.assign-pts-input{width:55px;padding:3px 6px;font-size:11px;text-align:center}
+
+/* ── Admin ── */
+.admin-area{padding:1.5rem;overflow-y:auto;flex:1}
+.dash-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:10px;margin-bottom:1.5rem}
+.metric-card{background:var(--bg2);border:0.5px solid var(--border);border-radius:var(--r2);padding:14px;box-shadow:var(--glow)}
+.metric-label{font-size:9px;font-weight:700;color:var(--text4);text-transform:uppercase;letter-spacing:.1em;margin-bottom:4px}
+.metric-value{font-size:22px;font-family:var(--mono);font-weight:500;color:var(--accent2)}
+.metric-sub{font-size:10px;color:var(--text3);margin-top:2px}
+.dash-section{background:var(--bg2);border:0.5px solid var(--border);border-radius:var(--r2);margin-bottom:14px;overflow:hidden}
+.dash-head{padding:10px 14px;border-bottom:0.5px solid var(--border);font-size:11px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.08em;display:flex;align-items:center;gap:6px;justify-content:space-between}
+.dash-table{width:100%;border-collapse:collapse;font-size:12px}
+.dash-table th{padding:8px 14px;text-align:left;color:var(--text4);font-weight:600;font-size:10px;text-transform:uppercase;letter-spacing:.07em;border-bottom:0.5px solid var(--border)}
+.dash-table td{padding:8px 14px;border-bottom:0.5px solid var(--border);color:var(--text2)}
+.dash-table tr:last-child td{border-bottom:none}
+.dash-table td:first-child{color:var(--text);font-family:var(--mono)}
+.acc-bar-outer{width:55px;height:3px;background:var(--bg3);border-radius:99px;overflow:hidden;display:inline-block;vertical-align:middle;margin-right:5px}
+.acc-bar-inner{height:100%;border-radius:99px}
+.admin-tabs{display:flex;gap:2px;margin-bottom:1.25rem;border-bottom:0.5px solid var(--border)}
+.admin-tab{padding:7px 16px;border-radius:var(--r) var(--r) 0 0;font-size:12px;font-weight:500;cursor:pointer;color:var(--text3);border:none;background:transparent;font-family:var(--font);transition:all .2s;margin-bottom:-0.5px}
+.admin-tab.active{color:var(--accent2);background:var(--bg2);border:0.5px solid var(--border);border-bottom-color:var(--bg2)}
+.admin-subtab{display:none}
+.admin-subtab.active{display:block}
+.user-row{display:flex;align-items:center;gap:8px;padding:8px 0;border-bottom:0.5px solid var(--border);font-size:12px}
+.user-row:last-child{border-bottom:none}
+.user-row .un{font-family:var(--mono);color:var(--text);flex:1}
+</style>
+</head>
+<body>
+
+<!-- AUTH -->
+<div id="screen-auth">
+  <div class="wordmark">Circuits Practice</div>
+  <div class="auth-card">
+    <div class="auth-tabs">
+      <button class="auth-tab active" onclick="setAuthTab('login',this)">Sign in</button>
+      <button class="auth-tab" onclick="setAuthTab('register',this)">Register</button>
+    </div>
+    <div id="auth-login">
+      <div class="field"><label>Username</label><input type="text" id="l-user" autocomplete="username" placeholder="username"/></div>
+      <div class="field"><label>Password</label><input type="password" id="l-pass" autocomplete="current-password" placeholder="••••••••"/></div>
+      <button class="btn btn-accent" style="width:100%;justify-content:center" onclick="doLogin()"><i class="ti ti-login"></i> Enter</button>
+      <div class="err-msg hidden" id="l-err"><i class="ti ti-alert-circle"></i><span></span></div>
+    </div>
+    <div id="auth-register" class="hidden">
+      <div class="field"><label>Username</label><input type="text" id="r-user" autocomplete="username" placeholder="choose a username"/></div>
+      <div class="field"><label>Password</label><input type="password" id="r-pass" autocomplete="new-password" placeholder="at least 6 characters"/></div>
+      <div class="field"><label>Confirm password</label><input type="password" id="r-pass2" autocomplete="new-password" placeholder="repeat password"/></div>
+      <button class="btn btn-accent" style="width:100%;justify-content:center" onclick="doRegister()"><i class="ti ti-user-plus"></i> Create account</button>
+      <div class="err-msg hidden" id="r-err"><i class="ti ti-alert-circle"></i><span></span></div>
+      <div class="ok-msg hidden" id="r-ok"></div>
+    </div>
+  </div>
+</div>
+
+<!-- APP -->
+<div id="screen-app" class="hidden">
+  <div class="topbar">
+    <div class="topbar-wordmark">Circuits Practice</div>
+    <div class="nav-tabs">
+      <button class="nav-tab active" id="navt-practice" onclick="showView('practice')">Practice</button>
+      <button class="nav-tab" id="navt-assignments" onclick="showView('assignments')">Assignments</button>
+      <button class="nav-tab hidden" id="navt-editor" onclick="showView('editor')">Editor</button>
+      <button class="nav-tab hidden" id="navt-admin" onclick="showView('admin')">Admin</button>
+    </div>
+    <div class="topbar-right">
+      <div class="streak-badge"><i class="ti ti-flame"></i><span id="streak-val">0</span></div>
+      <div class="avatar" id="topbar-av">?</div>
+      <span style="font-size:12px;color:var(--text3)" id="topbar-name"></span>
+      <span class="pill pill-admin hidden" id="topbar-admin-badge">admin</span>
+      <button class="btn btn-sm" onclick="doLogout()"><i class="ti ti-logout"></i></button>
+    </div>
+  </div>
+
+  <!-- PRACTICE -->
+  <div id="view-practice" class="hidden">
+    <div class="app-layout">
+      <div class="sidebar" id="practice-sidebar"></div>
+      <div class="main-content" id="practice-main"></div>
+    </div>
+  </div>
+
+  <!-- ASSIGNMENTS -->
+  <div id="view-assignments" class="hidden">
+    <div class="assign-list" id="assign-student-list"></div>
+  </div>
+
+  <!-- EDITOR -->
+  <div id="view-editor" class="hidden">
+    <div class="editor-shell">
+      <div class="editor-top-tabs">
+        <button class="editor-top-tab active" onclick="showEdTab('problems',this)">Problems</button>
+        <button class="editor-top-tab" onclick="showEdTab('topics',this)">Topic Folders</button>
+        <button class="editor-top-tab" onclick="showEdTab('assignments',this)">Assignments</button>
+      </div>
+
+      <!-- Problems -->
+      <div class="editor-view active" id="etab-problems">
+        <div class="editor-two">
+          <div class="editor-main">
+            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px">
+              <div style="font-size:11px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.08em" id="form-mode-label">New problem</div>
+              <div style="display:flex;gap:8px">
+                <button class="btn btn-sm" onclick="resetForm()"><i class="ti ti-x"></i> Clear</button>
+                <button class="btn btn-sm btn-accent" onclick="saveProblem()"><i class="ti ti-device-floppy"></i> Save</button>
+              </div>
+            </div>
+            <div class="section-card">
+              <h4><i class="ti ti-info-circle"></i> Info</h4>
+              <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px">
+                <div class="field" style="margin:0"><label>Title</label><input type="text" id="e-title" placeholder="Find V across R2"/></div>
+                <div class="field" style="margin:0"><label>Topic tag</label><input type="text" id="e-topic" placeholder="KVL, Nodal…"/></div>
+              </div>
+              <!-- Enable toggle in form -->
+              <div style="display:flex;align-items:center;gap:10px;padding:8px 0;border-top:0.5px solid var(--border)">
+                <span style="font-size:11px;color:var(--text3)">Visible to students in free practice:</span>
+                <div class="enable-toggle" onclick="toggleFormEnable()" id="form-enable-toggle">
+                  <div class="toggle-track on" id="form-toggle-track"><div class="toggle-thumb"></div></div>
+                  <span class="toggle-label" id="form-toggle-label">Enabled</span>
+                </div>
+              </div>
+            </div>
+            <div class="section-card">
+              <h4><i class="ti ti-variable"></i> Question &amp; variables</h4>
+              <div class="field" style="margin-bottom:4px"><label>Question text</label>
+                <textarea id="e-question" rows="3" placeholder="R1, R2, R3 in series with {Vs} V. R1={R1} kΩ, R2={R2} kΩ. Find V across R2."></textarea>
+              </div>
+              <div class="syntax-tip">Use <code>{VarName}</code> to substitute · plain <code>R1</code> stays as text
+                <div class="var-chips-row" id="var-insert-chips"></div>
+              </div>
+              <div style="margin-top:12px">
+                <div style="display:grid;grid-template-columns:80px 56px 62px 62px 24px;gap:6px;margin-bottom:4px">
+                  <label>Name</label><label>Type</label><label>Min</label><label>Max</label><label></label>
+                </div>
+                <div id="var-rows"></div>
+                <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:6px">
+                  <button class="add-var-btn" onclick="addVar('R')"><i class="ti ti-plus" style="font-size:11px"></i> Resistor</button>
+                  <button class="add-var-btn" onclick="addVar('V')"><i class="ti ti-plus" style="font-size:11px"></i> Voltage</button>
+                  <button class="add-var-btn" onclick="addVar('I')"><i class="ti ti-plus" style="font-size:11px"></i> Current</button>
+                  <button class="add-var-btn" onclick="addVar('C')"><i class="ti ti-plus" style="font-size:11px"></i> Cap/Ind</button>
+                </div>
+              </div>
+            </div>
+            <div class="section-card">
+              <h4><i class="ti ti-math-function"></i> Solution formula</h4>
+              <div class="field" style="margin-bottom:6px"><label>JS expression · bare var names · e.g. Vs*R2/(R1+R2+R3)</label>
+                <input type="text" id="e-formula" placeholder="Vs * R2 / (R1+R2+R3)" oninput="previewFormula()"/></div>
+              <div class="formula-preview" id="formula-preview">Formula preview</div>
+              <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-top:10px">
+                <div class="field" style="margin:0"><label>Unit</label>
+                  <select id="e-unit"><option>V</option><option>mV</option><option>kV</option><option>A</option><option>mA</option><option>Ω</option><option>kΩ</option><option>W</option></select></div>
+                <div class="field" style="margin:0"><label>Tolerance %</label><input type="number" id="e-tol" value="2" min="0.1" max="20" step="0.1"/></div>
+                <div class="field" style="margin:0"><label>Default pts</label><input type="number" id="e-pts" value="10" min="1" max="100"/></div>
+              </div>
+            </div>
+            <div class="section-card">
+              <h4><i class="ti ti-bulb"></i> Hint</h4>
+              <textarea id="e-hint" rows="2" placeholder="Use {VarName} here too."></textarea>
+            </div>
+            <div class="section-card">
+              <h4><i class="ti ti-photo"></i> Circuit diagram</h4>
+              <div class="img-drop"><input type="file" accept="image/*" onchange="handleImg(event)"/>
+                <i class="ti ti-upload" style="font-size:20px;display:block;margin-bottom:5px"></i>Upload PNG / JPG
+                <div id="img-preview-wrap"></div></div>
+              <button class="btn btn-sm btn-red" style="margin-top:8px" onclick="clearImg()"><i class="ti ti-x"></i> Clear</button>
+            </div>
+          </div>
+
+          <!-- Right panel -->
+          <div class="editor-side">
+            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
+              <div style="font-size:11px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.08em">Problem bank <span id="prob-count-badge" style="color:var(--text4);font-weight:400"></span></div>
+              <div style="font-size:10px;color:var(--text4);font-family:var(--mono)"><span id="enabled-count"></span></div>
+            </div>
+            <div id="pm-list"></div>
+            <div id="pm-empty" style="text-align:center;padding:2rem;color:var(--text4);font-size:12px">No problems yet.</div>
+            <div style="margin-top:1.25rem;border-top:0.5px solid var(--border);padding-top:1.25rem">
+              <div style="font-size:11px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.08em;margin-bottom:10px">Preview</div>
+              <div id="editor-preview-card" style="font-size:12px;color:var(--text4)">Save to preview.</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Topic folders -->
+      <div class="editor-view" id="etab-topics">
+        <div class="topic-manager">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px">
+            <div style="font-size:11px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.08em">Topic folders</div>
+            <div style="display:flex;gap:8px;align-items:center">
+              <input type="text" id="new-folder-name" placeholder="Folder name…" style="width:160px;padding:6px 10px;font-size:12px"/>
+              <button class="btn btn-sm btn-accent" onclick="createFolder()"><i class="ti ti-folder-plus"></i> Create</button>
+            </div>
+          </div>
+          <div id="folder-list"></div>
+          <div id="folder-empty" style="text-align:center;padding:3rem;color:var(--text4);font-size:12px">No folders yet.</div>
+        </div>
+      </div>
+
+      <!-- Assignments -->
+      <div class="editor-view" id="etab-assignments">
+        <div class="assign-editor">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px">
+            <div style="font-size:11px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.08em">Assignments</div>
+            <button class="btn btn-sm btn-accent" onclick="newAssignment()"><i class="ti ti-plus"></i> New</button>
+          </div>
+          <div class="assign-editor-two">
+            <div>
+              <div class="section-card">
+                <h4><i class="ti ti-calendar"></i> Assignment details</h4>
+                <div class="field"><label>Title</label><input type="text" id="as-title" placeholder="Homework 1 — KVL"/></div>
+                <div class="field"><label>Instructions</label><textarea id="as-instructions" rows="2" placeholder="Complete all problems below…"></textarea></div>
+                <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px">
+                  <div class="field" style="margin:0"><label>Opens</label><input type="datetime-local" id="as-open"/></div>
+                  <div class="field" style="margin:0"><label>Due</label><input type="datetime-local" id="as-due"/></div>
+                </div>
+                <div class="field">
+                  <label>Problems — all problems selectable regardless of enabled state</label>
+                  <div class="assign-prob-picker" id="assign-prob-picker"></div>
+                </div>
+                <button class="btn btn-accent" onclick="saveAssignment()"><i class="ti ti-device-floppy"></i> Save</button>
+                <div class="ok-msg hidden" id="as-ok"></div>
+              </div>
+            </div>
+            <div>
+              <div style="font-size:11px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.08em;margin-bottom:10px">Saved</div>
+              <div id="assign-admin-list"></div>
+              <div id="assign-admin-empty" style="color:var(--text4);font-size:12px">None yet.</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ADMIN -->
+  <div id="view-admin" class="hidden">
+    <div class="admin-area">
+      <div style="font-family:var(--font-display);font-size:16px;letter-spacing:.08em;color:var(--accent2);margin-bottom:1rem">Admin Panel</div>
+      <div class="admin-tabs">
+        <button class="admin-tab active" onclick="showAdminTab('analytics',this)">Analytics</button>
+        <button class="admin-tab" onclick="showAdminTab('grades',this)">Grades</button>
+        <button class="admin-tab" onclick="showAdminTab('users',this)">Users</button>
+        <button class="admin-tab" onclick="showAdminTab('account',this)">My account</button>
+      </div>
+      <div class="admin-subtab active" id="atab-analytics">
+        <div class="dash-grid" id="dash-metrics"></div>
+        <div class="dash-section"><div class="dash-head"><span>Students</span></div>
+          <table class="dash-table"><thead><tr><th>Username</th><th>Attempted</th><th>Accuracy</th><th>Streak</th><th>Role</th></tr></thead><tbody id="dt-students"></tbody></table></div>
+        <div class="dash-section"><div class="dash-head"><span>Topic accuracy</span></div>
+          <table class="dash-table"><thead><tr><th>Topic</th><th>Attempts</th><th>Accuracy</th></tr></thead><tbody id="dt-topics"></tbody></table></div>
+      </div>
+      <div class="admin-subtab" id="atab-grades">
+        <div style="font-size:12px;color:var(--text3);margin-bottom:12px">Select an assignment:</div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px" id="grade-assign-btns"></div>
+        <div id="grade-table-wrap"></div>
+      </div>
+      <div class="admin-subtab" id="atab-users">
+        <div class="dash-section"><div class="dash-head"><span>Users</span><button class="btn btn-sm" onclick="renderUserMgmt()"><i class="ti ti-refresh"></i></button></div>
+          <div style="padding:4px 14px 14px" id="user-mgmt-list"></div></div>
+        <div class="section-card" style="max-width:480px">
+          <h4><i class="ti ti-user-plus"></i> Create account</h4>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px">
+            <div class="field" style="margin:0"><label>Username</label><input type="text" id="mu-user"/></div>
+            <div class="field" style="margin:0"><label>Password</label><input type="password" id="mu-pass"/></div>
+          </div>
+          <div style="display:flex;align-items:center;gap:10px">
+            <label style="display:flex;align-items:center;gap:6px;text-transform:none;letter-spacing:0;font-size:12px;cursor:pointer"><input type="checkbox" id="mu-admin" style="width:auto"/> Admin</label>
+            <button class="btn btn-sm btn-accent" onclick="adminCreateUser()"><i class="ti ti-plus"></i> Create</button>
+          </div>
+          <div class="err-msg hidden" id="mu-err"><i class="ti ti-alert-circle"></i><span></span></div>
+          <div class="ok-msg hidden" id="mu-ok"></div>
+        </div>
+      </div>
+      <div class="admin-subtab" id="atab-account">
+        <div class="section-card" style="max-width:380px">
+          <h4><i class="ti ti-key"></i> Change password</h4>
+          <div class="field"><label>Current</label><input type="password" id="cp-old"/></div>
+          <div class="field"><label>New</label><input type="password" id="cp-new"/></div>
+          <div class="field" style="margin-bottom:10px"><label>Confirm</label><input type="password" id="cp-new2"/></div>
+          <button class="btn btn-sm btn-accent" onclick="changePassword()"><i class="ti ti-check"></i> Update</button>
+          <div class="err-msg hidden" id="cp-err"><i class="ti ti-alert-circle"></i><span></span></div>
+          <div class="ok-msg hidden" id="cp-ok"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+// ═══ CRYPTO ═══
+async function sha256(str){const buf=await crypto.subtle.digest('SHA-256',new TextEncoder().encode(str));return Array.from(new Uint8Array(buf)).map(b=>b.toString(16).padStart(2,'0')).join('');}
+
+// ═══ STATE ═══
+const ADMIN_USER='WillowPichardo',ADMIN_PASS='WillowPichardo';
+let DB={users:{},problems:[],folders:[],assignments:[]};
+let S={user:null,isAdmin:false,activeFolderId:null,activeBuiltin:null,currentBuiltinProb:null,
+       folderProblems:[],folderIdx:0,editingId:null,editorVars:[],editorImg:null,
+       formEnabled:true,editingAssignId:null};
+let varCtr=0,dragSrcIdx=null;
+
+// ═══ STORAGE ═══
+async function saveDB(){try{await window.storage.set('cpdb_v5',JSON.stringify(DB));}catch(e){}}
+async function loadDB(){
+  try{const r=await window.storage.get('cpdb_v5');if(r)DB=JSON.parse(r.value);}catch(e){}
+  // migrate from v4
+  if(!DB.users||!Object.keys(DB.users).length){
+    for(const key of['cpdb_v4','cpdb_v3']){
+      try{const r=await window.storage.get(key);if(r){const d=JSON.parse(r.value);if(d.users&&Object.keys(d.users).length){DB.users=d.users;DB.problems=d.problems||[];DB.folders=d.folders||[];DB.assignments=d.assignments||[];break;}}}catch(e){}
+    }
+  }
+  if(!DB.folders)DB.folders=[];if(!DB.assignments)DB.assignments=[];if(!DB.problems)DB.problems=[];
+  // default enabled=true for existing problems that don't have the field
+  DB.problems.forEach(p=>{if(p.enabled===undefined)p.enabled=true;});
+  if(!DB.users[ADMIN_USER]){DB.users[ADMIN_USER]={passwordHash:await sha256(ADMIN_PASS),isAdmin:true,scores:{},probScores:{},streak:0,assignSubmissions:{}};await saveDB();}
+  Object.values(DB.users).forEach(u=>{if(!u.assignSubmissions)u.assignSubmissions={};});
+}
+
+// ═══ HELPERS ═══
+function rnd(v,dp=3){return parseFloat(v.toFixed(dp));}
+function rand(lo,hi,step){const s=Math.floor((hi-lo)/step);return lo+Math.floor(Math.random()*s)*step;}
+function unitForType(t){return{R:'kΩ',V:'V',I:'mA',C:'μF'}[t]||'';}
+function substituteText(tpl,vals,unitMap){return tpl.replace(/\{(\w+)\}/g,(m,n)=>vals[n]!==undefined?`${vals[n]}${unitMap[n]?' '+unitMap[n]:''}`:m);}
+
+// ═══ AUTH ═══
+let authMode='login';
+function setAuthTab(t,el){authMode=t;document.querySelectorAll('.auth-tab').forEach(b=>b.classList.remove('active'));el.classList.add('active');document.getElementById('auth-login').classList.toggle('hidden',t!=='login');document.getElementById('auth-register').classList.toggle('hidden',t!=='register');}
+function showErr(id,msg){const e=document.getElementById(id);e.querySelector('span').textContent=msg;e.classList.remove('hidden');}
+function hideErr(id){document.getElementById(id).classList.add('hidden');}
+async function doLogin(){
+  hideErr('l-err');
+  const user=document.getElementById('l-user').value.trim(),pass=document.getElementById('l-pass').value;
+  if(!user||!pass){showErr('l-err','Enter username and password.');return;}
+  const rec=DB.users[user];if(!rec){showErr('l-err','Username not found.');return;}
+  if(await sha256(pass)!==rec.passwordHash){showErr('l-err','Incorrect password.');return;}
+  S.user=user;S.isAdmin=!!rec.isAdmin;enterApp();
+}
+async function doRegister(){
+  hideErr('r-err');document.getElementById('r-ok').classList.add('hidden');
+  const user=document.getElementById('r-user').value.trim(),pass=document.getElementById('r-pass').value,pass2=document.getElementById('r-pass2').value;
+  if(!user||user.length<3){showErr('r-err','At least 3 characters.');return;}
+  if(DB.users[user]){showErr('r-err','Username taken.');return;}
+  if(pass.length<6){showErr('r-err','Password needs 6+ characters.');return;}
+  if(pass!==pass2){showErr('r-err','Passwords do not match.');return;}
+  DB.users[user]={passwordHash:await sha256(pass),isAdmin:false,scores:{},probScores:{},streak:0,assignSubmissions:{}};
+  await saveDB();document.getElementById('r-ok').textContent='Account created!';document.getElementById('r-ok').classList.remove('hidden');
+  ['r-user','r-pass','r-pass2'].forEach(id=>document.getElementById(id).value='');
+}
+function doLogout(){S.user=null;S.isAdmin=false;document.getElementById('screen-app').classList.add('hidden');document.getElementById('screen-auth').classList.remove('hidden');['l-user','l-pass'].forEach(id=>document.getElementById(id).value='');hideErr('l-err');}
+function enterApp(){
+  document.getElementById('screen-auth').classList.add('hidden');document.getElementById('screen-app').classList.remove('hidden');
+  document.getElementById('topbar-name').textContent=S.user;document.getElementById('topbar-av').textContent=S.user.slice(0,2).toUpperCase();
+  document.getElementById('navt-editor').classList.toggle('hidden',!S.isAdmin);document.getElementById('navt-admin').classList.toggle('hidden',!S.isAdmin);document.getElementById('topbar-admin-badge').classList.toggle('hidden',!S.isAdmin);
+  document.getElementById('streak-val').textContent=DB.users[S.user]?.streak||0;
+  buildPracticeSidebar();showView('practice');
+}
+function showView(v){
+  ['practice','assignments','editor','admin'].forEach(id=>{document.getElementById(`view-${id}`).classList.add('hidden');document.getElementById(`navt-${id}`)?.classList.remove('active');});
+  document.getElementById(`view-${v}`).classList.remove('hidden');document.getElementById(`navt-${v}`)?.classList.add('active');
+  if(v==='admin'){renderAnalytics();renderUserMgmt();renderGradeBtns();}
+  if(v==='editor'){showEdTab('problems',document.querySelector('.editor-top-tab'));renderPmList();renderFolderList();renderAssignAdmin();}
+  if(v==='assignments')renderStudentAssignments();
+}
+function showAdminTab(t,el){document.querySelectorAll('.admin-tab').forEach(b=>b.classList.remove('active'));el.classList.add('active');document.querySelectorAll('.admin-subtab').forEach(d=>d.classList.remove('active'));document.getElementById(`atab-${t}`).classList.add('active');}
+function showEdTab(t,el){document.querySelectorAll('.editor-top-tab').forEach(b=>b.classList.remove('active'));el.classList.add('active');document.querySelectorAll('.editor-view').forEach(v=>v.classList.remove('active'));document.getElementById(`etab-${t}`).classList.add('active');if(t==='topics')renderFolderList();if(t==='assignments'){renderAssignAdmin();renderAssignProbPicker();}if(t==='problems')renderPmList();}
+
+// ═══ BUILT-IN PROBLEMS ═══
+/*const BUILTIN={kvl:{label:'KVL / KCL',icon:'ti-current-ac'},divider:{label:'Voltage divider',icon:'ti-circuit-voltmeter'},thevenin:{label:'Thévenin / Norton',icon:'ti-circuit-resistor'},nodal:{label:'Nodal analysis',icon:'ti-topology-star'}};
+function genBuiltin(key){
+  const vs=rand(6,24,3),r1=rand(1,8,1),r2=rand(1,8,1),r3=rand(1,8,1),is=rand(2,10,2);
+  if(key==='kvl'){const vr2=rnd(vs/(r1+r2+r3)*r2,3);return{id:`bi-kvl`,title:'Find V across R2',topicKey:'kvl',tags:['KVL'],question:`R1, R2, R3 in series with ${vs} V. R1=${r1} kΩ, R2=${r2} kΩ, R3=${r3} kΩ. Find V across R2.`,hint:`I=${vs}/${r1+r2+r3}=${rnd(vs/(r1+r2+r3),3)} mA. V=I×R2.`,answer:vr2,unit:'V',tol:0.02,circuit:svgSeries(vs,r1,r2,r3)};}
+  if(key==='divider'){const vout=rnd(vs*r2/(r1+r2),3);return{id:`bi-div`,title:'Find Vout',topicKey:'divider',tags:['Voltage divider'],question:`Vs=${vs} V, R1=${r1} kΩ (top), R2=${r2} kΩ (bottom). No load. Find Vout.`,hint:`Vout=Vs×R2/(R1+R2)`,answer:vout,unit:'V',tol:0.02,circuit:svgDivider(vs,r1,r2)};}
+  if(key==='thevenin'){const vth=rnd(vs*r2/(r1+r2),3);return{id:`bi-the`,title:'Find Vth at A-B',topicKey:'thevenin',tags:['Thévenin'],question:`Vs=${vs} V, R1=${r1} kΩ series, R2=${r2} kΩ shunt. Find Vth.`,hint:`Vth=Vs×R2/(R1+R2). Rth=R1∥R2=${rnd(r1*r2/(r1+r2),2)} kΩ.`,answer:vth,unit:'V',tol:0.02,circuit:svgThevenin(vs,r1,r2)};}
+  if(key==='nodal'){const v1=rnd(is*r1*r2/(r1+r2),3);return{id:`bi-nod`,title:'Find node voltage V1',topicKey:'nodal',tags:['Nodal'],question:`Is=${is} mA drives R1=${r1} kΩ and R2=${r2} kΩ in parallel to ground. Find V1.`,hint:`V1=Is×R1∥R2`,answer:v1,unit:'V',tol:0.02,circuit:svgNodal(is,r1,r2)};}
+}
+function svgBase(b,w=310,h=100){return `<svg viewBox="0 0 ${w} ${h}" width="${w}" height="${h}" xmlns="http://www.w3.org/2000/svg"><style>.w{stroke:#5a4490;stroke-width:1.5;fill:none}.c{stroke:#7c5fc0;stroke-width:1.2;fill:#1a1430}.lb{font-size:10px;fill:#b8a8e8;text-anchor:middle;font-family:'IBM Plex Mono',monospace}.hi{fill:#fbbf24;font-size:9px;text-anchor:middle;font-family:'IBM Plex Mono',monospace}.nd{fill:#9d7de8}</style>${b}</svg>`;}
+function svgSeries(vs,r1,r2,r3){return svgBase(`<line x1="26" y1="20" x2="26" y2="84" class="w"/><line x1="26" y1="20" x2="288" y2="20" class="w"/><line x1="288" y1="20" x2="288" y2="84" class="w"/><line x1="26" y1="84" x2="288" y2="84" class="w"/><circle cx="26" cy="52" r="13" class="c"/><text x="26" y="55" class="lb" style="fill:#ede8ff">${vs}V</text><rect x="46" y="13" width="54" height="14" rx="3" class="c"/><text x="73" y="11" class="lb">${r1}kΩ</text><rect x="118" y="13" width="54" height="14" rx="3" style="stroke:#c4a8ff;stroke-width:1.2;fill:#1a1430"/><text x="145" y="11" class="lb" style="fill:#c4a8ff">${r2}kΩ</text><rect x="190" y="13" width="54" height="14" rx="3" class="c"/><text x="217" y="11" class="lb">${r3}kΩ</text><text x="145" y="97" class="hi">V=?</text>`,310,100);}
+function svgDivider(vs,r1,r2){return svgBase(`<line x1="36" y1="16" x2="150" y2="16" class="w"/><line x1="36" y1="16" x2="36" y2="84" class="w"/><line x1="36" y1="84" x2="150" y2="84" class="w"/><circle cx="36" cy="50" r="13" class="c"/><text x="36" y="53" class="lb" style="fill:#ede8ff">${vs}V</text><line x1="150" y1="16" x2="150" y2="32" class="w"/><rect x="130" y="32" width="40" height="14" rx="3" class="c"/><text x="150" y="30" class="lb">${r1}kΩ</text><line x1="150" y1="46" x2="150" y2="62" class="w"/><rect x="130" y="62" width="40" height="14" rx="3" style="stroke:#c4a8ff;stroke-width:1.2;fill:#1a1430"/><text x="150" y="60" class="lb" style="fill:#c4a8ff">${r2}kΩ</text><line x1="150" y1="76" x2="150" y2="84" class="w"/><circle cx="150" cy="62" r="3" class="nd"/><text x="183" y="66" class="hi">Vout=?</text><line x1="168" y1="62" x2="180" y2="62" class="w" style="stroke-dasharray:3,2"/>`,220,100);}
+function svgThevenin(vs,r1,r2){return svgBase(`<line x1="26" y1="20" x2="26" y2="84" class="w"/><line x1="26" y1="20" x2="66" y2="20" class="w"/><circle cx="26" cy="52" r="13" class="c"/><text x="26" y="55" class="lb" style="fill:#ede8ff">${vs}V</text><line x1="66" y1="20" x2="66" y2="34" class="w"/><rect x="46" y="34" width="40" height="14" rx="3" class="c"/><text x="66" y="32" class="lb">${r1}kΩ</text><line x1="66" y1="48" x2="66" y2="62" class="w"/><rect x="46" y="62" width="40" height="14" rx="3" style="stroke:#c4a8ff;stroke-width:1.2;fill:#1a1430"/><text x="66" y="60" class="lb" style="fill:#c4a8ff">${r2}kΩ</text><line x1="66" y1="76" x2="66" y2="84" class="w"/><line x1="26" y1="84" x2="180" y2="84" class="w"/><line x1="66" y1="20" x2="180" y2="20" class="w"/><circle cx="180" cy="20" r="3" class="nd"/><circle cx="180" cy="84" r="3" class="nd"/><text x="191" y="23" style="font-size:11px;fill:#9d7de8;font-family:'IBM Plex Mono'">A</text><text x="191" y="87" style="font-size:11px;fill:#9d7de8;font-family:'IBM Plex Mono'">B</text><text x="215" y="55" class="hi">Vth=?</text>`,240,100);}
+function svgNodal(is,r1,r2){return svgBase(`<line x1="34" y1="20" x2="34" y2="84" class="w"/><circle cx="34" cy="52" r="16" class="c"/><text x="34" y="48" class="lb" style="fill:#ede8ff;font-size:9px">${is}mA↑</text><line x1="34" y1="20" x2="190" y2="20" class="w"/><line x1="34" y1="84" x2="190" y2="84" class="w"/><line x1="105" y1="20" x2="105" y2="34" class="w"/><rect x="85" y="34" width="40" height="14" rx="3" class="c"/><text x="105" y="32" class="lb">${r1}kΩ</text><line x1="105" y1="48" x2="105" y2="84" class="w"/><line x1="190" y1="20" x2="190" y2="34" class="w"/><rect x="170" y="34" width="40" height="14" rx="3" class="c"/><text x="190" y="32" class="lb">${r2}kΩ</text><line x1="190" y1="48" x2="190" y2="84" class="w"/><circle cx="190" cy="20" r="3" class="nd"/><text x="204" y="23" class="hi">V1=?</text>`,240,100);}
+*/
+
+// ═══ PRACTICE SIDEBAR ═══
+// Only enabled problems appear in free practice
+function buildPracticeSidebar(){
+  const sb=document.getElementById('practice-sidebar');sb.innerHTML='';
+  const lbl=t=>{const el=document.createElement('div');el.className='sidebar-label';el.textContent=t;sb.appendChild(el);};
+  lbl('Built-in topics');
+  Object.entries(BUILTIN).forEach(([key,meta])=>{
+    const btn=document.createElement('button');btn.className='sb-btn';btn.dataset.key=key;
+    btn.innerHTML=`<i class="ti ${meta.icon}"></i>${meta.label}<span class="sb-score" id="sc-${key}">—</span>`;
+    btn.onclick=()=>loadBuiltinPractice(key,btn);sb.appendChild(btn);
+  });
+  // Only folders that have at least one ENABLED problem
+  const foldersWithEnabled=DB.folders.filter(f=>f.problemIds.some(pid=>{const p=DB.problems.find(pr=>pr.id===pid);return p&&p.enabled!==false;}));
+  if(foldersWithEnabled.length){
+    lbl('Topic folders');
+    foldersWithEnabled.forEach(f=>{
+      const fold=document.createElement('div');fold.className='sb-folder';
+      const head=document.createElement('button');head.className='sb-folder-head';
+      head.innerHTML=`<i class="ti ti-folder" style="font-size:13px;color:var(--text4)"></i>${f.name}<i class="ti ti-chevron-right" style="font-size:11px;margin-left:auto;color:var(--text4)" id="fchev-${f.id}"></i>`;
+      const children=document.createElement('div');children.className='sb-folder-children';children.style.display='none';
+      head.onclick=()=>{const open=children.style.display==='none';children.style.display=open?'flex':'none';document.getElementById(`fchev-${f.id}`).style.transform=open?'rotate(90deg)':'';};
+      fold.appendChild(head);
+      // Only enabled problems within folder
+      f.problemIds.forEach(pid=>{
+        const p=DB.problems.find(pr=>pr.id===pid);
+        if(!p||p.enabled===false)return; // skip disabled
+        const btn=document.createElement('button');btn.className='sb-child-btn';btn.dataset.pid=pid;
+        btn.innerHTML=`<i class="ti ti-circle" style="font-size:8px"></i>${p.title}`;
+        btn.onclick=()=>loadFolderPractice(f.id,pid,btn);
+        children.appendChild(btn);
+      });
+      fold.appendChild(children);sb.appendChild(fold);
+    });
+  }
+  refreshSidebarScores();
+  sb.querySelector('.sb-btn')?.click();
+}
+
+function refreshSidebarScores(){
+  const u=DB.users[S.user];if(!u)return;
+  Object.keys(BUILTIN).forEach(k=>{const el=document.getElementById(`sc-${k}`);if(!el)return;const sc=u.scores[k];if(sc?.attempted){el.textContent=`${sc.correct}/${sc.attempted}`;el.className='sb-score ok';}});
+}
+
+// ═══ PRACTICE — BUILTIN ═══
+function loadBuiltinPractice(key,btn){
+  S.activeBuiltin=key;S.activeFolderId=null;
+  document.querySelectorAll('.sb-btn,.sb-child-btn').forEach(b=>b.classList.remove('active'));btn?.classList.add('active');
+  S.currentBuiltinProb=genBuiltin(key);renderSingleProblem(S.currentBuiltinProb,true,false);
+}
+function shuffleBuiltin(){S.currentBuiltinProb=genBuiltin(S.activeBuiltin);renderSingleProblem(S.currentBuiltinProb,true,false);}
+
+// ═══ PRACTICE — FOLDER (one-at-a-time) ═══
+function loadFolderPractice(folderId,startPid,btn){
+  const folder=DB.folders.find(f=>f.id===folderId);if(!folder)return;
+  // Only enabled problems
+  const enabledIds=folder.problemIds.filter(pid=>{const p=DB.problems.find(pr=>pr.id===pid);return p&&p.enabled!==false;});
+  if(!enabledIds.length)return;
+  S.activeFolderId=folderId;S.activeBuiltin=null;
+  S.folderProblems=enabledIds.map(pid=>{const p=DB.problems.find(pr=>pr.id===pid);return p?genAuthoredVariant(p):null;}).filter(Boolean);
+  S.folderIdx=Math.max(0,enabledIds.indexOf(startPid));
+  document.querySelectorAll('.sb-btn,.sb-child-btn').forEach(b=>b.classList.remove('active'));btn?.classList.add('active');
+  renderFolderProblem();
+}
+function renderFolderProblem(){
+  const p=S.folderProblems[S.folderIdx];if(!p)return;
+  const folder=DB.folders.find(f=>f.id===S.activeFolderId);
+  const n=S.folderProblems.length,i=S.folderIdx;
+  const main=document.getElementById('practice-main');main.innerHTML='';
+  const pane=document.createElement('div');pane.className='practice-pane';
+  pane.innerHTML=`<div><div class="topic-title">${folder?.name||'Problems'}</div><div class="topic-sub">${n} problem${n!==1?'s':''} in this folder</div></div>
+  <div class="prob-progress">
+    <div class="prog-track"><div class="prog-fill" style="width:${n>1?(i/(n-1))*100:100}%"></div></div>
+    <span class="prog-label">${i+1} / ${n}</span>
+    <div class="nav-arrows">
+      <button class="btn btn-sm" onclick="folderNav(-1)" ${i===0?'disabled style="opacity:.3"':''}><i class="ti ti-chevron-left"></i></button>
+      <button class="btn btn-sm" onclick="folderNav(1)" ${i===n-1?'disabled style="opacity:.3"':''}><i class="ti ti-chevron-right"></i></button>
+    </div>
+  </div>`;
+  pane.appendChild(buildProbCardEl(p,false,true));main.appendChild(pane);
+}
+function folderNav(dir){S.folderIdx=Math.max(0,Math.min(S.folderProblems.length-1,S.folderIdx+dir));renderFolderProblem();}
+function shuffleFolderProb(){
+  const folder=DB.folders.find(f=>f.id===S.activeFolderId);if(!folder)return;
+  const enabledIds=folder.problemIds.filter(pid=>{const p=DB.problems.find(pr=>pr.id===pid);return p&&p.enabled!==false;});
+  const pid=enabledIds[S.folderIdx];const authored=DB.problems.find(pr=>pr.id===pid);
+  if(authored)S.folderProblems[S.folderIdx]=genAuthoredVariant(authored);renderFolderProblem();
+}
+
+// ═══ RENDER SINGLE PROBLEM (builtin) ═══
+function renderSingleProblem(p,isBuiltin,isFolder){
+  const meta=BUILTIN[S.activeBuiltin];const main=document.getElementById('practice-main');main.innerHTML='';
+  const pane=document.createElement('div');pane.className='practice-pane';
+  pane.innerHTML=`<div><div class="topic-title">${meta?.label||p.title}</div><div class="topic-sub">Numbers reshuffle on each attempt</div></div>`;
+  pane.appendChild(buildProbCardEl(p,isBuiltin,isFolder));main.appendChild(pane);
+}
+
+// ═══ PROBLEM CARD ELEMENT ═══
+function buildProbCardEl(p,isBuiltin,isFolder){
+  const card=document.createElement('div');card.className='prob-card';
+  const tags=(p.tags||[]).map(t=>`<span class="pill pill-purple">${t}</span>`).join('');
+  card.innerHTML=`<div class="prob-head"><span class="prob-title">${p.title}</span><div style="display:flex;gap:6px">${tags}</div></div>
+  <div class="prob-body">
+    <div class="circuit-wrap">${p.circuit||'<span style="font-size:12px;color:var(--text4)">No diagram</span>'}</div>
+    <p class="question-text">${p.question}</p>
+    <div class="answer-row">
+      <input class="mono" type="number" step="any" placeholder="0.000" id="main-ans" style="width:120px"/>
+      <select id="main-unit" style="width:78px">
+        <option value="1" ${p.unit==='V'?'selected':''}>V</option>
+        <option value="0.001" ${p.unit==='mV'?'selected':''}>mV</option>
+        <option value="1000" ${p.unit==='kV'?'selected':''}>kV</option>
+        <option value="1" ${p.unit==='A'?'selected':''}>A</option>
+        <option value="0.001" ${p.unit==='mA'?'selected':''}>mA</option>
+        <option value="1" ${p.unit==='Ω'?'selected':''}>Ω</option>
+        <option value="1000" ${p.unit==='kΩ'?'selected':''}>kΩ</option>
+        <option value="1" ${p.unit==='W'?'selected':''}>W</option>
+      </select>
+      <span style="font-size:12px;color:var(--text3)">${p.unit}</span>
+    </div>
+    <div class="action-row">
+      <button class="btn btn-accent btn-sm" id="main-check" onclick="checkMainAnswer()"><i class="ti ti-send"></i> Check</button>
+      ${p.hint?`<button class="btn btn-sm" onclick="toggleEl('main-hint')"><i class="ti ti-bulb"></i> Hint</button>`:''}
+      ${isBuiltin?`<button class="btn btn-sm shuffle-btn" onclick="shuffleBuiltin()"><i class="ti ti-refresh"></i> Shuffle</button>`:''}
+      ${isFolder?`<button class="btn btn-sm shuffle-btn" onclick="shuffleFolderProb()"><i class="ti ti-refresh"></i> Shuffle</button>`:''}
+      <button class="btn btn-sm" onclick="sendPrompt('Walk me through this circuits problem step by step: ${p.question.replace(/'/g,"\\'").replace(/\n/g,' ')}')"><i class="ti ti-sparkles"></i> Explain ↗</button>
+    </div>
+    <div class="feedback" id="main-fb"></div>
+    ${p.hint?`<div class="hint-box" id="main-hint">${p.hint}</div>`:''}
+  </div>`;
+  window._currentMainProb=p;return card;
+}
+function toggleEl(id){const el=document.getElementById(id);if(el)el.style.display=el.style.display==='block'?'none':'block';}
+function checkMainAnswer(){
+  const p=window._currentMainProb;if(!p)return;
+  const raw=parseFloat(document.getElementById('main-ans')?.value);const mult=parseFloat(document.getElementById('main-unit')?.value)||1;const fb=document.getElementById('main-fb');
+  if(isNaN(raw)){fb.textContent='Enter a number first.';fb.className='feedback wrong';fb.style.display='block';return;}
+  const submitted=raw*mult,tol=Math.abs(p.answer)*p.tol+0.001,ok=Math.abs(submitted-p.answer)<=tol;
+  const u=DB.users[S.user];
+  if(u&&!p._answered){p._answered=true;const key=p.topicKey||'custom';if(!u.scores[key])u.scores[key]={correct:0,attempted:0};u.scores[key].attempted++;if(ok)u.scores[key].correct++;if(ok)u.streak=(u.streak||0)+1;else u.streak=0;document.getElementById('streak-val').textContent=u.streak;saveDB();refreshSidebarScores();}
+  fb.className=`feedback ${ok?'correct':'wrong'}`;fb.innerHTML=ok?`✓ Correct! Answer: ${p.answer} ${p.unit}`:`✗ Expected ≈ ${p.answer} ${p.unit} (±${((p.tol||0.02)*100).toFixed(0)}%). Try the hint!`;fb.style.display='block';
+  const chk=document.getElementById('main-check');if(chk)chk.disabled=true;
+}
+
+// ═══ AUTHORED VARIANT GENERATOR ═══
+function genAuthoredVariant(prob){
+  if(!prob)return null;
+  const vals={};prob.vars.forEach(v=>{vals[v.name]=Math.round((parseFloat(v.min)+Math.random()*(parseFloat(v.max)-parseFloat(v.min)))*10)/10;});
+  const unitMap={};prob.vars.forEach(v=>{unitMap[v.name]=unitForType(v.type);});
+  let answer=null;try{const fn=new Function(...Object.keys(vals),`return (${prob.formula})`);answer=rnd(fn(...Object.values(vals)),4);}catch(e){}
+  return{id:prob.id,probId:prob.id,title:prob.title,topicKey:prob.topic||'Custom',tags:[prob.topic||'Custom'],
+    question:substituteText(prob.question,vals,unitMap),hint:substituteText(prob.hint||'',vals,unitMap),
+    answer,unit:prob.unit,tol:(parseFloat(prob.tol)||2)/100,circuit:prob.imgDataUrl?`<img src="${prob.imgDataUrl}" alt="Circuit"/>`:null,vals};
+}
+
+// ═══ ASSIGNMENTS — STUDENT ═══
+function renderStudentAssignments(){
+  const wrap=document.getElementById('assign-student-list');wrap.innerHTML='';
+  const now=Date.now();
+  const visible=DB.assignments.filter(a=>!a.opens||new Date(a.opens).getTime()<=now);
+  if(!visible.length){wrap.innerHTML='<div style="color:var(--text4);font-size:13px;padding:2rem;text-align:center">No assignments open right now.</div>';return;}
+  visible.forEach(a=>{
+    const due=a.due?new Date(a.due):null,isLate=due&&Date.now()>due.getTime();
+    const u=DB.users[S.user];const sub=u?.assignSubmissions?.[a.id]||{};
+    const answered=Object.keys(sub).length,total=a.problems.length;
+    const card=document.createElement('div');card.className='assign-card';
+    card.innerHTML=`<div class="assign-head" onclick="toggleAssignBody('ab-${a.id}')">
+      <span class="assign-name">${a.title}</span>
+      ${isLate?`<span class="pill pill-warn">Late</span>`:''}
+      ${answered===total&&total>0?`<span class="pill pill-green">Submitted</span>`:`<span class="pill pill-purple">${answered}/${total} done</span>`}
+      <span style="font-size:11px;color:var(--text3);font-family:var(--mono)">${due?'Due: '+due.toLocaleString():''}</span>
+      <i class="ti ti-chevron-down" style="font-size:13px;color:var(--text4)"></i>
+    </div>
+    <div class="assign-body" id="ab-${a.id}">
+      ${a.instructions?`<p style="font-size:12px;color:var(--text3);margin-bottom:10px;padding-top:4px">${a.instructions}</p>`:''}
+      <div id="assign-probs-${a.id}"></div>
+    </div>`;
+    wrap.appendChild(card);renderAssignProblems(a,card.querySelector(`#assign-probs-${a.id}`));
+  });
+}
+function toggleAssignBody(id){const el=document.getElementById(id);if(el)el.classList.toggle('open');}
+function renderAssignProblems(assign,wrap){
+  const u=DB.users[S.user];const sub=u?.assignSubmissions?.[assign.id]||{};
+  if(!window._assignVals)window._assignVals={};
+  assign.problems.forEach((ap,idx)=>{
+    // Assignments always access problems regardless of enabled state
+    const prob=DB.problems.find(p=>p.id===ap.probId);if(!prob)return;
+    const done=sub[ap.probId];const varKey=`${assign.id}-${ap.probId}`;
+    if(!window._assignVals[varKey])window._assignVals[varKey]=genAuthoredVariant(prob);
+    const p=window._assignVals[varKey];if(!p)return;
+    const row=document.createElement('div');row.style.cssText='border:0.5px solid var(--border);border-radius:var(--r2);padding:12px;margin-bottom:8px;background:var(--bg3)';
+    row.innerHTML=`<div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
+      <span style="font-size:12px;font-weight:600;color:var(--accent2)">${idx+1}. ${prob.title}</span>
+      <span style="font-size:11px;font-family:var(--mono);color:var(--text3)">${ap.points} pts</span>
+      ${done?`<span class="pill ${done.correct?'pill-green':'pill-red'}">${done.correct?'✓ Correct':'✗ Incorrect'}</span>`:''}
+      ${!done?`<button class="btn btn-sm shuffle-btn" style="margin-left:auto;padding:3px 8px" onclick="reshuffleAssignProb('${assign.id}','${ap.probId}','${varKey}')"><i class="ti ti-refresh"></i></button>`:''}
+    </div>
+    ${p.circuit?`<div class="circuit-wrap" style="margin-bottom:8px;min-height:60px">${p.circuit}</div>`:''}
+    <p style="font-size:12px;color:var(--text);margin-bottom:8px;line-height:1.7">${p.question}</p>
+    ${!done?`<div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
+      <input class="mono" type="number" step="any" placeholder="0.000" id="ai-${assign.id}-${ap.probId}" style="width:110px;padding:6px 10px;font-size:12px"/>
+      <select id="au-${assign.id}-${ap.probId}" style="width:72px;padding:6px 8px;font-size:12px">
+        <option value="1" ${p.unit==='V'?'selected':''}>V</option><option value="0.001" ${p.unit==='mV'?'selected':''}>mV</option>
+        <option value="1" ${p.unit==='A'?'selected':''}>A</option><option value="0.001" ${p.unit==='mA'?'selected':''}>mA</option>
+        <option value="1000" ${p.unit==='kΩ'?'selected':''}>kΩ</option><option value="1" ${p.unit==='Ω'?'selected':''}>Ω</option>
+      </select>
+      <button class="btn btn-sm btn-accent" onclick="submitAssignProb('${assign.id}','${ap.probId}','${varKey}')"><i class="ti ti-send"></i> Submit</button>
+      ${p.hint?`<button class="btn btn-sm" onclick="toggleEl('ahint-${assign.id}-${ap.probId}')"><i class="ti ti-bulb"></i></button>`:''}
+    </div>
+    ${p.hint?`<div class="hint-box" id="ahint-${assign.id}-${ap.probId}">${p.hint}</div>`:''}
+    <div class="feedback" id="afb-${assign.id}-${ap.probId}"></div>`
+    :`<div class="feedback ${done.correct?'correct':'wrong'}" style="display:block">${done.correct?`✓ Correct · ${done.submitted} ${p.unit}`:`✗ Your answer: ${done.submitted} ${p.unit} · Expected: ${p.answer} ${p.unit}`}</div>`}`;
+    wrap.appendChild(row);
+  });
+}
+function reshuffleAssignProb(assignId,probId,varKey){const prob=DB.problems.find(p=>p.id===probId);if(!prob)return;window._assignVals[varKey]=genAuthoredVariant(prob);renderStudentAssignments();}
+async function submitAssignProb(assignId,probId,varKey){
+  const p=window._assignVals[varKey];if(!p)return;
+  const raw=parseFloat(document.getElementById(`ai-${assignId}-${probId}`)?.value);const mult=parseFloat(document.getElementById(`au-${assignId}-${probId}`)?.value)||1;
+  if(isNaN(raw)){const fb=document.getElementById(`afb-${assignId}-${probId}`);if(fb){fb.textContent='Enter a number.';fb.className='feedback wrong';fb.style.display='block';}return;}
+  const submitted=raw*mult,tol=Math.abs(p.answer)*p.tol+0.001,correct=Math.abs(submitted-p.answer)<=tol;
+  const u=DB.users[S.user];if(!u.assignSubmissions)u.assignSubmissions={};if(!u.assignSubmissions[assignId])u.assignSubmissions[assignId]={};
+  const assign=DB.assignments.find(a=>a.id===assignId);const due=assign?.due?new Date(assign.due):null;const isLate=due&&Date.now()>due.getTime();
+  u.assignSubmissions[assignId][probId]={correct,submitted:rnd(submitted,4),answer:p.answer,timestamp:Date.now(),late:isLate};
+  await saveDB();renderStudentAssignments();
+}
+
+// ═══ EDITOR — ENABLE TOGGLE ═══
+function toggleFormEnable(){
+  S.formEnabled=!S.formEnabled;
+  const track=document.getElementById('form-toggle-track');const lbl=document.getElementById('form-toggle-label');
+  track.classList.toggle('on',S.formEnabled);lbl.textContent=S.formEnabled?'Enabled':'Disabled';
+}
+
+// ═══ EDITOR — PROBLEM FORM ═══
+function resetForm(){
+  S.editingId=null;S.editorVars=[];S.editorImg=null;S.formEnabled=true;
+  ['e-title','e-topic','e-question','e-formula','e-hint'].forEach(id=>document.getElementById(id).value='');
+  document.getElementById('e-unit').value='V';document.getElementById('e-tol').value='2';document.getElementById('e-pts').value='10';
+  document.getElementById('var-rows').innerHTML='';document.getElementById('img-preview-wrap').innerHTML='';
+  document.getElementById('formula-preview').textContent='Formula preview';document.getElementById('editor-preview-card').textContent='Save to preview.';
+  document.getElementById('form-mode-label').textContent='New problem';
+  const track=document.getElementById('form-toggle-track');track.classList.add('on');document.getElementById('form-toggle-label').textContent='Enabled';
+  renderVarInsertChips();
+}
+function addVar(type){
+  const n={R:`R${S.editorVars.filter(v=>v.type==='R').length+1}`,V:'Vs',I:'Is',C:'C1'}[type]||'X';
+  const mn={R:'1',V:'5',I:'1',C:'1'}[type],mx={R:'10',V:'24',I:'10',C:'100'}[type];
+  S.editorVars.push({id:varCtr++,name:n,type,min:mn,max:mx});renderVarRows();renderVarInsertChips();
+}
+function renderVarRows(){
+  const wrap=document.getElementById('var-rows');wrap.innerHTML='';
+  S.editorVars.forEach((v,i)=>{
+    const ul={R:'kΩ',V:'V',I:'mA',C:'μF'}[v.type]||'';
+    const row=document.createElement('div');row.className='var-row';
+    row.innerHTML=`<div><label>Name</label><input type="text" value="${v.name}" oninput="S.editorVars[${i}].name=this.value;renderVarInsertChips();previewFormula()"/></div>
+      <div><label>Unit</label><input type="text" value="${ul}" readonly style="color:var(--text4)"/></div>
+      <div><label>Min</label><input type="number" value="${v.min}" oninput="S.editorVars[${i}].min=this.value"/></div>
+      <div><label>Max</label><input type="number" value="${v.max}" oninput="S.editorVars[${i}].max=this.value"/></div>
+      <button class="remove-var" onclick="S.editorVars.splice(${i},1);renderVarRows();renderVarInsertChips();previewFormula()"><i class="ti ti-x"></i></button>`;
+    wrap.appendChild(row);
+  });
+}
+function renderVarInsertChips(){
+  const wrap=document.getElementById('var-insert-chips');wrap.innerHTML='';
+  S.editorVars.forEach(v=>{
+    const btn=document.createElement('button');btn.className='var-chip-btn';btn.textContent=`{${v.name}}`;
+    btn.onclick=()=>{const ta=document.getElementById('e-question');const s=ta.selectionStart,e=ta.selectionEnd,ins=`{${v.name}}`;ta.value=ta.value.slice(0,s)+ins+ta.value.slice(e);ta.focus();ta.selectionStart=ta.selectionEnd=s+ins.length;};
+    wrap.appendChild(btn);
+  });
+  if(!S.editorVars.length){const n=document.createElement('span');n.style.cssText='font-size:11px;color:var(--text4)';n.textContent='Add variables to see insert buttons.';wrap.appendChild(n);}
+}
+function previewFormula(){
+  const formula=document.getElementById('e-formula').value.trim(),prev=document.getElementById('formula-preview');
+  if(!formula){prev.textContent='Formula preview';return;}
+  const vals={};S.editorVars.forEach(v=>{vals[v.name]=(parseFloat(v.min)+parseFloat(v.max))/2;});
+  try{const fn=new Function(...Object.keys(vals),`return (${formula})`);const res=fn(...Object.values(vals));prev.textContent=`Preview: ${S.editorVars.map(v=>`${v.name}=${vals[v.name]}`).join(', ')||'no vars'} → ${rnd(res,4)} ${document.getElementById('e-unit').value}`;}
+  catch(e){prev.textContent=`⚠ ${e.message}`;}
+}
+function handleImg(e){const file=e.target.files[0];if(!file)return;const reader=new FileReader();reader.onload=ev=>{S.editorImg=ev.target.result;document.getElementById('img-preview-wrap').innerHTML=`<img src="${ev.target.result}" class="img-thumb" alt="Circuit"/>`;};reader.readAsDataURL(file);}
+function clearImg(){S.editorImg=null;document.getElementById('img-preview-wrap').innerHTML='';}
+function saveProblem(){
+  const title=document.getElementById('e-title').value.trim(),question=document.getElementById('e-question').value.trim(),formula=document.getElementById('e-formula').value.trim();
+  if(!title||!question||!formula){alert('Title, Question and Formula are required.');return;}
+  const prob={id:S.editingId||`prob-${Date.now()}`,title,topic:document.getElementById('e-topic').value.trim(),question,formula,
+    vars:S.editorVars.map(v=>({...v})),unit:document.getElementById('e-unit').value,tol:document.getElementById('e-tol').value,
+    defaultPts:parseInt(document.getElementById('e-pts').value)||10,hint:document.getElementById('e-hint').value,
+    imgDataUrl:S.editorImg||null,enabled:S.formEnabled};
+  const idx=DB.problems.findIndex(p=>p.id===prob.id);
+  if(idx>=0)DB.problems[idx]=prob;else DB.problems.push(prob);
+  S.editingId=prob.id;document.getElementById('form-mode-label').textContent=`Editing: ${prob.title}`;
+  saveDB();buildPracticeSidebar();renderPmList();renderFolderList();
+  const v=genAuthoredVariant(prob),wrap=document.getElementById('editor-preview-card');
+  if(!v){wrap.textContent='Check formula.';return;}
+  wrap.innerHTML=`<div style="background:var(--bg3);border:0.5px solid var(--border);border-radius:var(--r2);padding:10px;font-size:12px">
+    <div style="display:flex;align-items:center;gap:6px;margin-bottom:6px">
+      <span style="font-family:var(--font-display);font-size:12px;color:var(--accent2)">${prob.title}</span>
+      ${!prob.enabled?`<span class="pill pill-disabled">hidden from practice</span>`:`<span class="pill pill-green">visible</span>`}
+    </div>
+    ${prob.imgDataUrl?`<img src="${prob.imgDataUrl}" style="max-width:100%;max-height:80px;border-radius:4px;margin-bottom:6px;display:block"/>`:''}
+    <p style="color:var(--text);line-height:1.6;margin-bottom:6px">${v.question}</p>
+    <div style="font-family:var(--mono);font-size:10px;color:var(--text4)">Answer: ${v.answer!==null?v.answer+' '+prob.unit:'⚠ error'}</div>
+  </div>`;
+  alert(`"${prob.title}" saved!`);
+}
+function loadProbToForm(prob){
+  S.editingId=prob.id;S.editorVars=prob.vars.map(v=>({...v}));S.editorImg=prob.imgDataUrl||null;S.formEnabled=prob.enabled!==false;
+  document.getElementById('e-title').value=prob.title||'';document.getElementById('e-topic').value=prob.topic||'';
+  document.getElementById('e-question').value=prob.question||'';document.getElementById('e-formula').value=prob.formula||'';
+  document.getElementById('e-hint').value=prob.hint||'';document.getElementById('e-unit').value=prob.unit||'V';
+  document.getElementById('e-tol').value=prob.tol||'2';document.getElementById('e-pts').value=prob.defaultPts||10;
+  document.getElementById('img-preview-wrap').innerHTML=prob.imgDataUrl?`<img src="${prob.imgDataUrl}" class="img-thumb" alt="Circuit"/>`:'';
+  document.getElementById('form-mode-label').textContent=`Editing: ${prob.title}`;
+  const track=document.getElementById('form-toggle-track');track.classList.toggle('on',S.formEnabled);document.getElementById('form-toggle-label').textContent=S.formEnabled?'Enabled':'Disabled';
+  renderVarRows();renderVarInsertChips();previewFormula();showEdTab('problems',document.querySelector('.editor-top-tab'));
+}
+
+// ═══ PROBLEM MANAGER ═══
+function renderPmList(){
+  const list=document.getElementById('pm-list'),empty=document.getElementById('pm-empty');
+  const total=DB.problems.length,enabled=DB.problems.filter(p=>p.enabled!==false).length;
+  document.getElementById('prob-count-badge').textContent=`(${total})`;
+  document.getElementById('enabled-count').textContent=`${enabled} enabled · ${total-enabled} hidden`;
+  list.innerHTML='';empty.style.display=total?'none':'block';
+  DB.problems.forEach((p,i)=>{
+    const isEnabled=p.enabled!==false;
+    const row=document.createElement('div');row.className=`pm-row${isEnabled?'':' disabled-row'}`;row.draggable=true;row.dataset.idx=i;
+    row.innerHTML=`<div class="pm-drag-handle"><i class="ti ti-grip-vertical"></i></div>
+      <div class="pm-row-body">
+        <div class="pm-row-title">${p.title}</div>
+        <div class="pm-row-meta">${p.topic||'—'} · ${p.vars.length} vars${!isEnabled?' · <span style="color:var(--text4)">hidden</span>':''}</div>
+      </div>
+      <div class="pm-row-actions">
+        <!-- Inline enable toggle -->
+        <div class="enable-toggle" onclick="event.stopPropagation();quickToggleEnabled('${p.id}')" title="${isEnabled?'Disable':'Enable'} for free practice">
+          <div class="toggle-track ${isEnabled?'on':''}"><div class="toggle-thumb"></div></div>
+        </div>
+        <button class="pm-icon-btn" title="Up" onclick="event.stopPropagation();moveProb(${i},-1)" ${i===0?'disabled style="opacity:.3"':''}><i class="ti ti-chevron-up"></i></button>
+        <button class="pm-icon-btn" title="Down" onclick="event.stopPropagation();moveProb(${i},1)" ${i===DB.problems.length-1?'disabled style="opacity:.3"':''}><i class="ti ti-chevron-down"></i></button>
+        <button class="pm-icon-btn" title="Duplicate" onclick="event.stopPropagation();duplicateProb(${i})"><i class="ti ti-copy"></i></button>
+        <button class="pm-icon-btn del" title="Delete" onclick="event.stopPropagation();deleteProb('${p.id}')"><i class="ti ti-trash"></i></button>
+      </div>`;
+    row.onclick=()=>loadProbToForm(p);
+    row.addEventListener('dragstart',e=>{dragSrcIdx=i;row.classList.add('dragging');e.dataTransfer.effectAllowed='move';});
+    row.addEventListener('dragend',()=>{row.classList.remove('dragging');document.querySelectorAll('.pm-row').forEach(r=>r.classList.remove('drag-over'));});
+    row.addEventListener('dragover',e=>{e.preventDefault();row.classList.add('drag-over');});
+    row.addEventListener('dragleave',()=>row.classList.remove('drag-over'));
+    row.addEventListener('drop',e=>{e.preventDefault();row.classList.remove('drag-over');if(dragSrcIdx===null||dragSrcIdx===i)return;const m=DB.problems.splice(dragSrcIdx,1)[0];DB.problems.splice(i,0,m);dragSrcIdx=null;saveDB();renderPmList();});
+    list.appendChild(row);
+  });
+}
+function quickToggleEnabled(id){
+  const prob=DB.problems.find(p=>p.id===id);if(!prob)return;
+  prob.enabled=prob.enabled===false?true:false;
+  saveDB();renderPmList();buildPracticeSidebar();renderFolderList();
+  // sync form toggle if this problem is currently loaded
+  if(S.editingId===id){S.formEnabled=prob.enabled;const track=document.getElementById('form-toggle-track');if(track){track.classList.toggle('on',prob.enabled);document.getElementById('form-toggle-label').textContent=prob.enabled?'Enabled':'Disabled';}}
+}
+function moveProb(i,d){const n=i+d;if(n<0||n>=DB.problems.length)return;[DB.problems[i],DB.problems[n]]=[DB.problems[n],DB.problems[i]];saveDB();renderPmList();}
+function duplicateProb(i){const o=DB.problems[i];const c={...o,vars:o.vars.map(v=>({...v})),id:`prob-${Date.now()}`,title:`${o.title} (copy)`,enabled:o.enabled};DB.problems.splice(i+1,0,c);saveDB();renderPmList();buildPracticeSidebar();}
+function deleteProb(id){if(!confirm('Delete this problem?'))return;DB.problems=DB.problems.filter(p=>p.id!==id);DB.folders.forEach(f=>{f.problemIds=f.problemIds.filter(pid=>pid!==id);});saveDB();renderPmList();renderFolderList();buildPracticeSidebar();}
+
+// ═══ TOPIC FOLDERS ═══
+function createFolder(){const name=document.getElementById('new-folder-name').value.trim();if(!name)return;DB.folders.push({id:`folder-${Date.now()}`,name,problemIds:[]});document.getElementById('new-folder-name').value='';saveDB();renderFolderList();buildPracticeSidebar();}
+function renderFolderList(){
+  const list=document.getElementById('folder-list'),empty=document.getElementById('folder-empty');
+  list.innerHTML='';empty.style.display=DB.folders.length?'none':'block';
+  DB.folders.forEach(f=>{
+    const card=document.createElement('div');card.className='folder-card';
+    card.innerHTML=`<div class="folder-head">
+      <span class="folder-name"><i class="ti ti-folder" style="font-size:13px;margin-right:6px;color:var(--text3)"></i>${f.name}</span>
+      <span style="font-size:11px;color:var(--text3);font-family:var(--mono)">${f.problemIds.length} problem${f.problemIds.length!==1?'s':''}</span>
+      <button class="btn btn-sm btn-red" style="margin-left:10px" onclick="deleteFolder('${f.id}')"><i class="ti ti-trash"></i></button>
+    </div>
+    <div style="padding:8px 14px;display:flex;flex-wrap:wrap;gap:6px">
+      ${f.problemIds.map(pid=>{
+        const p=DB.problems.find(pr=>pr.id===pid);if(!p)return'';
+        const isEnabled=p.enabled!==false;
+        return `<span class="folder-prob-chip" style="${!isEnabled?'opacity:.5':''}">${p.title}${!isEnabled?' <span style="font-size:9px;color:var(--text4)">(hidden)</span>':''}<button onclick="removeProbFromFolder('${f.id}','${pid}')"><i class="ti ti-x"></i></button></span>`;
+      }).join('')}
+      ${!f.problemIds.length?`<span style="font-size:11px;color:var(--text4)">No problems yet.</span>`:''}
+    </div>
+    <div class="add-to-folder-row">
+      <select id="fp-sel-${f.id}"><option value="">— add a problem —</option>
+        ${DB.problems.filter(p=>!f.problemIds.includes(p.id)).map(p=>`<option value="${p.id}">${p.title}${p.enabled===false?' (hidden)':''}</option>`).join('')}
+      </select>
+      <button class="btn btn-sm btn-accent" onclick="addProbToFolder('${f.id}')"><i class="ti ti-plus"></i> Add</button>
+    </div>`;
+    list.appendChild(card);
+  });
+}
+function addProbToFolder(folderId){const sel=document.getElementById(`fp-sel-${folderId}`);const pid=sel?.value;if(!pid)return;const folder=DB.folders.find(f=>f.id===folderId);if(!folder||folder.problemIds.includes(pid))return;folder.problemIds.push(pid);saveDB();renderFolderList();buildPracticeSidebar();}
+function removeProbFromFolder(folderId,probId){const folder=DB.folders.find(f=>f.id===folderId);if(!folder)return;folder.problemIds=folder.problemIds.filter(pid=>pid!==probId);saveDB();renderFolderList();buildPracticeSidebar();}
+function deleteFolder(id){if(!confirm('Delete this folder?'))return;DB.folders=DB.folders.filter(f=>f.id!==id);saveDB();renderFolderList();buildPracticeSidebar();}
+
+// ═══ ASSIGNMENTS — ADMIN ═══
+function renderAssignProbPicker(){
+  const wrap=document.getElementById('assign-prob-picker');wrap.innerHTML='';
+  if(!DB.problems.length){wrap.innerHTML='<div style="color:var(--text4);font-size:12px">No problems yet.</div>';return;}
+  DB.problems.forEach(p=>{
+    const row=document.createElement('div');row.className='assign-prob-picker-row';
+    const existing=S.editingAssignId?DB.assignments.find(a=>a.id===S.editingAssignId)?.problems.find(ap=>ap.probId===p.id):null;
+    const isHidden=p.enabled===false;
+    row.innerHTML=`<label>
+      <input type="checkbox" id="apc-${p.id}" style="width:auto" ${existing?'checked':''}/>
+      ${p.title} ${isHidden?'<span class="pill pill-disabled" style="font-size:9px">hidden from practice</span>':''}
+    </label>
+    <input class="assign-pts-input" type="number" id="appts-${p.id}" value="${existing?.points||p.defaultPts||10}" min="1" max="100"/>`;
+    wrap.appendChild(row);
+  });
+}
+function newAssignment(){S.editingAssignId=null;['as-title','as-instructions','as-open','as-due'].forEach(id=>document.getElementById(id).value='');renderAssignProbPicker();}
+function saveAssignment(){
+  const title=document.getElementById('as-title').value.trim();if(!title){alert('Enter a title.');return;}
+  const problems=DB.problems.filter(p=>document.getElementById(`apc-${p.id}`)?.checked).map(p=>({probId:p.id,points:parseInt(document.getElementById(`appts-${p.id}`)?.value)||10}));
+  const assign={id:S.editingAssignId||`assign-${Date.now()}`,title,instructions:document.getElementById('as-instructions').value,
+    opens:document.getElementById('as-open').value,due:document.getElementById('as-due').value,problems};
+  const idx=DB.assignments.findIndex(a=>a.id===assign.id);if(idx>=0)DB.assignments[idx]=assign;else DB.assignments.push(assign);
+  S.editingAssignId=assign.id;saveDB();renderAssignAdmin();
+  const ok=document.getElementById('as-ok');ok.textContent='Saved!';ok.classList.remove('hidden');setTimeout(()=>ok.classList.add('hidden'),2000);
+}
+function renderAssignAdmin(){
+  const list=document.getElementById('assign-admin-list'),empty=document.getElementById('assign-admin-empty');
+  list.innerHTML='';empty.style.display=DB.assignments.length?'none':'block';
+  DB.assignments.forEach(a=>{
+    const item=document.createElement('div');item.style.cssText='background:var(--bg3);border:0.5px solid var(--border);border-radius:var(--r2);padding:10px;margin-bottom:8px';
+    item.innerHTML=`<div style="font-family:var(--font-display);font-size:12px;color:var(--accent2);margin-bottom:4px">${a.title}</div>
+      <div style="font-size:11px;color:var(--text3);font-family:var(--mono);margin-bottom:8px">Due: ${a.due?new Date(a.due).toLocaleString():'—'} · ${a.problems.length} problems</div>
+      <div style="display:flex;gap:6px">
+        <button class="btn btn-sm" onclick="loadAssignToEditor('${a.id}')"><i class="ti ti-edit"></i> Edit</button>
+        <button class="btn btn-sm btn-red" onclick="deleteAssignment('${a.id}')"><i class="ti ti-trash"></i></button>
+      </div>`;
+    list.appendChild(item);
+  });
+}
+function loadAssignToEditor(id){
+  const a=DB.assignments.find(a=>a.id===id);if(!a)return;S.editingAssignId=id;
+  document.getElementById('as-title').value=a.title||'';document.getElementById('as-instructions').value=a.instructions||'';
+  document.getElementById('as-open').value=a.opens||'';document.getElementById('as-due').value=a.due||'';
+  renderAssignProbPicker();a.problems.forEach(ap=>{const cb=document.getElementById(`apc-${ap.probId}`);if(cb)cb.checked=true;const pts=document.getElementById(`appts-${ap.probId}`);if(pts)pts.value=ap.points;});
+}
+function deleteAssignment(id){if(!confirm('Delete this assignment?'))return;DB.assignments=DB.assignments.filter(a=>a.id!==id);saveDB();renderAssignAdmin();}
+
+// ═══ ADMIN — ANALYTICS ═══
+function renderAnalytics(){
+  const users=Object.entries(DB.users);
+  const allAtt=users.reduce((s,[,u])=>s+Object.values(u.scores||{}).reduce((a,v)=>a+v.attempted,0),0);
+  const allCor=users.reduce((s,[,u])=>s+Object.values(u.scores||{}).reduce((a,v)=>a+v.correct,0),0);
+  const acc=allAtt?Math.round(allCor/allAtt*100):0;
+  const enabled=DB.problems.filter(p=>p.enabled!==false).length;
+  document.getElementById('dash-metrics').innerHTML=`
+    <div class="metric-card"><div class="metric-label">Students</div><div class="metric-value">${users.filter(([,u])=>!u.isAdmin).length}</div></div>
+    <div class="metric-card"><div class="metric-label">Total attempts</div><div class="metric-value">${allAtt}</div></div>
+    <div class="metric-card"><div class="metric-label">Class accuracy</div><div class="metric-value" style="color:${acc>=70?'var(--green)':acc>=50?'var(--warn)':'var(--red)'}">${acc}%</div></div>
+    <div class="metric-card"><div class="metric-label">Problems</div><div class="metric-value">${enabled}<span style="font-size:14px;color:var(--text4)">/${DB.problems.length}</span></div><div class="metric-sub">enabled / total</div></div>`;
+  const stb=document.getElementById('dt-students');stb.innerHTML='';
+  if(!users.length){stb.innerHTML='<tr><td colspan="5" style="color:var(--text4)">No users.</td></tr>';}
+  users.sort((a,b)=>Object.values(b[1].scores||{}).reduce((s,v)=>s+v.attempted,0)-Object.values(a[1].scores||{}).reduce((s,v)=>s+v.attempted,0))
+  .forEach(([name,u])=>{
+    const tot=Object.values(u.scores||{}).reduce((s,v)=>s+v.attempted,0);const cor=Object.values(u.scores||{}).reduce((s,v)=>s+v.correct,0);
+    const pct=tot?Math.round(cor/tot*100):0;const col=pct>=70?'var(--green)':pct>=50?'var(--warn)':'var(--red)';
+    stb.innerHTML+=`<tr><td>${name}</td><td>${tot}</td><td><div class="acc-bar-outer"><div class="acc-bar-inner" style="width:${pct}%;background:${col}"></div></div>${pct}%</td><td>🔥${u.streak||0}</td><td>${u.isAdmin?'<span class="pill pill-admin">admin</span>':'student'}</td></tr>`;
+  });
+  const topicMap={};users.forEach(([,u])=>Object.entries(u.scores||{}).forEach(([k,sc])=>{if(!topicMap[k])topicMap[k]={correct:0,attempted:0};topicMap[k].correct+=sc.correct;topicMap[k].attempted+=sc.attempted;}));
+  const tb=document.getElementById('dt-topics');tb.innerHTML='';
+  Object.entries(topicMap).sort((a,b)=>b[1].attempted-a[1].attempted).forEach(([k,sc])=>{
+    const pct=sc.attempted?Math.round(sc.correct/sc.attempted*100):0;const col=pct>=70?'var(--green)':pct>=50?'var(--warn)':'var(--red)';
+    tb.innerHTML+=`<tr><td>${BUILTIN[k]?.label||k}</td><td>${sc.attempted}</td><td><div class="acc-bar-outer"><div class="acc-bar-inner" style="width:${pct}%;background:${col}"></div></div>${pct}%</td></tr>`;
+  });
+  if(!Object.keys(topicMap).length)tb.innerHTML='<tr><td colspan="3" style="color:var(--text4)">No data.</td></tr>';
+}
+function renderGradeBtns(){
+  const wrap=document.getElementById('grade-assign-btns');wrap.innerHTML='';document.getElementById('grade-table-wrap').innerHTML='';
+  DB.assignments.forEach(a=>{const btn=document.createElement('button');btn.className='btn btn-sm';btn.innerHTML=`<i class="ti ti-table"></i> ${a.title}`;btn.onclick=()=>renderGradeTable(a.id);wrap.appendChild(btn);});
+}
+function renderGradeTable(assignId){
+  const assign=DB.assignments.find(a=>a.id===assignId);if(!assign)return;
+  const users=Object.entries(DB.users).filter(([,u])=>!u.isAdmin);const totalPts=assign.problems.reduce((s,ap)=>s+ap.points,0);
+  let html=`<div class="dash-section"><div class="dash-head">${assign.title} — Grades</div><table class="dash-table"><thead><tr><th>Student</th>`;
+  assign.problems.forEach(ap=>{const p=DB.problems.find(pr=>pr.id===ap.probId);html+=`<th>${p?.title||ap.probId}<br/><span style="font-weight:400;color:var(--text4)">${ap.points}pts</span></th>`;});
+  html+=`<th>Score</th><th>%</th></tr></thead><tbody>`;
+  users.forEach(([name,u])=>{
+    const sub=u.assignSubmissions?.[assignId]||{};let earned=0;html+=`<tr><td>${name}</td>`;
+    assign.problems.forEach(ap=>{const s=sub[ap.probId];if(s){if(s.correct)earned+=ap.points;html+=`<td>${s.correct?`<span style="color:var(--green)">✓</span>`:`<span style="color:var(--red)">✗</span>`}${s.late?` <span class="pill pill-warn" style="font-size:9px">late</span>`:''}</td>`;}else html+=`<td style="color:var(--text4)">—</td>`;});
+    const pct=totalPts?Math.round(earned/totalPts*100):0;const col=pct>=70?'var(--green)':pct>=50?'var(--warn)':'var(--red)';
+    html+=`<td style="font-family:var(--mono)">${earned}/${totalPts}</td><td style="color:${col}">${pct}%</td></tr>`;
+  });
+  html+=`</tbody></table></div>`;document.getElementById('grade-table-wrap').innerHTML=html;
+}
+
+// ═══ ADMIN — USERS ═══
+function renderUserMgmt(){
+  const wrap=document.getElementById('user-mgmt-list');wrap.innerHTML='';
+  Object.entries(DB.users).forEach(([name,u])=>{
+    const isSelf=name===S.user;const row=document.createElement('div');row.className='user-row';
+    row.innerHTML=`<span class="un">${name}</span>
+      ${u.isAdmin?'<span class="pill pill-admin">admin</span>':'<span class="pill" style="background:rgba(255,255,255,.04);color:var(--text3)">student</span>'}
+      ${!isSelf?`<button class="btn btn-sm" onclick="toggleAdmin('${name}')"><i class="ti ${u.isAdmin?'ti-shield-off':'ti-shield-check'}"></i> ${u.isAdmin?'Remove':'Make admin'}</button>`:'<span style="font-size:11px;color:var(--text4)">(you)</span>'}
+      ${!isSelf?`<button class="btn btn-sm btn-red" onclick="deleteUser('${name}')"><i class="ti ti-trash"></i></button>`:''}`;
+    wrap.appendChild(row);
+  });
+}
+async function toggleAdmin(name){if(!DB.users[name])return;DB.users[name].isAdmin=!DB.users[name].isAdmin;await saveDB();renderUserMgmt();}
+async function deleteUser(name){if(!confirm(`Delete "${name}"?`))return;delete DB.users[name];await saveDB();renderUserMgmt();}
+async function adminCreateUser(){
+  const user=document.getElementById('mu-user').value.trim(),pass=document.getElementById('mu-pass').value,isAdmin=document.getElementById('mu-admin').checked;
+  const err=document.getElementById('mu-err'),ok=document.getElementById('mu-ok');err.classList.add('hidden');ok.classList.add('hidden');
+  if(!user){err.querySelector('span').textContent='Enter a username.';err.classList.remove('hidden');return;}
+  if(DB.users[user]){err.querySelector('span').textContent='Username exists.';err.classList.remove('hidden');return;}
+  if(pass.length<6){err.querySelector('span').textContent='6+ characters required.';err.classList.remove('hidden');return;}
+  DB.users[user]={passwordHash:await sha256(pass),isAdmin,scores:{},probScores:{},streak:0,assignSubmissions:{}};
+  await saveDB();ok.textContent=`"${user}" created.`;ok.classList.remove('hidden');
+  document.getElementById('mu-user').value='';document.getElementById('mu-pass').value='';document.getElementById('mu-admin').checked=false;renderUserMgmt();
+}
+async function changePassword(){
+  const oldP=document.getElementById('cp-old').value,newP=document.getElementById('cp-new').value,newP2=document.getElementById('cp-new2').value;
+  const err=document.getElementById('cp-err'),ok=document.getElementById('cp-ok');err.classList.add('hidden');ok.classList.add('hidden');
+  const u=DB.users[S.user];
+  if(await sha256(oldP)!==u.passwordHash){err.querySelector('span').textContent='Wrong password.';err.classList.remove('hidden');return;}
+  if(newP.length<6){err.querySelector('span').textContent='6+ characters required.';err.classList.remove('hidden');return;}
+  if(newP!==newP2){err.querySelector('span').textContent='Passwords do not match.';err.classList.remove('hidden');return;}
+  u.passwordHash=await sha256(newP);await saveDB();ok.textContent='Updated.';ok.classList.remove('hidden');
+  ['cp-old','cp-new','cp-new2'].forEach(id=>document.getElementById(id).value='');
+}
+
+// ═══ INIT ═══
+(async()=>{
+  await loadDB();
+  document.getElementById('l-pass').addEventListener('keydown',e=>{if(e.key==='Enter')doLogin();});
+  document.getElementById('l-user').addEventListener('keydown',e=>{if(e.key==='Enter')doLogin();});
+  ['r-user','r-pass','r-pass2'].forEach(id=>document.getElementById(id).addEventListener('keydown',e=>{if(e.key==='Enter')doRegister();}));
+  renderVarInsertChips();
+})();
+</script>
+</body>
+</html>
