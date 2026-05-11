@@ -449,51 +449,7 @@
 <!-- ════════════════════════════════════════════
      SCRIPTS  (order matters)
      ════════════════════════════════════════════ -->
-<!-- Firebase SDK -->
-<script type="module">
-  import { initializeApp }           from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
-  import { getAuth, createUserWithEmailAndPassword,
-           signInWithEmailAndPassword, signOut,
-           onAuthStateChanged }      from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
-  import { getFirestore, doc, getDoc,
-           setDoc, collection,
-           getDocs, onSnapshot }     from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
-
-  // ── Your config from Firebase console ──
-  const firebaseConfig = {
-    apiKey:            "YOUR_API_KEY",
-    authDomain:        "YOUR_PROJECT.firebaseapp.com",
-    projectId:         "YOUR_PROJECT_ID",
-    storageBucket:     "YOUR_PROJECT.appspot.com",
-    messagingSenderId: "YOUR_SENDER_ID",
-    appId:             "YOUR_APP_ID",
-  };
-
-  const app  = initializeApp(firebaseConfig);
-  const auth = getAuth(app);
-  const db   = getFirestore(app);
-
-  // Make available to your other scripts
-  window._auth = auth;
-  window._db   = db;
-
-  // Watch auth state — replaces enterApp() trigger
-  onAuthStateChanged(auth, async (firebaseUser) => {
-    if (firebaseUser) {
-      // Load this user's data from Firestore
-      const snap = await getDoc(doc(db, "users", firebaseUser.uid));
-      window.S.user    = snap.data()?.username || firebaseUser.email;
-      window.S.isAdmin = snap.data()?.isAdmin   || false;
-      await loadSharedDB(); // load problems/posts/etc.
-      enterApp();
-    } else {
-      document.getElementById('screen-app').classList.add('hidden');
-      document.getElementById('screen-auth').classList.remove('hidden');
-    }
-  });
-</script>
-
-<!-- Your scripts (keep these) -->
+<script src="js/auth.js"></script>
 <script src="js/practice.js"></script>
 <script src="js/blog.js"></script>
 <script src="js/editor.js"></script>
