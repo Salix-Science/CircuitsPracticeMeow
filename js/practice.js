@@ -171,7 +171,7 @@ function buildPracticeSidebar() {
     sb.appendChild(el);
   };
 
-  addLbl('Built-in topics');
+  addLbl('Topics');
   Object.entries(BUILTIN).forEach(([key, meta]) => {
     const btn = document.createElement('button');
     btn.className = 'sb-btn';
