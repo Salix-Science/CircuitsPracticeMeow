@@ -22,7 +22,7 @@ window.DB = {
 
 async function saveDB() {
   try {
-    await window.storage.set('cpdb_v6', JSON.stringify(window.DB));
+    await localStorage.set('cpdb_v6', JSON.stringify(window.DB));
   } catch (e) {
     console.warn('saveDB failed:', e);
   }
@@ -30,7 +30,7 @@ async function saveDB() {
 
 async function loadDB() {
   try {
-    const r = await window.storage.get('cpdb_v6');
+    const r = await localStorage.get('cpdb_v6');
     if (r) window.DB = JSON.parse(r.value);
   } catch (e) {}
 
