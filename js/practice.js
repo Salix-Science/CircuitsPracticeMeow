@@ -21,7 +21,7 @@ function toggleEl(id) {
   const el = document.getElementById(id);
   if (el) el.style.display = el.style.display === 'block' ? 'none' : 'block';
 }
-/*
+
 // ── Built-in topic metadata ───────────────────
 const BUILTIN = {
   kvl:      { label: 'KVL / KCL',         icon: 'ti-current-ac' },
@@ -158,7 +158,7 @@ function svgNodal(is, r1, r2) {
     <text x="204"  y="23" class="hi">V1=?</text>
   `, 240, 100);
 }
-*/
+
 // ── Sidebar ───────────────────────────────────
 function buildPracticeSidebar() {
   const sb = document.getElementById('practice-sidebar');
