@@ -1,4 +1,6 @@
-/* editor.js — Problem editor, folders, assignments editor */
+/* editor.js — Problem editor, folders, assignments (Firebase version)
+   saveDB() is now async and writes to Firestore.
+   deleteProb/deleteFolder/deleteAssignment also call deleteFromDB(). */
 
 function toggleFormEnable(){window.S.formEnabled=!window.S.formEnabled;const t=document.getElementById('form-toggle-track'),l=document.getElementById('form-toggle-label');t.classList.toggle('on',window.S.formEnabled);l.textContent=window.S.formEnabled?'Enabled':'Disabled';}
 
@@ -47,8 +49,7 @@ function renderVarInsertChips(){
 }
 
 function previewFormula(){
-  const formula=document.getElementById('e-formula').value.trim();
-  const prev=document.getElementById('formula-preview');
+  const formula=document.getElementById('e-formula').value.trim(),prev=document.getElementById('formula-preview');
   if(!formula){prev.textContent='Formula preview';return;}
   const vals={};window.S.editorVars.forEach(v=>{vals[v.name]=(parseFloat(v.min)+parseFloat(v.max))/2;});
   try{const fn=new Function(...Object.keys(vals),`return (${formula})`);const res=fn(...Object.values(vals));
@@ -63,7 +64,7 @@ function handleImg(e){
 }
 function clearImg(){window.S.editorImg=null;document.getElementById('img-preview-wrap').innerHTML='';}
 
-function saveProblem(){
+async function saveProblem(){
   const title=document.getElementById('e-title').value.trim(),question=document.getElementById('e-question').value.trim(),formula=document.getElementById('e-formula').value.trim();
   if(!title||!question||!formula){alert('Title, Question and Formula are required.');return;}
   const prob={id:window.S.editingId||`prob-${Date.now()}`,title,topic:document.getElementById('e-topic').value.trim(),
@@ -72,8 +73,11 @@ function saveProblem(){
     hint:document.getElementById('e-hint').value,imgDataUrl:window.S.editorImg||null,enabled:window.S.formEnabled};
   const idx=window.DB.problems.findIndex(p=>p.id===prob.id);
   if(idx>=0)window.DB.problems[idx]=prob;else window.DB.problems.push(prob);
-  window.S.editingId=prob.id;document.getElementById('form-mode-label').textContent=`Editing: ${prob.title}`;
-  saveDB();buildPracticeSidebar();renderPmList();renderFolderList();
+  window.S.editingId=prob.id;
+  document.getElementById('form-mode-label').textContent=`Saving…`;
+  await saveDB();
+  document.getElementById('form-mode-label').textContent=`Editing: ${prob.title}`;
+  buildPracticeSidebar();renderPmList();renderFolderList();
   const v=genAuthoredVariant(prob),wrap=document.getElementById('editor-preview-card');
   if(!v){wrap.textContent='Check formula.';return;}
   wrap.innerHTML=`<div style="background:var(--bg3);border:0.5px solid var(--border);border-radius:var(--r2);padding:10px;font-size:12px">
@@ -94,7 +98,7 @@ function loadProbToForm(prob){
   document.getElementById('e-question').value=prob.question||'';document.getElementById('e-formula').value=prob.formula||'';
   document.getElementById('e-hint').value=prob.hint||'';document.getElementById('e-unit').value=prob.unit||'V';
   document.getElementById('e-tol').value=prob.tol||'2';document.getElementById('e-pts').value=prob.defaultPts||10;
-  document.getElementById('img-preview-wrap').innerHTML=prob.imgDataUrl?`<img src="${prob.imgDataUrl}" class="img-thumb" alt="Circuit"/>` :'';
+  document.getElementById('img-preview-wrap').innerHTML=prob.imgDataUrl?`<img src="${prob.imgDataUrl}" class="img-thumb" alt="Circuit"/>`:'';
   document.getElementById('form-mode-label').textContent=`Editing: ${prob.title}`;
   const track=document.getElementById('form-toggle-track');track.classList.toggle('on',window.S.formEnabled);
   document.getElementById('form-toggle-label').textContent=window.S.formEnabled?'Enabled':'Disabled';
@@ -102,7 +106,6 @@ function loadProbToForm(prob){
   showEdTab('problems',document.querySelector('.editor-top-tab'));
 }
 
-// Problem manager
 let _dragSrcIdx=null;
 function renderPmList(){
   const list=document.getElementById('pm-list'),empty=document.getElementById('pm-empty');
@@ -112,7 +115,7 @@ function renderPmList(){
   list.innerHTML='';empty.style.display=total?'none':'block';
   window.DB.problems.forEach((p,i)=>{
     const isEnabled=p.enabled!==false,row=document.createElement('div');
-    row.className=`pm-row${isEnabled?'':' disabled-row'}`;row.draggable=true;row.dataset.idx=i;
+    row.className=`pm-row${isEnabled?'':' disabled-row'}`;row.draggable=true;
     row.innerHTML=`<div class="pm-drag-handle"><i class="ti ti-grip-vertical"></i></div>
       <div class="pm-row-body"><div class="pm-row-title">${p.title}</div><div class="pm-row-meta">${p.topic||'—'} · ${p.vars.length} vars${!isEnabled?' · hidden':''}</div></div>
       <div class="pm-row-actions">
@@ -132,18 +135,35 @@ function renderPmList(){
   });
 }
 
-function quickToggleEnabled(id){
+async function quickToggleEnabled(id){
   const prob=window.DB.problems.find(p=>p.id===id);if(!prob)return;
-  prob.enabled=!(prob.enabled===false);saveDB();renderPmList();buildPracticeSidebar();renderFolderList();
+  prob.enabled=!(prob.enabled===false);
+  await saveDB();renderPmList();buildPracticeSidebar();renderFolderList();
   if(window.S.editingId===id){window.S.formEnabled=prob.enabled;const t=document.getElementById('form-toggle-track');if(t){t.classList.toggle('on',prob.enabled);document.getElementById('form-toggle-label').textContent=prob.enabled?'Enabled':'Disabled';}}
 }
 
-function moveProb(i,d){const n=i+d;if(n<0||n>=window.DB.problems.length)return;[window.DB.problems[i],window.DB.problems[n]]=[window.DB.problems[n],window.DB.problems[i]];saveDB();renderPmList();}
-function duplicateProb(i){const o=window.DB.problems[i];const c={...o,vars:o.vars.map(v=>({...v})),id:`prob-${Date.now()}`,title:`${o.title} (copy)`,enabled:o.enabled};window.DB.problems.splice(i+1,0,c);saveDB();renderPmList();buildPracticeSidebar();}
-function deleteProb(id){if(!confirm('Delete this problem?'))return;window.DB.problems=window.DB.problems.filter(p=>p.id!==id);window.DB.folders.forEach(f=>{f.problemIds=f.problemIds.filter(pid=>pid!==id);});saveDB();renderPmList();renderFolderList();buildPracticeSidebar();}
+async function moveProb(i,d){const n=i+d;if(n<0||n>=window.DB.problems.length)return;[window.DB.problems[i],window.DB.problems[n]]=[window.DB.problems[n],window.DB.problems[i]];await saveDB();renderPmList();}
+
+async function duplicateProb(i){
+  const o=window.DB.problems[i];const c={...o,vars:o.vars.map(v=>({...v})),id:`prob-${Date.now()}`,title:`${o.title} (copy)`,enabled:o.enabled};
+  window.DB.problems.splice(i+1,0,c);await saveDB();renderPmList();buildPracticeSidebar();
+}
+
+async function deleteProb(id){
+  if(!confirm('Delete this problem?'))return;
+  window.DB.problems=window.DB.problems.filter(p=>p.id!==id);
+  window.DB.folders.forEach(f=>{f.problemIds=f.problemIds.filter(pid=>pid!==id);});
+  await Promise.all([deleteFromDB('problems',id),saveDB()]);
+  renderPmList();renderFolderList();buildPracticeSidebar();
+}
 
 // Folders
-function createFolder(){const name=document.getElementById('new-folder-name').value.trim();if(!name)return;window.DB.folders.push({id:`folder-${Date.now()}`,name,problemIds:[]});document.getElementById('new-folder-name').value='';saveDB();renderFolderList();buildPracticeSidebar();}
+async function createFolder(){
+  const name=document.getElementById('new-folder-name').value.trim();if(!name)return;
+  window.DB.folders.push({id:`folder-${Date.now()}`,name,problemIds:[]});
+  document.getElementById('new-folder-name').value='';
+  await saveDB();renderFolderList();buildPracticeSidebar();
+}
 
 function renderFolderList(){
   const list=document.getElementById('folder-list'),empty=document.getElementById('folder-empty');
@@ -166,9 +186,9 @@ function renderFolderList(){
   });
 }
 
-function addProbToFolder(folderId){const sel=document.getElementById(`fp-sel-${folderId}`);const pid=sel?.value;if(!pid)return;const folder=window.DB.folders.find(f=>f.id===folderId);if(!folder||folder.problemIds.includes(pid))return;folder.problemIds.push(pid);saveDB();renderFolderList();buildPracticeSidebar();}
-function removeProbFromFolder(folderId,probId){const folder=window.DB.folders.find(f=>f.id===folderId);if(!folder)return;folder.problemIds=folder.problemIds.filter(pid=>pid!==probId);saveDB();renderFolderList();buildPracticeSidebar();}
-function deleteFolder(id){if(!confirm('Delete this folder?'))return;window.DB.folders=window.DB.folders.filter(f=>f.id!==id);saveDB();renderFolderList();buildPracticeSidebar();}
+async function addProbToFolder(folderId){const sel=document.getElementById(`fp-sel-${folderId}`);const pid=sel?.value;if(!pid)return;const folder=window.DB.folders.find(f=>f.id===folderId);if(!folder||folder.problemIds.includes(pid))return;folder.problemIds.push(pid);await saveDB();renderFolderList();buildPracticeSidebar();}
+async function removeProbFromFolder(folderId,probId){const folder=window.DB.folders.find(f=>f.id===folderId);if(!folder)return;folder.problemIds=folder.problemIds.filter(pid=>pid!==probId);await saveDB();renderFolderList();buildPracticeSidebar();}
+async function deleteFolder(id){if(!confirm('Delete this folder?'))return;window.DB.folders=window.DB.folders.filter(f=>f.id!==id);await Promise.all([deleteFromDB('folders',id),saveDB()]);renderFolderList();buildPracticeSidebar();}
 
 // Assignments editor
 function renderAssignProbPicker(){
@@ -177,9 +197,8 @@ function renderAssignProbPicker(){
   window.DB.problems.forEach(p=>{
     const row=document.createElement('div');row.className='assign-prob-picker-row';
     const existing=window.S.editingAssignId?window.DB.assignments.find(a=>a.id===window.S.editingAssignId)?.problems.find(ap=>ap.probId===p.id):null;
-    const isHidden=p.enabled===false;
     row.innerHTML=`<label><input type="checkbox" id="apc-${p.id}" style="width:auto" ${existing?'checked':''}/>
-      ${p.title} ${isHidden?'<span class="pill pill-disabled" style="font-size:9px">hidden</span>':''}</label>
+      ${p.title} ${p.enabled===false?'<span class="pill pill-disabled" style="font-size:9px">hidden</span>':''}</label>
       <input class="assign-pts-input" type="number" id="appts-${p.id}" value="${existing?.points||p.defaultPts||10}" min="1" max="100"/>`;
     wrap.appendChild(row);
   });
@@ -187,13 +206,13 @@ function renderAssignProbPicker(){
 
 function newAssignment(){window.S.editingAssignId=null;['as-title','as-instructions','as-open','as-due'].forEach(id=>document.getElementById(id).value='');renderAssignProbPicker();}
 
-function saveAssignment(){
+async function saveAssignment(){
   const title=document.getElementById('as-title').value.trim();if(!title){alert('Enter a title.');return;}
   const problems=window.DB.problems.filter(p=>document.getElementById(`apc-${p.id}`)?.checked).map(p=>({probId:p.id,points:parseInt(document.getElementById(`appts-${p.id}`)?.value)||10}));
   const assign={id:window.S.editingAssignId||`assign-${Date.now()}`,title,instructions:document.getElementById('as-instructions').value,
     opens:document.getElementById('as-open').value,due:document.getElementById('as-due').value,problems};
   const idx=window.DB.assignments.findIndex(a=>a.id===assign.id);if(idx>=0)window.DB.assignments[idx]=assign;else window.DB.assignments.push(assign);
-  window.S.editingAssignId=assign.id;saveDB();renderAssignAdmin();
+  window.S.editingAssignId=assign.id;await saveDB();renderAssignAdmin();
   const ok=document.getElementById('as-ok');ok.textContent='Saved!';ok.classList.remove('hidden');setTimeout(()=>ok.classList.add('hidden'),2000);
 }
 
@@ -217,4 +236,9 @@ function loadAssignToEditor(id){
   renderAssignProbPicker();a.problems.forEach(ap=>{const cb=document.getElementById(`apc-${ap.probId}`);if(cb)cb.checked=true;const pts=document.getElementById(`appts-${ap.probId}`);if(pts)pts.value=ap.points;});
 }
 
-function deleteAssignment(id){if(!confirm('Delete this assignment?'))return;window.DB.assignments=window.DB.assignments.filter(a=>a.id!==id);saveDB();renderAssignAdmin();}
+async function deleteAssignment(id){
+  if(!confirm('Delete this assignment?'))return;
+  window.DB.assignments=window.DB.assignments.filter(a=>a.id!==id);
+  await Promise.all([deleteFromDB('assignments',id),saveDB()]);
+  renderAssignAdmin();
+}

@@ -75,5 +75,5 @@ function submitAssignProb(assignId,probId,varKey){
   const u=window.DB.users[window.S.user];if(!u.assignSubmissions)u.assignSubmissions={};if(!u.assignSubmissions[assignId])u.assignSubmissions[assignId]={};
   const assign=window.DB.assignments.find(a=>a.id===assignId);const due=assign?.due?new Date(assign.due):null;const isLate=due&&Date.now()>due.getTime();
   u.assignSubmissions[assignId][probId]={correct,submitted:rnd(submitted,4),answer:p.answer,timestamp:Date.now(),late:isLate};
-  saveDB();renderStudentAssignments();
+  saveDB().then(()=>renderStudentAssignments();
 }
