@@ -281,7 +281,7 @@ function checkMainAnswer() {
   } else {
     const rem = maxAtt > 0 ? ` (${maxAtt - used} attempt${maxAtt-used !== 1 ? 's' : ''} left)` : '';
     fb.className = 'feedback wrong';
-    fb.innerHTML = `✗ Not quite.';
+    fb.innerHTML = `✗ Not quite.`;
     fb.style.display = 'block';
   }
 }
