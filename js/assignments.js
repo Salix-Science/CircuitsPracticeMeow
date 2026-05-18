@@ -1,8 +1,6 @@
-/* assignments.js — Student assignment view
-   Changes: no unit selector, attempt limits enforced */
+/* assignments.js — Student assignment view */
 
-if (!window._assignVals)    window._assignVals    = {};
-if (!window._assignAttempts) window._assignAttempts = {}; // keyed by `${assignId}-${probId}`
+if (!window._assignVals) window._assignVals = {};
 
 function renderStudentAssignments(){
   const wrap=document.getElementById('assign-student-list');wrap.innerHTML='';
@@ -34,116 +32,48 @@ function renderAssignProblems(assign,wrap){
   const u=window.DB.users[window.S.user],sub=u?.assignSubmissions?.[assign.id]||{};
   assign.problems.forEach((ap,idx)=>{
     const prob=window.DB.problems.find(p=>p.id===ap.probId);if(!prob)return;
-    const done=sub[ap.probId];
-    const varKey=`${assign.id}-${ap.probId}`;
-    const attKey=varKey;
+    const done=sub[ap.probId],varKey=`${assign.id}-${ap.probId}`;
     if(!window._assignVals[varKey])window._assignVals[varKey]=genAuthoredVariant(prob);
     const p=window._assignVals[varKey];if(!p)return;
-
-    const maxAtt=p.maxAttempts||0;
-    const used=window._assignAttempts[attKey]||0;
-    const locked=done||(maxAtt>0&&used>=maxAtt);
-
-    const attBadge=maxAtt>0&&!done
-      ? `<span class="pill ${used>=maxAtt?'pill-red':used>0?'pill-warn':'pill-purple'}" style="font-size:10px">${used>=maxAtt?'No attempts left':`${used}/${maxAtt} attempts`}</span>`
-      : '';
-
-    const row=document.createElement('div');
-    row.style.cssText='border:0.5px solid var(--border);border-radius:var(--r2);padding:12px;margin-bottom:8px;background:var(--bg3)';
-    row.innerHTML=`<div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;flex-wrap:wrap">
+    const row=document.createElement('div');row.style.cssText='border:0.5px solid var(--border);border-radius:var(--r2);padding:12px;margin-bottom:8px;background:var(--bg3)';
+    row.innerHTML=`<div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
       <span style="font-size:12px;font-weight:600;color:var(--accent2)">${idx+1}. ${prob.title}</span>
       <span style="font-size:11px;font-family:var(--mono);color:var(--text3)">${ap.points} pts</span>
       ${done?`<span class="pill ${done.correct?'pill-green':'pill-red'}">${done.correct?'✓ Correct':'✗ Incorrect'}</span>`:''}
-      ${attBadge}
-      ${!locked?`<button class="btn btn-sm shuffle-btn" style="margin-left:auto;padding:3px 8px" onclick="reshuffleAssignProb('${assign.id}','${ap.probId}','${varKey}')"><i class="ti ti-refresh"></i></button>`:''}
+      ${!done?`<button class="btn btn-sm shuffle-btn" style="margin-left:auto;padding:3px 8px" onclick="reshuffleAssignProb('${assign.id}','${ap.probId}','${varKey}')"><i class="ti ti-refresh"></i></button>`:''}
     </div>
     ${p.circuit?`<div class="circuit-wrap" style="margin-bottom:8px;min-height:60px">${p.circuit}</div>`:''}
     <p style="font-size:12px;color:var(--text);margin-bottom:8px;line-height:1.7">${p.question}</p>
-    ${!locked?`
-      ${(p.answers||[{id:'ans0',label:'Answer',answer:p.answer,unit:p.unit}]).map((a,ai)=>`
-        <div class="multi-ans-row">
-          ${p.answers&&p.answers.length>1?`<div class="multi-ans-label">${a.label}</div>`:''}
-          <div style="display:flex;gap:8px;align-items:center;margin-bottom:4px">
-            <input class="mono" type="number" step="any" placeholder="0.000"
-              id="ai-${assign.id}-${ap.probId}-${ai}"
-              style="width:120px;padding:6px 10px;font-size:12px"/>
-            <span style="font-size:13px;font-weight:500;color:var(--text2)">${a.unit}</span>
-          </div>
-        </div>`).join('')}
-      <div style="display:flex;gap:8px;align-items:center;margin-top:4px">
-        <button class="btn btn-sm btn-accent" onclick="submitAssignProb('${assign.id}','${ap.probId}','${varKey}')">
-          <i class="ti ti-send"></i> Submit
-        </button>
-        ${p.hint?`<button class="btn btn-sm" onclick="toggleEl('ahint-${assign.id}-${ap.probId}')"><i class="ti ti-bulb"></i></button>`:''}
-      </div>
-      ${p.hint?`<div class="hint-box" id="ahint-${assign.id}-${ap.probId}">${p.hint}</div>`:''}
-      <div class="feedback" id="afb-${assign.id}-${ap.probId}"></div>`
-    :done
-      ?`<div class="feedback ${done.correct?'correct':'wrong'}" style="display:block">
-          ${done.correct
-            ?'✓ Correct!'
-            :'✗ Incorrect — ' + (done.details||[]).map(d=>`${d.label}: expected ${d.answer} ${d.unit}`).join(' · ')}
-        </div>`
-      :`<div class="feedback wrong" style="display:block">No attempts remaining.</div>`
-    }`;
+    ${!done?`<div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
+      <input class="mono" type="number" step="any" placeholder="0.000" id="ai-${assign.id}-${ap.probId}" style="width:110px;padding:6px 10px;font-size:12px"/>
+      <select id="au-${assign.id}-${ap.probId}" style="width:72px;padding:6px 8px;font-size:12px">
+        <option value="1" ${p.unit==='V'?'selected':''}>V</option><option value="0.001" ${p.unit==='mV'?'selected':''}>mV</option>
+        <option value="1" ${p.unit==='A'?'selected':''}>A</option><option value="0.001" ${p.unit==='mA'?'selected':''}>mA</option>
+        <option value="1000" ${p.unit==='kΩ'?'selected':''}>kΩ</option><option value="1" ${p.unit==='Ω'?'selected':''}>Ω</option>
+      </select>
+      <button class="btn btn-sm btn-accent" onclick="submitAssignProb('${assign.id}','${ap.probId}','${varKey}')"><i class="ti ti-send"></i> Submit</button>
+      ${p.hint?`<button class="btn btn-sm" onclick="toggleEl('ahint-${assign.id}-${ap.probId}')"><i class="ti ti-bulb"></i></button>`:''}
+    </div>
+    ${p.hint?`<div class="hint-box" id="ahint-${assign.id}-${ap.probId}">${p.hint}</div>`:''}
+    <div class="feedback" id="afb-${assign.id}-${ap.probId}"></div>`
+    :`<div class="feedback ${done.correct?'correct':'wrong'}" style="display:block">
+      ${done.correct?`✓ Correct · ${done.submitted} ${p.unit}`:`✗ Your answer: ${done.submitted} ${p.unit} · Expected: ${p.answer} ${p.unit}`}
+    </div>`}`;
     wrap.appendChild(row);
   });
 }
 
-function reshuffleAssignProb(assignId,probId,varKey){
-  const prob=window.DB.problems.find(p=>p.id===probId);if(!prob)return;
-  window._assignVals[varKey]=genAuthoredVariant(prob);
-  // Reset attempt count for new numbers
-  window._assignAttempts[varKey]=0;
-  renderStudentAssignments();
-}
+function reshuffleAssignProb(assignId,probId,varKey){const prob=window.DB.problems.find(p=>p.id===probId);if(!prob)return;window._assignVals[varKey]=genAuthoredVariant(prob);renderStudentAssignments();}
 
-async function submitAssignProb(assignId,probId,varKey){
+function submitAssignProb(assignId,probId,varKey){
   const p=window._assignVals[varKey];if(!p)return;
+  const raw=parseFloat(document.getElementById(`ai-${assignId}-${probId}`)?.value);
+  const mult=parseFloat(document.getElementById(`au-${assignId}-${probId}`)?.value)||1;
   const fb=document.getElementById(`afb-${assignId}-${probId}`);
-  const answers=p.answers||[{id:'ans0',label:'Answer',answer:p.answer,unit:p.unit,tol:p.tol||0.02}];
-
-  // Collect all inputs
-  const results=answers.map((a,ai)=>{
-    const raw=parseFloat(document.getElementById(`ai-${assignId}-${probId}-${ai}`)?.value);
-    if(isNaN(raw))return{missing:true,label:a.label};
-    const tol=Math.abs(a.answer)*(a.tol||0.02)+0.001;
-    return{ok:Math.abs(raw-a.answer)<=tol,raw,label:a.label,answer:a.answer,unit:a.unit,tol:a.tol||0.02,missing:false};
-  });
-
-  if(results.some(r=>r.missing)){
-    if(fb){fb.textContent='Fill in all answer boxes.';fb.className='feedback wrong';fb.style.display='block';}
-    return;
-  }
-
-  const allOk=results.every(r=>r.ok);
-  const attKey=varKey;
-  window._assignAttempts[attKey]=(window._assignAttempts[attKey]||0)+1;
-  const used=window._assignAttempts[attKey];
-  const maxAtt=p.maxAttempts||0;
-  const noMore=maxAtt>0&&used>=maxAtt;
-
-  if(allOk||noMore){
-    const u=window.DB.users[window.S.user];
-    if(!u.assignSubmissions)u.assignSubmissions={};
-    if(!u.assignSubmissions[assignId])u.assignSubmissions[assignId]={};
-    const assign=window.DB.assignments.find(a=>a.id===assignId);
-    const due=assign?.due?new Date(assign.due):null;
-    const isLate=due&&Date.now()>due.getTime();
-    u.assignSubmissions[assignId][probId]={
-      correct:allOk,
-      details:results.map(r=>({label:r.label,answer:r.answer,unit:r.unit,submitted:rnd(r.raw,4),ok:r.ok})),
-      timestamp:Date.now(),late:isLate
-    };
-    await saveUserOnly();
-    renderStudentAssignments();
-  } else {
-    const remaining=maxAtt>0?` (${maxAtt-used} attempt${maxAtt-used!==1?'s':''} left)`:'';
-    const detail=results.map(r=>{
-      if(r.ok)return`${answers.length>1?r.label+': ':''}✓`;
-      return`${answers.length>1?r.label+': ':''}✗ expected ≈${r.answer} ${r.unit}`;
-    }).join(' · ');
-    if(fb){fb.className='feedback wrong';fb.innerHTML=`${detail}${remaining}`;fb.style.display='block';}
-    renderStudentAssignments();
-  }
+  if(isNaN(raw)){if(fb){fb.textContent='Enter a number.';fb.className='feedback wrong';fb.style.display='block';}return;}
+  const submitted=raw*mult,tol=Math.abs(p.answer)*p.tol+0.001,correct=Math.abs(submitted-p.answer)<=tol;
+  const u=window.DB.users[window.S.user];if(!u.assignSubmissions)u.assignSubmissions={};if(!u.assignSubmissions[assignId])u.assignSubmissions[assignId]={};
+  const assign=window.DB.assignments.find(a=>a.id===assignId);const due=assign?.due?new Date(assign.due):null;const isLate=due&&Date.now()>due.getTime();
+  u.assignSubmissions[assignId][probId]={correct,submitted:rnd(submitted,4),answer:p.answer,timestamp:Date.now(),late:isLate};
+  saveDB();renderStudentAssignments();
 }
