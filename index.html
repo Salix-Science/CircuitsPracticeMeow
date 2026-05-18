@@ -55,7 +55,8 @@
   <div class="topbar">
     <span class="topbar-wordmark">Circuits Practice</span>
     <div class="nav-tabs">
-      <button class="nav-tab active" id="navt-practice"    onclick="showView('practice')">Practice</button>
+      <button class="nav-tab active" id="navt-home"        onclick="showView('home')">Home</button>
+      <button class="nav-tab"        id="navt-practice"    onclick="showView('practice')">Practice</button>
       <button class="nav-tab"        id="navt-blog"        onclick="showView('blog')">Blog</button>
       <button class="nav-tab"        id="navt-assignments" onclick="showView('assignments')">Assignments</button>
       <button class="nav-tab hidden" id="navt-editor"      onclick="showView('editor')">Editor</button>
@@ -69,6 +70,10 @@
       <button class="btn btn-sm" onclick="doLogout()"><i class="ti ti-logout"></i></button>
     </div>
   </div>
+
+
+  <!-- ── HOME ── -->
+  <div id="view-home" class="hidden"></div>
 
   <!-- ── PRACTICE ── -->
   <div id="view-practice" class="hidden">
@@ -121,6 +126,8 @@
         <button class="editor-top-tab"         onclick="showEdTab('topics',this)">Folders</button>
         <button class="editor-top-tab"         onclick="showEdTab('assignments',this)">Assignments</button>
         <button class="editor-top-tab"         onclick="showEdTab('blog',this)">Blog</button>
+        <button class="editor-top-tab"         onclick="showEdTab('labels',this)">Topic Labels</button>
+        <button class="editor-top-tab"         onclick="showEdTab('homepage',this)">Homepage</button>
       </div>
 
       <!-- Problems tab -->
@@ -130,7 +137,7 @@
             <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px">
               <div style="font-size:11px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.08em" id="form-mode-label">New problem</div>
               <div style="display:flex;gap:8px">
-                <button class="btn btn-sm" onclick="resetForm()"><i class="ti ti-x"></i> Clear</button>
+                <button class="btn btn-sm" onclick="resetForm()"><i class="ti ti-plus"></i> New problem</button>
                 <button class="btn btn-sm btn-accent" onclick="saveProblem()"><i class="ti ti-device-floppy"></i> Save</button>
               </div>
             </div>
@@ -140,7 +147,13 @@
               <h4><i class="ti ti-info-circle"></i> Info</h4>
               <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px">
                 <div class="field" style="margin:0"><label>Title</label><input type="text" id="e-title" placeholder="Find V across R2"/></div>
-                <div class="field" style="margin:0"><label>Topic tag</label><input type="text" id="e-topic" placeholder="KVL, Nodal…"/></div>
+                <div class="field" style="margin:0">
+                  <label>Topic label</label>
+                  <select id="e-topic-select" onchange="onTopicSelectChange(this.value)" style="margin-bottom:4px">
+                    <option value="">— select a topic —</option>
+                  </select>
+                  <input type="hidden" id="e-topic"/>
+                </div>
               </div>
               <div style="display:flex;align-items:center;gap:10px;padding:8px 0;border-top:0.5px solid var(--border)">
                 <span style="font-size:11px;color:var(--text3)">Visible in free practice:</span>
@@ -163,8 +176,8 @@
                 <div class="var-chips-row" id="var-insert-chips"></div>
               </div>
               <div style="margin-top:12px">
-                <div style="display:grid;grid-template-columns:80px 56px 62px 62px 24px;gap:6px;margin-bottom:4px">
-                  <label>Name</label><label>Type</label><label>Min</label><label>Max</label><label></label>
+                <div style="display:grid;grid-template-columns:80px 56px 62px 62px 70px 24px;gap:6px;margin-bottom:4px">
+                  <label>Name</label><label>Type</label><label>Min</label><label>Max</label><label>Display unit</label><label></label>
                 </div>
                 <div id="var-rows"></div>
                 <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:6px">
@@ -176,19 +189,20 @@
               </div>
             </div>
 
-            <!-- Formula -->
+            <!-- Answer boxes -->
             <div class="section-card">
-              <h4><i class="ti ti-math-function"></i> Solution formula</h4>
-              <div class="field" style="margin-bottom:6px">
-                <label>JS expression · bare variable names (no braces) · e.g. <code>Vs*R2/(R1+R2+R3)</code></label>
-                <input type="text" id="e-formula" placeholder="Vs * R2 / (R1+R2+R3)" oninput="previewFormula()"/>
-              </div>
-              <div class="formula-preview" id="formula-preview">Formula preview</div>
-              <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-top:10px">
-                <div class="field" style="margin:0"><label>Unit</label>
-                  <select id="e-unit"><option>V</option><option>mV</option><option>kV</option><option>A</option><option>mA</option><option>Ω</option><option>kΩ</option><option>W</option></select></div>
-                <div class="field" style="margin:0"><label>Tolerance %</label><input type="number" id="e-tol" value="2" min="0.1" max="20" step="0.1"/></div>
-                <div class="field" style="margin:0"><label>Default pts</label><input type="number" id="e-pts" value="10" min="1" max="100"/></div>
+              <h4><i class="ti ti-math-function"></i> Answer boxes
+                <button class="btn btn-sm" style="margin-left:auto;padding:4px 10px;font-size:11px" onclick="addAnswerBox()">
+                  <i class="ti ti-plus"></i> Add answer box
+                </button>
+              </h4>
+              <p style="font-size:11px;color:var(--text3);margin-bottom:10px;line-height:1.6">
+                Each box is a separate answer field students fill in. Use bare variable names (no braces) in formulas — e.g. <code style="font-family:var(--mono);color:var(--accent2);background:var(--bg4);padding:1px 5px;border-radius:3px">Vs*R2/(R1+R2+R3)</code>
+              </p>
+              <div id="answer-boxes-wrap"></div>
+              <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:12px;padding-top:12px;border-top:0.5px solid var(--border)">
+                <div class="field" style="margin:0"><label>Default pts (per problem)</label><input type="number" id="e-pts" value="10" min="1" max="100"/></div>
+                <div class="field" style="margin:0"><label>Max attempts (0 = unlimited)</label><input type="number" id="e-max-attempts" value="0" min="0" max="100"/></div>
               </div>
             </div>
 
@@ -367,6 +381,61 @@
         </div>
       </div><!-- /etab-blog -->
 
+
+      <!-- Topic Labels tab -->
+      <div class="editor-view" id="etab-labels">
+        <div style="padding:1.25rem;overflow-y:auto;flex:1">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px">
+            <div style="font-size:11px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.08em">Topic label master list</div>
+          </div>
+          <p style="font-size:12px;color:var(--text3);margin-bottom:16px;line-height:1.7">
+            These labels appear in the topic dropdown when creating problems. Students see them in the practice sidebar and on problem cards.
+          </p>
+          <div style="display:flex;gap:8px;margin-bottom:16px;align-items:flex-end">
+            <div style="flex:1"><label>New label name</label><input type="text" id="new-topic-input" placeholder="e.g. Op-Amps" onkeydown="if(event.key==='Enter')addTopic()"/></div>
+            <button class="btn btn-accent" onclick="addTopic()"><i class="ti ti-plus"></i> Add label</button>
+          </div>
+          <div id="topic-label-list" style="display:flex;flex-direction:column;gap:6px"></div>
+          <div id="topic-label-empty" style="color:var(--text4);font-size:12px;padding:1rem 0">No labels yet. Add one above.</div>
+        </div>
+      </div>
+
+      <!-- Homepage editor tab -->
+      <div class="editor-view" id="etab-homepage">
+        <div style="padding:1.25rem;overflow-y:auto;flex:1;max-width:700px">
+          <div style="font-size:11px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.08em;margin-bottom:16px">Homepage editor</div>
+
+          <!-- Banner -->
+          <div class="section-card">
+            <h4><i class="ti ti-speakerphone"></i> Announcement banner</h4>
+            <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px">
+              <div class="toggle-wrap" onclick="document.getElementById('hp-banner-enabled').click()">
+                <div class="toggle-track on" id="hp-banner-enabled-track"><div class="toggle-thumb"></div></div>
+                <span class="toggle-lbl" id="hp-banner-enabled-lbl">Enabled</span>
+              </div>
+            </div>
+            <input type="checkbox" id="hp-banner-enabled" style="display:none" checked onchange="
+              const on=this.checked;
+              document.getElementById('hp-banner-enabled-track').classList.toggle('on',on);
+              document.getElementById('hp-banner-enabled-lbl').textContent=on?'Enabled':'Disabled';
+              updateBannerPreview()"/>
+            <div class="field" style="margin-bottom:8px">
+              <label>Banner text (shown at top of homepage)</label>
+              <textarea id="hp-banner" rows="2" placeholder="e.g. Exam 2 is next Friday — check Assignments for practice sets." oninput="updateBannerPreview()"></textarea>
+            </div>
+            <div id="hp-banner-preview" style="display:none;margin-top:8px"></div>
+          </div>
+
+          <div style="display:flex;gap:8px;align-items:center">
+            <button class="btn btn-accent" onclick="saveHomepageEditor()"><i class="ti ti-device-floppy"></i> Save homepage</button>
+            <div class="ok-msg hidden" id="hp-ok">Saved!</div>
+          </div>
+          <p style="font-size:11px;color:var(--text3);margin-top:12px;line-height:1.7">
+            Recent blog posts and upcoming assignments are pulled in automatically — no manual editing needed.
+          </p>
+        </div>
+      </div>
+
     </div><!-- /editor-shell -->
   </div><!-- /view-editor -->
 
@@ -433,7 +502,6 @@
       <div class="admin-subtab" id="atab-account">
         <div class="section-card" style="max-width:400px">
           <h4><i class="ti ti-key"></i> Change password</h4>
-          <div class="field"><label>Current password</label><input type="password" id="cp-old"/></div>
           <div class="field"><label>New password</label><input type="password" id="cp-new"/></div>
           <div class="field" style="margin-bottom:10px"><label>Confirm new password</label><input type="password" id="cp-new2"/></div>
           <button class="btn btn-sm btn-accent" onclick="changePassword()"><i class="ti ti-check"></i> Update password</button>
@@ -447,15 +515,18 @@
 </div><!-- /screen-app -->
 
 <!-- ════════════════════════════════════════════
-     SCRIPTS  (order matters)
+     SCRIPTS
+     firebase.js is a module (uses ES imports).
+     All others are plain scripts that run after.
      ════════════════════════════════════════════ -->
-<script src="js/auth.js"></script>
-<script src="js/practice.js"></script>
-<script src="js/blog.js"></script>
-<script src="js/editor.js"></script>
-<script src="js/assignments.js"></script>
-<script src="js/admin.js"></script>
-<script src="js/app.js"></script>
+<script type="module" src="js/firebase.js"></script>
+<script defer src="js/home.js"></script>
+<script defer src="js/practice.js"></script>
+<script defer src="js/blog.js"></script>
+<script defer src="js/editor.js"></script>
+<script defer src="js/assignments.js"></script>
+<script defer src="js/admin.js"></script>
+<script defer src="js/app.js"></script>
 
 </body>
 </html>
