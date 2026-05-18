@@ -726,3 +726,22 @@ label {
   border: 0.5px dashed var(--accent) !important;
   border-radius: var(--r);
 }
+
+/* ── Folder problem rows (draggable) ─────────── */
+.folder-prob-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px;
+  background: var(--bg3);
+  border: 0.5px solid var(--border);
+  border-radius: var(--r);
+  transition: all .15s;
+  user-select: none;
+}
+.folder-prob-row:hover { border-color: var(--border2); }
+.folder-prob-drag-over {
+  border-color: var(--accent) !important;
+  border-style: dashed !important;
+  background: var(--bg4) !important;
+}
