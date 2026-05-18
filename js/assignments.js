@@ -134,7 +134,7 @@ function buildProbRow(row, assign, ap, idx, p, sub, isLate) {
         ? `<div class="feedback ${done.correct ? 'correct' : 'wrong'}" style="display:block">
              ${done.correct
                ? '✓ Correct!'
-               : '✗ Incorrect — ' + (done.details || []).map(d => `${d.label}: expected ${d.answer} ${d.unit}`).join(' · ')}
+               : '✗ Incorrect — '}
            </div>`
         : `<div class="feedback wrong" style="display:block">No attempts remaining.</div>`
       : `${inputsHTML}
