@@ -1,0 +1,532 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>Circuits Practice</title>
+
+<!-- Fonts -->
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;500;600&family=Raleway:ital,wght@0,300;0,400;0,500;0,600;1,300&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet"/>
+<!-- Icons -->
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@latest/tabler-icons.min.css"/>
+<!-- Styles -->
+<link rel="stylesheet" href="css/styles.css"/>
+</head>
+<body>
+
+<!-- ════════════════════════════════════════════
+     AUTH SCREEN
+     ════════════════════════════════════════════ -->
+<div id="screen-auth">
+  <div class="wordmark">Circuits Practice</div>
+  <div class="auth-card">
+    <div class="auth-tabs">
+      <button class="auth-tab active" onclick="setAuthTab('login',this)">Sign in</button>
+      <button class="auth-tab" onclick="setAuthTab('register',this)">Register</button>
+    </div>
+
+    <!-- Login -->
+    <div id="auth-login">
+      <div class="field"><label>Username</label><input type="text" id="l-user" autocomplete="username" placeholder="username"/></div>
+      <div class="field"><label>Password</label><input type="password" id="l-pass" autocomplete="current-password" placeholder="••••••••"/></div>
+      <button class="btn btn-accent" style="width:100%;justify-content:center" onclick="doLogin()"><i class="ti ti-login"></i> Enter</button>
+      <div class="err-msg hidden" id="l-err"><i class="ti ti-alert-circle"></i><span></span></div>
+    </div>
+
+    <!-- Register -->
+    <div id="auth-register" class="hidden">
+      <div class="field"><label>Username</label><input type="text" id="r-user" autocomplete="username" placeholder="choose a username"/></div>
+      <div class="field"><label>Password</label><input type="password" id="r-pass" autocomplete="new-password" placeholder="at least 6 characters"/></div>
+      <div class="field"><label>Confirm password</label><input type="password" id="r-pass2" autocomplete="new-password" placeholder="repeat password"/></div>
+      <button class="btn btn-accent" style="width:100%;justify-content:center" onclick="doRegister()"><i class="ti ti-user-plus"></i> Create account</button>
+      <div class="err-msg hidden" id="r-err"><i class="ti ti-alert-circle"></i><span></span></div>
+      <div class="ok-msg hidden" id="r-ok"></div>
+    </div>
+  </div>
+</div>
+
+<!-- ════════════════════════════════════════════
+     APP SHELL
+     ════════════════════════════════════════════ -->
+<div id="screen-app" class="hidden">
+
+  <!-- Topbar -->
+  <div class="topbar">
+    <span class="topbar-wordmark">Circuits Practice</span>
+    <div class="nav-tabs">
+      <button class="nav-tab active" id="navt-home"        onclick="showView('home')">Home</button>
+      <button class="nav-tab"        id="navt-practice"    onclick="showView('practice')">Practice</button>
+      <button class="nav-tab"        id="navt-blog"        onclick="showView('blog')">Blog</button>
+      <button class="nav-tab"        id="navt-assignments" onclick="showView('assignments')">Assignments</button>
+      <button class="nav-tab hidden" id="navt-editor"      onclick="showView('editor')">Editor</button>
+      <button class="nav-tab hidden" id="navt-admin"       onclick="showView('admin')">Admin</button>
+    </div>
+    <div class="topbar-right">
+      <div class="streak-badge"><i class="ti ti-flame"></i><span id="streak-val">0</span></div>
+      <div class="avatar" id="topbar-av">?</div>
+      <span style="font-size:12px;color:var(--text3)" id="topbar-name"></span>
+      <span class="pill pill-admin hidden" id="topbar-admin-badge">admin</span>
+      <button class="btn btn-sm" onclick="doLogout()"><i class="ti ti-logout"></i></button>
+    </div>
+  </div>
+
+
+  <!-- ── HOME ── -->
+  <div id="view-home" class="hidden"></div>
+
+  <!-- ── PRACTICE ── -->
+  <div id="view-practice" class="hidden">
+    <div class="app-layout">
+      <div class="sidebar" id="practice-sidebar"></div>
+      <div class="main-content" id="practice-main"></div>
+    </div>
+  </div>
+
+  <!-- ── BLOG ── -->
+  <div id="view-blog" class="hidden blog-outer">
+    <!-- List view -->
+    <div id="blog-list-view">
+      <div class="blog-reader">
+        <div class="blog-hero">
+          <div class="blog-hero-title">From the Instructor</div>
+          <div class="blog-hero-sub">Tutorials · Updates · Announcements · Resources</div>
+        </div>
+        <div class="blog-filter-bar" id="blog-filter-bar"></div>
+        <div class="blog-grid" id="blog-grid"></div>
+        <div class="blog-empty hidden" id="blog-empty">
+          <i class="ti ti-notebook"></i>
+          No posts yet — check back soon.
+        </div>
+      </div>
+    </div>
+    <!-- Single post view -->
+    <div id="blog-post-view" class="hidden">
+      <div class="post-view">
+        <button class="post-back" onclick="showBlogList()"><i class="ti ti-arrow-left"></i> Back to blog</button>
+        <div class="post-header">
+          <div class="post-title" id="post-title-el"></div>
+          <div class="post-meta"  id="post-meta-el"></div>
+        </div>
+        <div class="post-content" id="post-content-el"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── ASSIGNMENTS (student) ── -->
+  <div id="view-assignments" class="hidden">
+    <div class="assign-list" id="assign-student-list"></div>
+  </div>
+
+  <!-- ── EDITOR (admin) ── -->
+  <div id="view-editor" class="hidden">
+    <div class="editor-shell">
+      <div class="editor-top-tabs">
+        <button class="editor-top-tab active" onclick="showEdTab('problems',this)">Problems</button>
+        <button class="editor-top-tab"         onclick="showEdTab('topics',this)">Folders</button>
+        <button class="editor-top-tab"         onclick="showEdTab('assignments',this)">Assignments</button>
+        <button class="editor-top-tab"         onclick="showEdTab('blog',this)">Blog</button>
+        <button class="editor-top-tab"         onclick="showEdTab('labels',this)">Topic Labels</button>
+        <button class="editor-top-tab"         onclick="showEdTab('homepage',this)">Homepage</button>
+      </div>
+
+      <!-- Problems tab -->
+      <div class="editor-view active" id="etab-problems">
+        <div class="editor-two">
+          <div class="editor-main">
+            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px">
+              <div style="font-size:11px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.08em" id="form-mode-label">New problem</div>
+              <div style="display:flex;gap:8px">
+                <button class="btn btn-sm" onclick="resetForm()"><i class="ti ti-plus"></i> New problem</button>
+                <button class="btn btn-sm btn-accent" onclick="saveProblem()"><i class="ti ti-device-floppy"></i> Save</button>
+              </div>
+            </div>
+
+            <!-- Problem info -->
+            <div class="section-card">
+              <h4><i class="ti ti-info-circle"></i> Info</h4>
+              <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px">
+                <div class="field" style="margin:0"><label>Title</label><input type="text" id="e-title" placeholder="Find V across R2"/></div>
+                <div class="field" style="margin:0">
+                  <label>Topic label</label>
+                  <select id="e-topic-select" onchange="onTopicSelectChange(this.value)" style="margin-bottom:4px">
+                    <option value="">— select a topic —</option>
+                  </select>
+                  <input type="hidden" id="e-topic"/>
+                </div>
+              </div>
+              <div style="display:flex;align-items:center;gap:10px;padding:8px 0;border-top:0.5px solid var(--border)">
+                <span style="font-size:11px;color:var(--text3)">Visible in free practice:</span>
+                <div class="toggle-wrap" onclick="toggleFormEnable()">
+                  <div class="toggle-track on" id="form-toggle-track"><div class="toggle-thumb"></div></div>
+                  <span class="toggle-lbl" id="form-toggle-label">Enabled</span>
+                </div>
+              </div>
+            </div>
+
+            <!-- Question & variables -->
+            <div class="section-card">
+              <h4><i class="ti ti-variable"></i> Question &amp; variables</h4>
+              <div class="field" style="margin-bottom:4px">
+                <label>Question text</label>
+                <textarea id="e-question" rows="3" placeholder="R1, R2, R3 in series with {Vs} V. R1={R1} kΩ, R2={R2} kΩ. Find V across R2."></textarea>
+              </div>
+              <div class="syntax-tip">
+                Use <code>{VarName}</code> to substitute · plain text stays as-is
+                <div class="var-chips-row" id="var-insert-chips"></div>
+              </div>
+              <div style="margin-top:12px">
+                <div style="display:grid;grid-template-columns:80px 56px 62px 62px 70px 24px;gap:6px;margin-bottom:4px">
+                  <label>Name</label><label>Type</label><label>Min</label><label>Max</label><label>Display unit</label><label></label>
+                </div>
+                <div id="var-rows"></div>
+                <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:6px">
+                  <button class="add-var-btn" onclick="addVar('R')"><i class="ti ti-plus" style="font-size:11px"></i> Resistor</button>
+                  <button class="add-var-btn" onclick="addVar('V')"><i class="ti ti-plus" style="font-size:11px"></i> Voltage</button>
+                  <button class="add-var-btn" onclick="addVar('I')"><i class="ti ti-plus" style="font-size:11px"></i> Current</button>
+                  <button class="add-var-btn" onclick="addVar('C')"><i class="ti ti-plus" style="font-size:11px"></i> Cap/Ind</button>
+                </div>
+              </div>
+            </div>
+
+            <!-- Answer boxes -->
+            <div class="section-card">
+              <h4><i class="ti ti-math-function"></i> Answer boxes
+                <button class="btn btn-sm" style="margin-left:auto;padding:4px 10px;font-size:11px" onclick="addAnswerBox()">
+                  <i class="ti ti-plus"></i> Add answer box
+                </button>
+              </h4>
+              <p style="font-size:11px;color:var(--text3);margin-bottom:10px;line-height:1.6">
+                Each box is a separate answer field students fill in. Use bare variable names (no braces) in formulas — e.g. <code style="font-family:var(--mono);color:var(--accent2);background:var(--bg4);padding:1px 5px;border-radius:3px">Vs*R2/(R1+R2+R3)</code>
+              </p>
+              <div id="answer-boxes-wrap"></div>
+              <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:12px;padding-top:12px;border-top:0.5px solid var(--border)">
+                <div class="field" style="margin:0"><label>Default pts (per problem)</label><input type="number" id="e-pts" value="10" min="1" max="100"/></div>
+                <div class="field" style="margin:0"><label>Max attempts (0 = unlimited)</label><input type="number" id="e-max-attempts" value="0" min="0" max="100"/></div>
+              </div>
+            </div>
+
+            <!-- Hint -->
+            <div class="section-card">
+              <h4><i class="ti ti-bulb"></i> Hint (optional)</h4>
+              <textarea id="e-hint" rows="2" placeholder="Use {VarName} here too — values will be substituted."></textarea>
+            </div>
+
+            <!-- Circuit diagram -->
+            <div class="section-card">
+              <h4><i class="ti ti-photo"></i> Circuit diagram</h4>
+              <div class="img-drop">
+                <input type="file" accept="image/*" onchange="handleImg(event)"/>
+                <i class="ti ti-upload" style="font-size:20px;display:block;margin-bottom:5px"></i>
+                Upload PNG / JPG (hand-drawn or LTspice export)
+                <div id="img-preview-wrap"></div>
+              </div>
+              <button class="btn btn-sm btn-red" style="margin-top:8px" onclick="clearImg()"><i class="ti ti-x"></i> Clear image</button>
+            </div>
+          </div>
+
+          <!-- Right: problem bank + preview -->
+          <div class="editor-side">
+            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
+              <div style="font-size:11px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.08em">
+                Problem bank <span id="prob-count-badge" style="color:var(--text4);font-weight:400"></span>
+              </div>
+              <div style="font-size:10px;color:var(--text4);font-family:var(--mono)" id="enabled-count"></div>
+            </div>
+            <div id="pm-list"></div>
+            <div id="pm-empty" style="text-align:center;padding:2rem;color:var(--text4);font-size:12px">No problems yet.</div>
+            <div style="margin-top:1.25rem;border-top:0.5px solid var(--border);padding-top:1.25rem">
+              <div style="font-size:11px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.08em;margin-bottom:10px">Live preview</div>
+              <div id="editor-preview-card" style="font-size:12px;color:var(--text4)">Save a problem to see a preview.</div>
+            </div>
+          </div>
+        </div>
+      </div><!-- /etab-problems -->
+
+      <!-- Folders tab -->
+      <div class="editor-view" id="etab-topics">
+        <div class="topic-manager">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px">
+            <div style="font-size:11px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.08em">Topic folders</div>
+            <div style="display:flex;gap:8px;align-items:center">
+              <input type="text" id="new-folder-name" placeholder="Folder name…" style="width:160px;padding:6px 10px;font-size:12px"/>
+              <button class="btn btn-sm btn-accent" onclick="createFolder()"><i class="ti ti-folder-plus"></i> Create</button>
+            </div>
+          </div>
+          <div id="folder-list"></div>
+          <div id="folder-empty" style="text-align:center;padding:3rem;color:var(--text4);font-size:12px">No folders yet. Create one above.</div>
+        </div>
+      </div>
+
+      <!-- Assignments tab -->
+      <div class="editor-view" id="etab-assignments">
+        <div class="assign-editor">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px">
+            <div style="font-size:11px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.08em">Assignments</div>
+            <button class="btn btn-sm btn-accent" onclick="newAssignment()"><i class="ti ti-plus"></i> New assignment</button>
+          </div>
+          <div class="assign-editor-two">
+            <div>
+              <div class="section-card">
+                <h4><i class="ti ti-calendar"></i> Assignment details</h4>
+                <div class="field"><label>Title</label><input type="text" id="as-title" placeholder="Homework 1 — KVL"/></div>
+                <div class="field"><label>Instructions (shown to students)</label><textarea id="as-instructions" rows="2" placeholder="Complete all problems below…"></textarea></div>
+                <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px">
+                  <div class="field" style="margin:0"><label>Opens</label><input type="datetime-local" id="as-open"/></div>
+                  <div class="field" style="margin:0"><label>Due</label><input type="datetime-local" id="as-due"/></div>
+                </div>
+                <div class="field">
+                  <label>Problems — all selectable regardless of enabled state</label>
+                  <div class="assign-prob-picker" id="assign-prob-picker"></div>
+                </div>
+                <button class="btn btn-accent" onclick="saveAssignment()"><i class="ti ti-device-floppy"></i> Save assignment</button>
+                <div class="ok-msg hidden" id="as-ok"></div>
+              </div>
+            </div>
+            <div>
+              <div style="font-size:11px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.08em;margin-bottom:10px">Saved assignments</div>
+              <div id="assign-admin-list"></div>
+              <div id="assign-admin-empty" style="color:var(--text4);font-size:12px">None yet.</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Blog editor tab -->
+      <div class="editor-view" id="etab-blog">
+        <div class="blog-editor">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px">
+            <div style="font-size:11px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.08em" id="blog-form-label">New post</div>
+            <div style="display:flex;gap:8px">
+              <button class="btn btn-sm" onclick="resetBlogForm()"><i class="ti ti-x"></i> Clear</button>
+              <button class="btn btn-sm btn-accent" onclick="saveBlogPost()"><i class="ti ti-send"></i> Publish</button>
+            </div>
+          </div>
+          <div class="blog-editor-two">
+            <div>
+              <!-- Post details -->
+              <div class="section-card">
+                <h4><i class="ti ti-pencil"></i> Post details</h4>
+                <div class="field"><label>Title</label><input type="text" id="bp-title" placeholder="KVL — A Complete Walkthrough"/></div>
+                <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;margin-bottom:12px">
+                  <div class="field" style="margin:0">
+                    <label>Category</label>
+                    <select id="bp-category" onchange="toggleCustomTag(this)">
+                      <option value="Tutorial">Tutorial</option>
+                      <option value="Update">Update</option>
+                      <option value="Announcement">Announcement</option>
+                      <option value="Resource">Resource</option>
+                      <option value="custom">Custom tag…</option>
+                    </select>
+                  </div>
+                  <div class="field" style="margin:0;display:none" id="bp-custom-wrap">
+                    <label>Custom tag</label>
+                    <input type="text" id="bp-custom-tag" placeholder="e.g. Exam prep"/>
+                  </div>
+                  <div class="field" style="margin:0">
+                    <label>Status</label>
+                    <select id="bp-status">
+                      <option value="published">Published</option>
+                      <option value="draft">Draft (admin only)</option>
+                    </select>
+                  </div>
+                </div>
+                <div class="field">
+                  <label>Excerpt (shown on blog card)</label>
+                  <textarea id="bp-excerpt" rows="2" placeholder="A short summary of what this post covers…"></textarea>
+                </div>
+              </div>
+
+              <!-- Rich text editor -->
+              <div class="section-card">
+                <h4><i class="ti ti-text-size"></i> Content</h4>
+                <div class="rte-toolbar">
+                  <select class="rte-select" onchange="rteBlock(this.value); this.value='p'">
+                    <option value="p">Paragraph</option>
+                    <option value="h1">Heading 1</option>
+                    <option value="h2">Heading 2</option>
+                    <option value="h3">Heading 3</option>
+                    <option value="blockquote">Quote</option>
+                  </select>
+                  <div class="rte-sep"></div>
+                  <button class="rte-btn" onclick="rteExec('bold')"      title="Bold">   <i class="ti ti-bold"></i></button>
+                  <button class="rte-btn" onclick="rteExec('italic')"    title="Italic"> <i class="ti ti-italic"></i></button>
+                  <button class="rte-btn" onclick="rteExec('underline')" title="Underline"><i class="ti ti-underline"></i></button>
+                  <div class="rte-sep"></div>
+                  <button class="rte-btn" onclick="rteExec('insertUnorderedList')" title="Bullet list">  <i class="ti ti-list"></i></button>
+                  <button class="rte-btn" onclick="rteExec('insertOrderedList')"   title="Numbered list"><i class="ti ti-list-numbers"></i></button>
+                  <div class="rte-sep"></div>
+                  <button class="rte-btn" onclick="rteExec('justifyLeft')"  title="Left">  <i class="ti ti-align-left"></i></button>
+                  <button class="rte-btn" onclick="rteExec('justifyCenter')" title="Center"><i class="ti ti-align-center"></i></button>
+                  <div class="rte-sep"></div>
+                  <button class="rte-btn" onclick="rteInsertCode()" title="Inline code"><i class="ti ti-code"></i></button>
+                  <button class="rte-btn" onclick="rteInsertHR()"   title="Divider">   <i class="ti ti-minus"></i></button>
+                  <div class="rte-sep"></div>
+                  <button class="rte-btn" onclick="rteExec('undo')" title="Undo"><i class="ti ti-arrow-back-up"></i></button>
+                  <button class="rte-btn" onclick="rteExec('redo')" title="Redo"><i class="ti ti-arrow-forward-up"></i></button>
+                </div>
+                <div id="rte-body" contenteditable="true" data-placeholder="Start writing your post…" spellcheck="true"></div>
+              </div>
+            </div>
+
+            <!-- Post list sidebar -->
+            <div>
+              <div style="font-size:11px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.08em;margin-bottom:10px">
+                Posts <span id="post-count" style="color:var(--text4);font-weight:400"></span>
+              </div>
+              <div id="blog-post-list"></div>
+              <div id="blog-post-list-empty" style="color:var(--text4);font-size:12px;padding:1rem 0">No posts yet.</div>
+            </div>
+          </div>
+        </div>
+      </div><!-- /etab-blog -->
+
+
+      <!-- Topic Labels tab -->
+      <div class="editor-view" id="etab-labels">
+        <div style="padding:1.25rem;overflow-y:auto;flex:1">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px">
+            <div style="font-size:11px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.08em">Topic label master list</div>
+          </div>
+          <p style="font-size:12px;color:var(--text3);margin-bottom:16px;line-height:1.7">
+            These labels appear in the topic dropdown when creating problems. Students see them in the practice sidebar and on problem cards.
+          </p>
+          <div style="display:flex;gap:8px;margin-bottom:16px;align-items:flex-end">
+            <div style="flex:1"><label>New label name</label><input type="text" id="new-topic-input" placeholder="e.g. Op-Amps" onkeydown="if(event.key==='Enter')addTopic()"/></div>
+            <button class="btn btn-accent" onclick="addTopic()"><i class="ti ti-plus"></i> Add label</button>
+          </div>
+          <div id="topic-label-list" style="display:flex;flex-direction:column;gap:6px"></div>
+          <div id="topic-label-empty" style="color:var(--text4);font-size:12px;padding:1rem 0">No labels yet. Add one above.</div>
+        </div>
+      </div>
+
+      <!-- Homepage editor tab -->
+      <div class="editor-view" id="etab-homepage">
+        <div style="padding:1.25rem;overflow-y:auto;flex:1;max-width:700px">
+          <div style="font-size:11px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.08em;margin-bottom:16px">Homepage editor</div>
+
+          <!-- Banner -->
+          <div class="section-card">
+            <h4><i class="ti ti-speakerphone"></i> Announcement banner</h4>
+            <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px">
+              <div class="toggle-wrap" onclick="document.getElementById('hp-banner-enabled').click()">
+                <div class="toggle-track on" id="hp-banner-enabled-track"><div class="toggle-thumb"></div></div>
+                <span class="toggle-lbl" id="hp-banner-enabled-lbl">Enabled</span>
+              </div>
+            </div>
+            <input type="checkbox" id="hp-banner-enabled" style="display:none" checked onchange="
+              const on=this.checked;
+              document.getElementById('hp-banner-enabled-track').classList.toggle('on',on);
+              document.getElementById('hp-banner-enabled-lbl').textContent=on?'Enabled':'Disabled';
+              updateBannerPreview()"/>
+            <div class="field" style="margin-bottom:8px">
+              <label>Banner text (shown at top of homepage)</label>
+              <textarea id="hp-banner" rows="2" placeholder="e.g. Exam 2 is next Friday — check Assignments for practice sets." oninput="updateBannerPreview()"></textarea>
+            </div>
+            <div id="hp-banner-preview" style="display:none;margin-top:8px"></div>
+          </div>
+
+          <div style="display:flex;gap:8px;align-items:center">
+            <button class="btn btn-accent" onclick="saveHomepageEditor()"><i class="ti ti-device-floppy"></i> Save homepage</button>
+            <div class="ok-msg hidden" id="hp-ok">Saved!</div>
+          </div>
+          <p style="font-size:11px;color:var(--text3);margin-top:12px;line-height:1.7">
+            Recent blog posts and upcoming assignments are pulled in automatically — no manual editing needed.
+          </p>
+        </div>
+      </div>
+
+    </div><!-- /editor-shell -->
+  </div><!-- /view-editor -->
+
+  <!-- ── ADMIN ── -->
+  <div id="view-admin" class="hidden">
+    <div class="admin-area">
+      <div style="font-family:var(--font-display);font-size:16px;letter-spacing:.08em;color:var(--accent2);margin-bottom:1rem">Admin Panel</div>
+      <div class="admin-tabs">
+        <button class="admin-tab active" onclick="showAdminTab('analytics',this)">Analytics</button>
+        <button class="admin-tab"        onclick="showAdminTab('grades',this)">Assignment grades</button>
+        <button class="admin-tab"        onclick="showAdminTab('users',this)">User management</button>
+        <button class="admin-tab"        onclick="showAdminTab('account',this)">My account</button>
+      </div>
+
+      <!-- Analytics -->
+      <div class="admin-subtab active" id="atab-analytics">
+        <div class="dash-grid" id="dash-metrics"></div>
+        <div class="dash-section">
+          <div class="dash-head"><span><i class="ti ti-users"></i> Students</span></div>
+          <table class="dash-table"><thead><tr><th>Username</th><th>Attempted</th><th>Accuracy</th><th>Streak</th><th>Role</th></tr></thead>
+          <tbody id="dt-students"></tbody></table>
+        </div>
+        <div class="dash-section">
+          <div class="dash-head"><span><i class="ti ti-chart-bar"></i> Topic accuracy</span></div>
+          <table class="dash-table"><thead><tr><th>Topic</th><th>Attempts</th><th>Accuracy</th></tr></thead>
+          <tbody id="dt-topics"></tbody></table>
+        </div>
+      </div>
+
+      <!-- Grades -->
+      <div class="admin-subtab" id="atab-grades">
+        <div style="font-size:12px;color:var(--text3);margin-bottom:12px">Select an assignment to view grades:</div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px" id="grade-assign-btns"></div>
+        <div id="grade-table-wrap"></div>
+      </div>
+
+      <!-- Users -->
+      <div class="admin-subtab" id="atab-users">
+        <div class="dash-section">
+          <div class="dash-head">
+            <span><i class="ti ti-users"></i> Registered users</span>
+            <button class="btn btn-sm" onclick="renderUserMgmt()"><i class="ti ti-refresh"></i> Refresh</button>
+          </div>
+          <div style="padding:4px 14px 14px" id="user-mgmt-list"></div>
+        </div>
+        <div class="section-card" style="max-width:480px">
+          <h4><i class="ti ti-user-plus"></i> Create account manually</h4>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px">
+            <div class="field" style="margin:0"><label>Username</label><input type="text" id="mu-user"/></div>
+            <div class="field" style="margin:0"><label>Password</label><input type="password" id="mu-pass"/></div>
+          </div>
+          <div style="display:flex;align-items:center;gap:10px">
+            <label style="display:flex;align-items:center;gap:6px;text-transform:none;letter-spacing:0;font-size:12px;cursor:pointer">
+              <input type="checkbox" id="mu-admin" style="width:auto"/> Grant admin
+            </label>
+            <button class="btn btn-sm btn-accent" onclick="adminCreateUser()"><i class="ti ti-plus"></i> Create</button>
+          </div>
+          <div class="err-msg hidden" id="mu-err"><i class="ti ti-alert-circle"></i><span></span></div>
+          <div class="ok-msg hidden" id="mu-ok"></div>
+        </div>
+      </div>
+
+      <!-- Account -->
+      <div class="admin-subtab" id="atab-account">
+        <div class="section-card" style="max-width:400px">
+          <h4><i class="ti ti-key"></i> Change password</h4>
+          <div class="field"><label>New password</label><input type="password" id="cp-new"/></div>
+          <div class="field" style="margin-bottom:10px"><label>Confirm new password</label><input type="password" id="cp-new2"/></div>
+          <button class="btn btn-sm btn-accent" onclick="changePassword()"><i class="ti ti-check"></i> Update password</button>
+          <div class="err-msg hidden" id="cp-err"><i class="ti ti-alert-circle"></i><span></span></div>
+          <div class="ok-msg hidden" id="cp-ok"></div>
+        </div>
+      </div>
+    </div>
+  </div><!-- /view-admin -->
+
+</div><!-- /screen-app -->
+
+<!-- ════════════════════════════════════════════
+     SCRIPTS
+     firebase.js is a module (uses ES imports).
+     All others are plain scripts that run after.
+     ════════════════════════════════════════════ -->
+<script type="module" src="js/firebase.js"></script>
+<script defer src="js/home.js"></script>
+<script defer src="js/practice.js"></script>
+<script defer src="js/blog.js"></script>
+<script defer src="js/editor.js"></script>
+<script defer src="js/assignments.js"></script>
+<script defer src="js/admin.js"></script>
+<script defer src="js/app.js"></script>
+
+</body>
+</html>
