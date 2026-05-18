@@ -134,7 +134,7 @@ function buildProbRow(row, assign, ap, idx, p, sub, isLate) {
         ? `<div class="feedback ${done.correct ? 'correct' : 'wrong'}" style="display:block">
              ${done.correct
                ? '✓ Correct!'
-               : '✗ Incorrect — ' + (done.details || []).map(d => `${d.label}: expected ${d.answer} ${d.unit}`).join(' · ')}
+               : '✗ Incorrect'}
            </div>`
         : `<div class="feedback wrong" style="display:block">No attempts remaining.</div>`
       : `${inputsHTML}
@@ -227,7 +227,7 @@ async function submitAssignProb(assignId, probId, varKey) {
     const detail = results.map(r =>
       r.ok
         ? `${answers.length > 1 ? r.label+': ' : ''}✓`
-        : `${answers.length > 1 ? r.label+': ' : ''}✗ expected ≈${r.answer} ${r.unit}`
+        : `${answers.length > 1 ? r.label+': ' : ''}✗`
     ).join(' · ');
     if (fb) { fb.className='feedback wrong'; fb.innerHTML=`${detail}${remaining}`; fb.style.display='block'; }
     // Update attempt badge without rebuilding row
