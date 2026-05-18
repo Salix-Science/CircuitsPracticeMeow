@@ -157,6 +157,7 @@ async function saveHomepageEditor() {
   const bannerEnabled = document.getElementById('hp-banner-enabled')?.checked !== false;
   window.DB.homepage  = { banner, bannerEnabled };
   await saveHomepage();
+  logAdminAction('edit_homepage', { bannerEnabled, bannerLength: banner.length });
   const ok = document.getElementById('hp-ok');
   if (ok) { ok.classList.remove('hidden'); setTimeout(()=>ok.classList.add('hidden'), 2000); }
 }

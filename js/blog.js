@@ -167,9 +167,11 @@ async function saveBlogPost() {
   if (idx >= 0) window.DB.posts[idx] = post;
   else          window.DB.posts.unshift(post);
 
+  const _pIsNew = idx < 0;
   window.S.editingPostId = post.id;
   document.getElementById('blog-form-label').textContent = `Editing: ${post.title}`;
   await saveDB();
+  logAdminAction(_pIsNew ? 'create_post' : 'edit_post', { id: post.id, title: post.title, category: post.category, status: post.status });
   renderBlogPostList();
   alert(`"${post.title}" ${post.status === 'draft' ? 'saved as draft' : 'published'}!`);
 }
@@ -199,6 +201,8 @@ function loadPostToEditor(post) {
 
 function deletePost(id) {
   if (!confirm('Delete this post?')) return;
+  const _dp = window.DB.posts.find(p => p.id === id);
+  logAdminAction('delete_post', { id, title: _dp?.title, category: _dp?.category });
   window.DB.posts = window.DB.posts.filter(p => p.id !== id);
   if (window.S.editingPostId === id) resetBlogForm();
   saveDB();
