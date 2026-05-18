@@ -184,7 +184,7 @@ function shuffleFolderProb() {
   });
   const pid = enabledIds[window.S.folderIdx];
   const authored = window.DB.problems.find(pr => pr.id === pid);
-  if (authored) window.S.folderProblems[window.S.folderIdx] = genAuthoredVariant(authored);
+  if (authored) window.S.folderProblems[window.S.folderIdx] = genAuthoredVariant(authored, true);
   renderFolderProblem();
 }
 
@@ -316,14 +316,34 @@ function checkMainAnswer() {
 }
 
 // ── Authored variant generator ────────────────
-function genAuthoredVariant(prob) {
+function genAuthoredVariant(prob, bustCache = false) {
   if (!prob) return null;
-  const vals = {};
+
+  // Use sessionStorage to keep the same numbers for this problem
+  // until the student explicitly shuffles (bustCache = true).
+  const cacheKey = `prob_vals_${prob.id}`;
+  let vals = {};
+  if (!bustCache) {
+    try {
+      const cached = sessionStorage.getItem(cacheKey);
+      if (cached) vals = JSON.parse(cached);
+    } catch(e) {}
+  }
+
+  // Generate fresh values for any variable not already cached
   prob.vars.forEach(v => {
-    vals[v.name] = Math.round(
-      (parseFloat(v.min) + Math.random() * (parseFloat(v.max) - parseFloat(v.min))) * 10
-    ) / 10;
+    if (vals[v.name] === undefined) {
+      vals[v.name] = Math.round(
+        (parseFloat(v.min) + Math.random() * (parseFloat(v.max) - parseFloat(v.min))) * 10
+      ) / 10;
+    }
   });
+  // Remove stale keys (variable was renamed or deleted)
+  const validNames = new Set(prob.vars.map(v => v.name));
+  Object.keys(vals).forEach(k => { if (!validNames.has(k)) delete vals[k]; });
+
+  // Persist to sessionStorage
+  try { sessionStorage.setItem(cacheKey, JSON.stringify(vals)); } catch(e) {}
   const unitMap = {};
   prob.vars.forEach(v => { unitMap[v.name] = v.unit || unitForType(v.type); });
 

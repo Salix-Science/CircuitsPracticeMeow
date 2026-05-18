@@ -92,8 +92,8 @@ function renderAssignProblems(assign,wrap){
 
 function reshuffleAssignProb(assignId,probId,varKey){
   const prob=window.DB.problems.find(p=>p.id===probId);if(!prob)return;
-  window._assignVals[varKey]=genAuthoredVariant(prob);
-  // Reset attempt count for new numbers
+  try { sessionStorage.removeItem(`prob_vals_${probId}`); } catch(e) {}
+  window._assignVals[varKey]=genAuthoredVariant(prob, true);
   window._assignAttempts[varKey]=0;
   renderStudentAssignments();
 }

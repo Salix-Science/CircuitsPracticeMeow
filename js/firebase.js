@@ -62,7 +62,7 @@ async function loadSharedData() {
   window.DB.problems    = toArray(probSnap);
   window.DB.posts       = toArray(postSnap);
   window.DB.assignments = toArray(assignSnap);
-  window.DB.folders     = toArray(folderSnap);
+  window.DB.folders     = toArray(folderSnap).sort((a,b) => (a.order ?? 999) - (b.order ?? 999));
   window.DB.topics      = toArray(topicSnap);
   window.DB.homepage    = hpSnap.exists() ? hpSnap.data() : { banner:'', bannerEnabled:true };
   window.DB.problems.forEach(p => { if (p.enabled === undefined) p.enabled = true; });
@@ -108,6 +108,7 @@ window.saveDB = async function() {
     const { id, ...data } = a;
     writes.push(setDoc(doc(db, 'assignments', id), data, { merge: true }));
   }
+  window.DB.folders.forEach((f, i) => { f.order = i; });
   for (const f of window.DB.folders) {
     const { id, ...data } = f;
     writes.push(setDoc(doc(db, 'folders', id), data, { merge: true }));
