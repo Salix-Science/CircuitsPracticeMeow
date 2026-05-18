@@ -317,7 +317,7 @@ function checkMainAnswer() {
     const rem = maxAtt > 0 ? ` (${maxAtt-used} attempt${maxAtt-used!==1?'s':''} left)` : '';
     const detail = results.map(r => {
       if (r.ok) return `${answers.length>1?r.label+': ':''}✓`;
-      return `${answers.length>1?r.label+': ':''}✗ expected ≈${r.answer} ${r.unit} (±${((r.tol)*100).toFixed(0)}%)`;
+      return `${answers.length>1?r.label+': ':''}✗`;
     }).join(' · ');
     fb.className = 'feedback wrong';
     fb.innerHTML = `✗ ${detail}${rem}`;
