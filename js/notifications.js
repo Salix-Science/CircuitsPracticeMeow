@@ -14,9 +14,9 @@
    Free tier: 200 emails/month, no credit card required.
 */
 
-const EMAILJS_SERVICE_ID  = 'YOUR_SERVICE_ID';   // e.g. 'service_abc123'
-const EMAILJS_TEMPLATE_ID = 'YOUR_TEMPLATE_ID';  // e.g. 'template_xyz789'
-const EMAILJS_PUBLIC_KEY  = 'YOUR_PUBLIC_KEY';   // e.g. 'abcDEFghiJKL'
+const EMAILJS_SERVICE_ID  = 'service_vj8344b';   // e.g. 'service_abc123'
+const EMAILJS_TEMPLATE_ID = 'template_r5jq4ed';  // e.g. 'template_xyz789'
+const EMAILJS_PUBLIC_KEY  = '6v4OZ7JLX_TuXeLws';   // e.g. 'abcDEFghiJKL'
 
 // ── Check if EmailJS is configured ────────────
 function emailjsConfigured() {
