@@ -1,0 +1,43 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ── Users ─────────────────────────────────────────────────────────────
+    match /users/{userId} {
+
+      // Users can only read their OWN profile.
+      // Admins can read any profile (needed for analytics, grade table, user mgmt).
+      allow read: if request.auth.uid == userId || isAdmin();
+
+      // A user can write their own doc ONLY if they are not granting themselves isAdmin.
+      // New registrations always land with isAdmin: false.
+      // Admins can write any user doc (for toggling admin status, etc.).
+      allow write: if (request.auth.uid == userId
+                       && (!request.resource.data.keys().hasAny(['isAdmin'])
+                           || request.resource.data.isAdmin == false
+                           || (resource != null && resource.data.isAdmin == true)))
+                   || isAdmin();
+    }
+
+    // ── Shared readable content ────────────────────────────────────────────
+    // Any logged-in student can read these — they're needed for practice/assignments.
+    match /problems/{id}    { allow read: if request.auth != null; allow write: if isAdmin(); }
+    match /posts/{id}       { allow read: if request.auth != null; allow write: if isAdmin(); }
+    match /assignments/{id} { allow read: if request.auth != null; allow write: if isAdmin(); }
+    match /folders/{id}     { allow read: if request.auth != null; allow write: if isAdmin(); }
+    match /topics/{id}      { allow read: if request.auth != null; allow write: if isAdmin(); }
+    match /config/{docId}   { allow read: if request.auth != null; allow write: if isAdmin(); }
+
+    // ── Audit log — write-only for admins, never readable from client ──────
+    match /auditLog/{docId} {
+      allow create: if isAdmin();
+      allow read, update, delete: if false;
+    }
+
+    // ── Admin check ───────────────────────────────────────────────────────
+    function isAdmin() {
+      return request.auth != null &&
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.isAdmin == true;
+    }
+  }
+}
