@@ -17,9 +17,9 @@
    (Profile tab → Email notifications). Admins send from here.
 */
 
-const EMAILJS_SERVICE_ID  = 'YOUR_SERVICE_ID';
-const EMAILJS_TEMPLATE_ID = 'YOUR_TEMPLATE_ID';
-const EMAILJS_PUBLIC_KEY  = 'YOUR_PUBLIC_KEY';
+const EMAILJS_SERVICE_ID  = 'service_vj8344b';
+const EMAILJS_TEMPLATE_ID = 'template_r5jq4ed';
+const EMAILJS_PUBLIC_KEY  = '6v4OZ7JLX_TuXeLws';
 
 function emailjsConfigured() {
   return !EMAILJS_SERVICE_ID.startsWith('YOUR_') &&
