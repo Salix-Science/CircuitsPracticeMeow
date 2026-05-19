@@ -116,7 +116,7 @@ if(!window.S.editorAnswers) window.S.editorAnswers=[
   {id:`ans-${Date.now()}`,label:'Answer',formula:'',unit:'V',tol:'2'}
 ];
 
-const ANSWER_UNITS=['V','mV','kV','A','mA','μA','Ω','kΩ','MΩ','W','kW','F','μF','nF','H','mH'];
+const ANSWER_UNITS=['V','mV','kV','A','mA','μA','Ω','kΩ','MΩ','mW','W','kW','F','μF','nF','H','mH'];
 
 function renderAnswerBoxes(){
   const wrap=document.getElementById('answer-boxes-wrap');if(!wrap)return;
