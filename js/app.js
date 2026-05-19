@@ -1,6 +1,19 @@
 /* app.js — View routing, tab management, bootstrap */
 
+// Guard helper — all admin routes check this before rendering anything
+function _requireAdmin(context) {
+  if (!window.S.isAdmin) {
+    console.warn(`[security] Non-admin attempted to access: ${context}`);
+    return false;
+  }
+  return true;
+}
+
 function showView(v){
+  // Server-verified isAdmin flag gates editor and admin views.
+  // Even if tabs are unhidden via devtools, routing is blocked here.
+  if ((v==='editor' || v==='admin') && !_requireAdmin(`showView(${v})`)) return;
+
   ['home','practice','blog','assignments','editor','admin'].forEach(id=>{
     document.getElementById(`view-${id}`)?.classList.add('hidden');
     document.getElementById(`navt-${id}`)?.classList.remove('active');
@@ -15,12 +28,14 @@ function showView(v){
 }
 
 function showAdminTab(t,el){
+  if (!_requireAdmin(`showAdminTab(${t})`)) return;
   document.querySelectorAll('.admin-tab').forEach(b=>b.classList.remove('active'));el.classList.add('active');
   document.querySelectorAll('.admin-subtab').forEach(d=>d.classList.remove('active'));
   document.getElementById(`atab-${t}`)?.classList.add('active');
 }
 
 function showEdTab(t,el){
+  if (!_requireAdmin(`showEdTab(${t})`)) return;
   document.querySelectorAll('.editor-top-tab').forEach(b=>b.classList.remove('active'));el?.classList.add('active');
   document.querySelectorAll('.editor-view').forEach(v=>v.classList.remove('active'));
   document.getElementById(`etab-${t}`)?.classList.add('active');
