@@ -1,6 +1,11 @@
 /* admin.js — Analytics, grade table, and grade charts */
 
 // ── Analytics panel ───────────────────────────
+
+// Sort state for the student analytics table
+let _analyticsSortCol = 'attempted'; // 'name' | 'attempted' | 'accuracy' | 'streak' | 'section' | 'role'
+let _analyticsSortDir = 'desc';      // 'asc' | 'desc'
+
 window.renderAnalytics = async function renderAnalytics(){
   // Fetch all users fresh from Firestore — window.DB.users only contains the current user
   let allUsers = [];
@@ -22,17 +27,11 @@ window.renderAnalytics = async function renderAnalytics(){
     <div class="metric-card"><div class="metric-label">Class accuracy</div><div class="metric-value" style="color:${acc>=70?'var(--green)':acc>=50?'var(--warn)':'var(--red)'}">${acc}%</div></div>
     <div class="metric-card"><div class="metric-label">Problems</div><div class="metric-value">${enabledProbs}<span style="font-size:14px;color:var(--text4)">/${window.DB.problems.length}</span></div><div class="metric-sub">enabled / total</div></div>
     <div class="metric-card"><div class="metric-label">Blog posts</div><div class="metric-value">${pubPosts}<span style="font-size:14px;color:var(--text4)">/${window.DB.posts.length}</span></div><div class="metric-sub">published / total</div></div>`;
-  const stb=document.getElementById('dt-students');stb.innerHTML='';
-  if(!users.length){stb.innerHTML='<tr><td colspan="5" style="color:var(--text4)">No users yet.</td></tr>';}
-  users.sort((a,b)=>Object.values(b[1].scores||{}).reduce((s,v)=>s+v.attempted,0)-Object.values(a[1].scores||{}).reduce((s,v)=>s+v.attempted,0))
-  .forEach(([name,u])=>{
-    const tot=Object.values(u.scores||{}).reduce((s,v)=>s+v.attempted,0);
-    const cor=Object.values(u.scores||{}).reduce((s,v)=>s+v.correct,0);
-    const pct=tot?Math.round(cor/tot*100):0,col=pct>=70?'var(--green)':pct>=50?'var(--warn)':'var(--red)';
-    stb.innerHTML+=`<tr><td>${escHtml(name)}</td><td>${tot}</td>
-      <td><div class="acc-bar-outer"><div class="acc-bar-inner" style="width:${pct}%;background:${col}"></div></div>${pct}%</td>
-      <td>🔥${escHtml(String(u.streak||0))}</td><td>${u.isAdmin?'<span class="pill pill-admin">admin</span>':'student'}</td></tr>`;
-  });
+
+  // Cache users for re-sorting
+  window._analyticsUsers = users;
+  _renderStudentTable();
+
   const topicMap={};
   users.forEach(([,u])=>Object.entries(u.scores||{}).forEach(([k,sc])=>{
     if(!topicMap[k])topicMap[k]={correct:0,attempted:0};
@@ -45,6 +44,100 @@ window.renderAnalytics = async function renderAnalytics(){
       <td><div class="acc-bar-outer"><div class="acc-bar-inner" style="width:${pct}%;background:${col}"></div></div>${pct}%</td></tr>`;
   });
   if(!Object.keys(topicMap).length)tb.innerHTML='<tr><td colspan="3" style="color:var(--text4)">No practice data yet.</td></tr>';
+}
+
+// Helper: get the section label(s) for a user
+function _getUserSections(u){
+  const sections = window.DB.sections || [];
+  const names = sections.filter(s=>(s.studentUids||[]).includes(u.uid)).map(s=>s.name);
+  return names;
+}
+
+// Sort-icon helper
+function _sortIcon(col){
+  if(_analyticsSortCol !== col) return '<span style="opacity:.3;font-size:10px;margin-left:3px">⇅</span>';
+  return _analyticsSortDir === 'asc'
+    ? '<span style="font-size:10px;margin-left:3px;color:var(--accent2)">↑</span>'
+    : '<span style="font-size:10px;margin-left:3px;color:var(--accent2)">↓</span>';
+}
+
+// Toggle sort column
+window._analyticsSort = function(col){
+  if(_analyticsSortCol === col){
+    _analyticsSortDir = _analyticsSortDir === 'asc' ? 'desc' : 'asc';
+  } else {
+    _analyticsSortCol = col;
+    _analyticsSortDir = col === 'name' || col === 'section' || col === 'role' ? 'asc' : 'desc';
+  }
+  _renderStudentTable();
+}
+
+// Render (or re-render) just the student table with current sort state
+function _renderStudentTable(){
+  const users = window._analyticsUsers || [];
+
+  // Update sortable header cells
+  const thead = document.getElementById('dt-students-head');
+  if(thead){
+    const thStyle = 'cursor:pointer;user-select:none;white-space:nowrap';
+    thead.innerHTML = `<tr>
+      <th style="${thStyle}" onclick="_analyticsSort('name')">Username${_sortIcon('name')}</th>
+      <th style="${thStyle}" onclick="_analyticsSort('section')">Section${_sortIcon('section')}</th>
+      <th style="${thStyle}" onclick="_analyticsSort('attempted')">Attempted${_sortIcon('attempted')}</th>
+      <th style="${thStyle}" onclick="_analyticsSort('accuracy')">Accuracy${_sortIcon('accuracy')}</th>
+      <th style="${thStyle}" onclick="_analyticsSort('streak')">Streak${_sortIcon('streak')}</th>
+      <th style="${thStyle}" onclick="_analyticsSort('role')">Role${_sortIcon('role')}</th>
+    </tr>`;
+  }
+
+  const stb=document.getElementById('dt-students');
+  if(!stb) return;
+  stb.innerHTML='';
+  if(!users.length){
+    stb.innerHTML='<tr><td colspan="6" style="color:var(--text4)">No users yet.</td></tr>';
+    return;
+  }
+
+  // Build enriched rows
+  const rows = users.map(([name, u]) => {
+    const tot = Object.values(u.scores||{}).reduce((s,v)=>s+v.attempted,0);
+    const cor = Object.values(u.scores||{}).reduce((s,v)=>s+v.correct,0);
+    const pct = tot ? Math.round(cor/tot*100) : 0;
+    const sectionNames = _getUserSections(u);
+    return { name, u, tot, pct, sectionNames };
+  });
+
+  // Sort
+  rows.sort((a, b) => {
+    let av, bv;
+    switch(_analyticsSortCol){
+      case 'name':     av=a.name.toLowerCase(); bv=b.name.toLowerCase(); break;
+      case 'section':  av=(a.sectionNames[0]||'zzz').toLowerCase(); bv=(b.sectionNames[0]||'zzz').toLowerCase(); break;
+      case 'attempted':av=a.tot; bv=b.tot; break;
+      case 'accuracy': av=a.pct; bv=b.pct; break;
+      case 'streak':   av=a.u.streak||0; bv=b.u.streak||0; break;
+      case 'role':     av=a.u.isAdmin?1:0; bv=b.u.isAdmin?1:0; break;
+      default:         av=a.tot; bv=b.tot;
+    }
+    if(av < bv) return _analyticsSortDir==='asc' ? -1 : 1;
+    if(av > bv) return _analyticsSortDir==='asc' ? 1 : -1;
+    return 0;
+  });
+
+  rows.forEach(({name, u, tot, pct, sectionNames})=>{
+    const col=pct>=70?'var(--green)':pct>=50?'var(--warn)':'var(--red)';
+    const sectionCell = sectionNames.length
+      ? sectionNames.map(n=>`<span class="pill" style="background:rgba(157,125,232,.12);color:var(--accent2);border:0.5px solid rgba(157,125,232,.3);font-size:10px;padding:2px 7px;border-radius:99px;white-space:nowrap">${escHtml(n)}</span>`).join(' ')
+      : '<span style="color:var(--text4);font-size:11px">—</span>';
+    stb.innerHTML+=`<tr>
+      <td>${escHtml(name)}</td>
+      <td style="min-width:90px">${sectionCell}</td>
+      <td>${tot}</td>
+      <td><div class="acc-bar-outer"><div class="acc-bar-inner" style="width:${pct}%;background:${col}"></div></div>${pct}%</td>
+      <td>🔥${escHtml(String(u.streak||0))}</td>
+      <td>${u.isAdmin?'<span class="pill pill-admin">admin</span>':'student'}</td>
+    </tr>`;
+  });
 }
 
 // ── Assignment selector buttons ───────────────
