@@ -488,7 +488,15 @@
       <div class="admin-subtab active" id="atab-analytics">
         <div class="dash-grid" id="dash-metrics"></div>
         <div class="dash-section">
-          <div class="dash-head"><span><i class="ti ti-users"></i> Students</span></div>
+          <div class="dash-head" style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px">
+            <span><i class="ti ti-users"></i> Students</span>
+            <div style="display:flex;align-items:center;gap:8px">
+              <label style="font-size:11px;color:var(--text3);text-transform:uppercase;letter-spacing:.08em;margin:0">Section:</label>
+              <select id="analytics-section-filter" style="padding:4px 8px;font-size:12px;width:auto" onchange="_analyticsFilterSection()">
+                <option value="">All sections</option>
+              </select>
+            </div>
+          </div>
           <table class="dash-table"><thead id="dt-students-head"><tr><th>Username</th><th>Section</th><th>Attempted</th><th>Accuracy</th><th>Streak</th><th>Role</th></tr></thead>
           <tbody id="dt-students"></tbody></table>
         </div>

@@ -28,9 +28,38 @@ window.renderAnalytics = async function renderAnalytics(){
     <div class="metric-card"><div class="metric-label">Problems</div><div class="metric-value">${enabledProbs}<span style="font-size:14px;color:var(--text4)">/${window.DB.problems.length}</span></div><div class="metric-sub">enabled / total</div></div>
     <div class="metric-card"><div class="metric-label">Blog posts</div><div class="metric-value">${pubPosts}<span style="font-size:14px;color:var(--text4)">/${window.DB.posts.length}</span></div><div class="metric-sub">published / total</div></div>`;
 
-  // Cache users for re-sorting
+  // Populate section filter dropdown
+  const sel = document.getElementById('analytics-section-filter');
+  if(sel){
+    const current = sel.value;
+    sel.innerHTML = '<option value="">All sections</option>' +
+      (window.DB.sections||[]).map(s=>
+        `<option value="${s.id}" ${s.id===current?'selected':''}>${escHtml(s.name)}</option>`
+      ).join('');
+  }
+
+  // Cache all users for re-sorting/filtering
   window._analyticsUsers = users;
   _renderStudentTable();
+
+  const topicMap={};
+  users.forEach(([,u])=>Object.entries(u.scores||{}).forEach(([k,sc])=>{
+    if(!topicMap[k])topicMap[k]={correct:0,attempted:0};
+    topicMap[k].correct+=sc.correct;topicMap[k].attempted+=sc.attempted;
+  }));
+  const tb=document.getElementById('dt-topics');tb.innerHTML='';
+  Object.entries(topicMap).sort((a,b)=>b[1].attempted-a[1].attempted).forEach(([k,sc])=>{
+    const pct=sc.attempted?Math.round(sc.correct/sc.attempted*100):0,col=pct>=70?'var(--green)':pct>=50?'var(--warn)':'var(--red)';
+    tb.innerHTML+=`<tr><td>${escHtml(k)}</td><td>${sc.attempted}</td>
+      <td><div class="acc-bar-outer"><div class="acc-bar-inner" style="width:${pct}%;background:${col}"></div></div>${pct}%</td></tr>`;
+  });
+  if(!Object.keys(topicMap).length)tb.innerHTML='<tr><td colspan="3" style="color:var(--text4)">No practice data yet.</td></tr>';
+}
+
+// Section filter change handler
+window._analyticsFilterSection = function(){
+  _renderStudentTable();
+}
 
   const topicMap={};
   users.forEach(([,u])=>Object.entries(u.scores||{}).forEach(([k,sc])=>{
@@ -72,29 +101,39 @@ window._analyticsSort = function(col){
   _renderStudentTable();
 }
 
-// Render (or re-render) just the student table with current sort state
+// Render (or re-render) just the student table with current sort + filter state
 function _renderStudentTable(){
-  const users = window._analyticsUsers || [];
+  const allUsers = window._analyticsUsers || [];
 
-  // Update sortable header cells
+  // Apply section filter
+  const selVal = document.getElementById('analytics-section-filter')?.value || '';
+  let users = allUsers;
+  if(selVal){
+    const sec = (window.DB.sections||[]).find(s=>s.id===selVal);
+    const uids = new Set(sec?.studentUids||[]);
+    users = allUsers.filter(([,u])=>uids.has(u.uid));
+  }
+
+  // Update sortable header cells (Username | Section | Attempted | Accuracy | Streak | Role)
   const thead = document.getElementById('dt-students-head');
   if(thead){
-    const thStyle = 'cursor:pointer;user-select:none;white-space:nowrap';
+    const th = (col, label) =>
+      `<th style="cursor:pointer;user-select:none;white-space:nowrap" onclick="_analyticsSort('${col}')">${label}${_sortIcon(col)}</th>`;
     thead.innerHTML = `<tr>
-      <th style="${thStyle}" onclick="_analyticsSort('name')">Username${_sortIcon('name')}</th>
-      <th style="${thStyle}" onclick="_analyticsSort('section')">Section${_sortIcon('section')}</th>
-      <th style="${thStyle}" onclick="_analyticsSort('attempted')">Attempted${_sortIcon('attempted')}</th>
-      <th style="${thStyle}" onclick="_analyticsSort('accuracy')">Accuracy${_sortIcon('accuracy')}</th>
-      <th style="${thStyle}" onclick="_analyticsSort('streak')">Streak${_sortIcon('streak')}</th>
-      <th style="${thStyle}" onclick="_analyticsSort('role')">Role${_sortIcon('role')}</th>
+      ${th('name','Username')}
+      ${th('section','Section')}
+      ${th('attempted','Attempted')}
+      ${th('accuracy','Accuracy')}
+      ${th('streak','Streak')}
+      ${th('role','Role')}
     </tr>`;
   }
 
-  const stb=document.getElementById('dt-students');
+  const stb = document.getElementById('dt-students');
   if(!stb) return;
-  stb.innerHTML='';
+  stb.innerHTML = '';
   if(!users.length){
-    stb.innerHTML='<tr><td colspan="6" style="color:var(--text4)">No users yet.</td></tr>';
+    stb.innerHTML = `<tr><td colspan="6" style="color:var(--text4);text-align:center;padding:1.5rem">${selVal?'No students in this section.':'No users yet.'}</td></tr>`;
     return;
   }
 
@@ -125,11 +164,11 @@ function _renderStudentTable(){
   });
 
   rows.forEach(({name, u, tot, pct, sectionNames})=>{
-    const col=pct>=70?'var(--green)':pct>=50?'var(--warn)':'var(--red)';
+    const col = pct>=70?'var(--green)':pct>=50?'var(--warn)':'var(--red)';
     const sectionCell = sectionNames.length
-      ? sectionNames.map(n=>`<span class="pill" style="background:rgba(157,125,232,.12);color:var(--accent2);border:0.5px solid rgba(157,125,232,.3);font-size:10px;padding:2px 7px;border-radius:99px;white-space:nowrap">${escHtml(n)}</span>`).join(' ')
+      ? sectionNames.map(n=>`<span style="background:rgba(157,125,232,.12);color:var(--accent2);border:0.5px solid rgba(157,125,232,.3);font-size:10px;padding:2px 7px;border-radius:99px;white-space:nowrap;display:inline-block">${escHtml(n)}</span>`).join(' ')
       : '<span style="color:var(--text4);font-size:11px">—</span>';
-    stb.innerHTML+=`<tr>
+    stb.innerHTML += `<tr>
       <td>${escHtml(name)}</td>
       <td style="min-width:90px">${sectionCell}</td>
       <td>${tot}</td>
