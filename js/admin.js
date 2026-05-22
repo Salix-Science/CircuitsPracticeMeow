@@ -61,20 +61,6 @@ window._analyticsFilterSection = function(){
   _renderStudentTable();
 }
 
-  const topicMap={};
-  users.forEach(([,u])=>Object.entries(u.scores||{}).forEach(([k,sc])=>{
-    if(!topicMap[k])topicMap[k]={correct:0,attempted:0};
-    topicMap[k].correct+=sc.correct;topicMap[k].attempted+=sc.attempted;
-  }));
-  const tb=document.getElementById('dt-topics');tb.innerHTML='';
-  Object.entries(topicMap).sort((a,b)=>b[1].attempted-a[1].attempted).forEach(([k,sc])=>{
-    const pct=sc.attempted?Math.round(sc.correct/sc.attempted*100):0,col=pct>=70?'var(--green)':pct>=50?'var(--warn)':'var(--red)';
-    tb.innerHTML+=`<tr><td>${escHtml(k)}</td><td>${sc.attempted}</td>
-      <td><div class="acc-bar-outer"><div class="acc-bar-inner" style="width:${pct}%;background:${col}"></div></div>${pct}%</td></tr>`;
-  });
-  if(!Object.keys(topicMap).length)tb.innerHTML='<tr><td colspan="3" style="color:var(--text4)">No practice data yet.</td></tr>';
-}
-
 // Helper: get the section label(s) for a user
 function _getUserSections(u){
   const sections = window.DB.sections || [];
