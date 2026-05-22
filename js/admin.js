@@ -100,18 +100,20 @@ function _renderStudentTable(){
     users = allUsers.filter(([,u])=>uids.has(u.uid));
   }
 
-  // Update sortable header cells (Username | Section | Attempted | Accuracy | Streak | Role)
+  // Always fully rebuild thead to guarantee 6-column layout
   const thead = document.getElementById('dt-students-head');
   if(thead){
-    const th = (col, label) =>
-      `<th style="cursor:pointer;user-select:none;white-space:nowrap" onclick="_analyticsSort('${col}')">${label}${_sortIcon(col)}</th>`;
+    const si = col => _analyticsSortCol === col
+      ? `<span style="font-size:10px;margin-left:3px;color:var(--accent2)">${_analyticsSortDir==='asc'?'↑':'↓'}</span>`
+      : `<span style="opacity:.3;font-size:10px;margin-left:3px">⇅</span>`;
+    const ths = 'cursor:pointer;user-select:none;white-space:nowrap';
     thead.innerHTML = `<tr>
-      ${th('name','Username')}
-      ${th('section','Section')}
-      ${th('attempted','Attempted')}
-      ${th('accuracy','Accuracy')}
-      ${th('streak','Streak')}
-      ${th('role','Role')}
+      <th style="${ths}" onclick="window._analyticsSort('name')">Username${si('name')}</th>
+      <th style="${ths}" onclick="window._analyticsSort('section')">Section${si('section')}</th>
+      <th style="${ths}" onclick="window._analyticsSort('attempted')">Attempted${si('attempted')}</th>
+      <th style="${ths}" onclick="window._analyticsSort('accuracy')">Accuracy${si('accuracy')}</th>
+      <th style="${ths}" onclick="window._analyticsSort('streak')">Streak${si('streak')}</th>
+      <th style="${ths}" onclick="window._analyticsSort('role')">Role${si('role')}</th>
     </tr>`;
   }
 
