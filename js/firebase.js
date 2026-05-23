@@ -142,7 +142,7 @@ window.sanitizeUser = function(data) {
     for (const [k, v] of Object.entries(data.assignAttempts)) {
       if (typeof k !== 'string' || k.length > 200) continue;
       const n = parseInt(v);
-      if (Number.isFinite(n) && n >= 0) safe.assignAttempts[k] = n;
+      if (Number.isFinite(n) && n > 0) safe.assignAttempts[k] = n; // strip zero/negative — blocks negative count exploit
     }
     console.log('[firebase] loaded assignAttempts:', Object.keys(safe.assignAttempts).length, 'entries');
   }

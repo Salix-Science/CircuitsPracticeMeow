@@ -90,8 +90,14 @@ window.renderStudentAssignments = function renderStudentAssignments() {
   console.log('[assignAttempts] user object:', _u ? 'found' : 'NOT FOUND');
   console.log('[assignAttempts] stored assignAttempts:', _u?.assignAttempts ?? 'none');
   if (_u?.assignAttempts) {
-    Object.assign(window._assignAttempts, _u.assignAttempts);
-    console.log('[assignAttempts] restored into memory:', window._assignAttempts);
+    // Clamp all values >= 0 — prevents negative count exploit
+    const sanitized = {};
+    for (const [k, v] of Object.entries(_u.assignAttempts)) {
+      const n = parseInt(v);
+      sanitized[k] = (Number.isFinite(n) && n > 0) ? n : 0;
+    }
+    Object.assign(window._assignAttempts, sanitized);
+    console.log('[assignAttempts] restored into memory (sanitized):', window._assignAttempts);
   } else {
     console.warn('[assignAttempts] no stored counts — first load or not yet saved');
   }
@@ -185,7 +191,7 @@ window.buildProbRow = function buildProbRow(row, assign, ap, idx, p, sub, isLate
   const done    = sub[ap.probId];
   const varKey  = `${assign.id}-${ap.probId}-${window.S.user}`;
   const maxAtt  = p.maxAttempts || 0;
-  const used    = window._assignAttempts[varKey] || 0;
+  const used    = Math.max(0, parseInt(window._assignAttempts[varKey]) || 0);
   const locked  = !!done || (maxAtt > 0 && used >= maxAtt);
 
   const attBadge = maxAtt > 0 && !done
@@ -287,15 +293,18 @@ window.submitAssignProb = async function submitAssignProb(assignId, probId) {
   }
 
   const allOk  = results.every(r => r.ok);
-  window._assignAttempts[varKey] = (window._assignAttempts[varKey] || 0) + 1;
+  // Clamp existing count to >= 0 before incrementing — blocks negative count exploit
+  const _prevCount = Math.max(0, parseInt(window._assignAttempts[varKey]) || 0);
+  window._assignAttempts[varKey] = _prevCount + 1;
   const used   = window._assignAttempts[varKey];
+  console.log('[assignAttempts] attempt', used, 'for', varKey, '(prev was', _prevCount, ')');
 
   // Persist attempt count to Firestore so it survives page refresh
   const _u2 = window.DB.users[window.S.user];
   console.log('[assignAttempts] persisting', varKey, '=', used, '| user:', _u2 ? 'found' : 'NOT FOUND');
   if (_u2) {
     if (!_u2.assignAttempts) _u2.assignAttempts = {};
-    _u2.assignAttempts[varKey] = used;
+    _u2.assignAttempts[varKey] = Math.max(1, used); // always at least 1 after a submission
     console.log('[assignAttempts] calling saveUserOnly, full assignAttempts:', _u2.assignAttempts);
     saveUserOnly()
       .then(() => console.log('[assignAttempts] saveUserOnly SUCCESS'))
