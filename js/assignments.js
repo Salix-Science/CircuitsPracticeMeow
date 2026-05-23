@@ -84,6 +84,13 @@ function genSeededVariant(prob, seedKey) {
 // ── Main list ─────────────────────────────────
 window.renderStudentAssignments = function renderStudentAssignments() {
   window.track?.("page_view", { page: "assignments" });
+
+  // Restore persisted attempt counts from Firestore into memory
+  const _u = window.DB.users[window.S.user];
+  if (_u?.assignAttempts) {
+    Object.assign(window._assignAttempts, _u.assignAttempts);
+  }
+
   const wrap = document.getElementById('assign-student-list');
   wrap.innerHTML = '';
   const now = Date.now();
@@ -277,6 +284,14 @@ window.submitAssignProb = async function submitAssignProb(assignId, probId) {
   const allOk  = results.every(r => r.ok);
   window._assignAttempts[varKey] = (window._assignAttempts[varKey] || 0) + 1;
   const used   = window._assignAttempts[varKey];
+
+  // Persist attempt count to Firestore so it survives page refresh
+  const _u2 = window.DB.users[window.S.user];
+  if (_u2) {
+    if (!_u2.assignAttempts) _u2.assignAttempts = {};
+    _u2.assignAttempts[varKey] = used;
+    saveUserOnly().catch(e => console.error('[assignAttempts] save failed:', e));
+  }
   const maxAtt = p.maxAttempts || 0;
   const noMore = maxAtt > 0 && used >= maxAtt;
 
