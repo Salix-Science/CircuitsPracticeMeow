@@ -87,8 +87,13 @@ window.renderStudentAssignments = function renderStudentAssignments() {
 
   // Restore persisted attempt counts from Firestore into memory
   const _u = window.DB.users[window.S.user];
+  console.log('[assignAttempts] user object:', _u ? 'found' : 'NOT FOUND');
+  console.log('[assignAttempts] stored assignAttempts:', _u?.assignAttempts ?? 'none');
   if (_u?.assignAttempts) {
     Object.assign(window._assignAttempts, _u.assignAttempts);
+    console.log('[assignAttempts] restored into memory:', window._assignAttempts);
+  } else {
+    console.warn('[assignAttempts] no stored counts — first load or not yet saved');
   }
 
   const wrap = document.getElementById('assign-student-list');
@@ -287,10 +292,16 @@ window.submitAssignProb = async function submitAssignProb(assignId, probId) {
 
   // Persist attempt count to Firestore so it survives page refresh
   const _u2 = window.DB.users[window.S.user];
+  console.log('[assignAttempts] persisting', varKey, '=', used, '| user:', _u2 ? 'found' : 'NOT FOUND');
   if (_u2) {
     if (!_u2.assignAttempts) _u2.assignAttempts = {};
     _u2.assignAttempts[varKey] = used;
-    saveUserOnly().catch(e => console.error('[assignAttempts] save failed:', e));
+    console.log('[assignAttempts] calling saveUserOnly, full assignAttempts:', _u2.assignAttempts);
+    saveUserOnly()
+      .then(() => console.log('[assignAttempts] saveUserOnly SUCCESS'))
+      .catch(e => console.error('[assignAttempts] saveUserOnly FAILED:', e));
+  } else {
+    console.error('[assignAttempts] cannot persist — user object not found in DB');
   }
   const maxAtt = p.maxAttempts || 0;
   const noMore = maxAtt > 0 && used >= maxAtt;

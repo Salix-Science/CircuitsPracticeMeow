@@ -296,6 +296,8 @@ window.saveUserOnly = async function() {
                            }
                          : {},
     attemptLog:        Array.isArray(u.attemptLog) ? u.attemptLog : [],
+    assignAttempts:    (u.assignAttempts && typeof u.assignAttempts === 'object')
+                         ? u.assignAttempts : {},
   };
 
   try {
