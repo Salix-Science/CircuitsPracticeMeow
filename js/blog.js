@@ -118,6 +118,22 @@ window.rteInsertHR = function rteInsertHR() {
   document.execCommand('insertHTML', false, '<hr/><p><br></p>');
 }
 
+window.rteInsertEmbed = function rteInsertEmbed() {
+  const input = prompt('Paste a YouTube link or embed code:');
+  if (!input) return;
+  // Pull the 11-char video ID out of a watch URL, youtu.be link, or <iframe> src
+  const m = input.match(/(?:youtu\.be\/|youtube\.com\/(?:embed\/|watch\?v=|.*[?&]v=))([A-Za-z0-9_-]{11})/);
+  const id = m ? m[1] : (/^[A-Za-z0-9_-]{11}$/.test(input.trim()) ? input.trim() : null);
+  if (!id) { alert("Couldn't find a YouTube video ID in that."); return; }
+  const html =
+    `<div class="embed-video"><iframe src="https://www.youtube.com/embed/${id}" ` +
+    `title="YouTube video" frameborder="0" allow="accelerometer; autoplay; ` +
+    `clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" ` +
+    `referrerpolicy="strict-origin-when-cross-origin" allowfullscreen></iframe></div><p><br></p>`;
+  document.getElementById('rte-body').focus();
+  document.execCommand('insertHTML', false, html);
+}
+
 // Category custom tag toggle
 window.toggleCustomTag = function toggleCustomTag(sel) {
   const w = document.getElementById('bp-custom-wrap');
