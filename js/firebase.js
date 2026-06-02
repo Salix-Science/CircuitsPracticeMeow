@@ -136,17 +136,6 @@ window.sanitizeUser = function(data) {
     }));
   }
 
-  // assignAttempts — object of { varKey: count }
-  safe.assignAttempts = {};
-  if (data.assignAttempts && typeof data.assignAttempts === 'object') {
-    for (const [k, v] of Object.entries(data.assignAttempts)) {
-      if (typeof k !== 'string' || k.length > 200) continue;
-      const n = parseInt(v);
-      if (Number.isFinite(n) && n > 0) safe.assignAttempts[k] = n; // strip zero/negative — blocks negative count exploit
-    }
-    console.log('[firebase] loaded assignAttempts:', Object.keys(safe.assignAttempts).length, 'entries');
-  }
-
   return safe;
 };
 
@@ -307,8 +296,6 @@ window.saveUserOnly = async function() {
                            }
                          : {},
     attemptLog:        Array.isArray(u.attemptLog) ? u.attemptLog : [],
-    assignAttempts:    (u.assignAttempts && typeof u.assignAttempts === 'object')
-                         ? u.assignAttempts : {},
   };
 
   try {
@@ -394,7 +381,8 @@ window.recordScore = async function(topicKey, correct) {
     await updateDoc(doc(db, 'users', uid), {
       [`${field}.attempted`]: increment(1),
       [`${field}.correct`]:   increment(correct ? 1 : 0),
-      streak: increment(correct ? 1 : -999999), // handled below
+      // Streak is handled exclusively by recordStreak() below — do not touch it here,
+      // or every correct answer would increment the stored streak twice.
     });
   } catch(e) {
     // If the score field doesn't exist yet, create it
