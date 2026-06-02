@@ -418,18 +418,25 @@ window.genAuthoredVariant = function genAuthoredVariant(prob, bustCache = false)
     answer = rnd(fn(...Object.values(vals)), 4);
   } catch(e) {}
 
-  // Compute all answer boxes (supports multi-answer problems)
+  // Compute all answer boxes (supports multi-answer problems).
+  // Boxes are evaluated top-to-bottom; each box's numeric result is added to the
+  // scope under its reference name (default B1, B2, …) so a later box's formula
+  // can build on an earlier box's answer symbolically — e.g. box B1 = R1+R2+R3,
+  // box B2 = Vs/B1.
   const answerDefs = prob.answers && prob.answers.length
     ? prob.answers
-    : [{ id:'ans0', label:'Answer', formula: prob.formula, unit: prob.unit, tol: prob.tol }];
+    : [{ id:'ans0', label:'Answer', ref:'B1', formula: prob.formula, unit: prob.unit, tol: prob.tol }];
 
-  const answers = answerDefs.map(a => {
+  const scope = { ...vals };
+  const answers = answerDefs.map((a, ai) => {
+    const ref = (a.ref || `B${ai+1}`).trim();
     let ans = null;
     try {
-      const fn = new Function(...Object.keys(vals), `return (${a.formula})`);
-      ans = rnd(fn(...Object.values(vals)), 4);
+      const fn = new Function(...Object.keys(scope), `return (${a.formula})`);
+      ans = rnd(fn(...Object.values(scope)), 4);
     } catch(e) {}
-    return { id: a.id, label: a.label, answer: ans, unit: a.unit, tol: (parseFloat(a.tol)||2)/100 };
+    if (ref && ans !== null && !isNaN(ans)) scope[ref] = ans;
+    return { id: a.id, label: a.label, ref, answer: ans, unit: a.unit, tol: (parseFloat(a.tol)||2)/100 };
   });
 
   return {

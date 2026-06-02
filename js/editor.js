@@ -18,7 +18,7 @@ window.resetForm = function resetForm(){
   window.S.editorVars=[];
   window.S.editorImg=null;
   window.S.formEnabled=true;
-  window.S.editorAnswers=[{id:`ans-${Date.now()}`,label:'Answer',formula:'',unit:'V',tol:'2'}];
+  window.S.editorAnswers=[{id:`ans-${Date.now()}`,label:'Answer',ref:'B1',formula:'',unit:'V',tol:'2'}];
   ['e-title','e-topic','e-question','e-hint'].forEach(id=>{
     const el=document.getElementById(id); if(el) el.value='';
   });
@@ -113,7 +113,7 @@ window.renderVarInsertChips = function renderVarInsertChips(){
 // ── Answer boxes ──────────────────────────────
 // S.editorAnswers = [{ id, label, formula, unit, tol }, ...]
 if(!window.S.editorAnswers) window.S.editorAnswers=[
-  {id:`ans-${Date.now()}`,label:'Answer',formula:'',unit:'V',tol:'2'}
+  {id:`ans-${Date.now()}`,label:'Answer',ref:'B1',formula:'',unit:'V',tol:'2'}
 ];
 
 const ANSWER_UNITS=['V','mV','kV','A','mA','μA','Ω','kΩ','MΩ','W','kW','F','μF','nF','H','mH'];
@@ -123,10 +123,20 @@ window.renderAnswerBoxes = function renderAnswerBoxes(){
   wrap.innerHTML='';
   window.S.editorAnswers.forEach((ans,i)=>{
     const unitOpts=ANSWER_UNITS.map(u=>`<option value="${u}" ${u===ans.unit?'selected':''}>${u}</option>`).join('');
+    const ref=ans.ref||`B${i+1}`;
+    // Reference names of all boxes above this one — usable inside this box's formula
+    const priorRefs=window.S.editorAnswers.slice(0,i).map((a,j)=>a.ref||`B${j+1}`).filter(Boolean);
+    const priorHint=priorRefs.length
+      ? `Can reference earlier boxes: ${priorRefs.map(r=>`<code style="font-family:var(--mono);color:var(--accent2);background:var(--bg4);padding:0 4px;border-radius:3px">${r}</code>`).join(' ')}`
+      : 'First box — later boxes can reference its result by name.';
     const box=document.createElement('div');
     box.className='answer-box';
     box.innerHTML=`
       <div class="answer-box-head">
+        <input type="text" value="${ref}" placeholder="B${i+1}"
+          title="Reference name — use this in later boxes' formulas"
+          oninput="window.S.editorAnswers[${i}].ref=this.value;previewAllFormulas()"
+          style="width:54px;padding:5px 8px;font-size:12px;font-weight:600;font-family:var(--mono);text-align:center"/>
         <input type="text" class="answer-box-label-input" value="${ans.label}"
           placeholder="e.g. Find Vout"
           oninput="window.S.editorAnswers[${i}].label=this.value"
@@ -156,16 +166,18 @@ window.renderAnswerBoxes = function renderAnswerBoxes(){
             oninput="window.S.editorAnswers[${i}].tol=this.value"/>
         </div>
       </div>
-      <div class="formula-preview" id="formula-preview-${i}" style="margin-top:6px">Formula preview</div>`;
+      <div style="font-size:10px;color:var(--text4);margin-top:6px;line-height:1.6">${priorHint}</div>
+      <div class="formula-preview" id="formula-preview-${i}" style="margin-top:4px">Formula preview</div>`;
     wrap.appendChild(box);
   });
   previewAllFormulas();
 }
 
 window.addAnswerBox = function addAnswerBox(){
+  const n=window.S.editorAnswers.length+1;
   window.S.editorAnswers.push({
-    id:`ans-${Date.now()}`,label:`Part ${String.fromCharCode(64+window.S.editorAnswers.length+1)}`,
-    formula:'',unit:'V',tol:'2'
+    id:`ans-${Date.now()}`,label:`Part ${String.fromCharCode(64+n)}`,
+    ref:`B${n}`,formula:'',unit:'V',tol:'2'
   });
   renderAnswerBoxes();
 }
@@ -177,16 +189,18 @@ window.removeAnswerBox = function removeAnswerBox(i){
 }
 
 window.previewAllFormulas = function previewAllFormulas(){
-  const vals={};
-  window.S.editorVars.forEach(v=>{vals[v.name]=(parseFloat(v.min)+parseFloat(v.max))/2;});
+  const scope={};
+  window.S.editorVars.forEach(v=>{scope[v.name]=(parseFloat(v.min)+parseFloat(v.max))/2;});
   window.S.editorAnswers.forEach((ans,i)=>{
     const prev=document.getElementById(`formula-preview-${i}`);if(!prev)return;
+    const ref=(ans.ref||`B${i+1}`).trim();
     if(!ans.formula.trim()){prev.textContent='Formula preview';return;}
     try{
-      const fn=new Function(...Object.keys(vals),`return (${ans.formula})`);
-      const res=fn(...Object.values(vals));
-      const varStr=window.S.editorVars.map(v=>`${v.name}=${vals[v.name]} ${v.unit||''}`).join(', ')||'no vars';
-      prev.textContent=`Preview: ${varStr} → ${rnd(res,4)} ${ans.unit}`;
+      const fn=new Function(...Object.keys(scope),`return (${ans.formula})`);
+      const res=fn(...Object.values(scope));
+      if(ref && res!==null && !isNaN(res)) scope[ref]=rnd(res,4);
+      const varStr=window.S.editorVars.map(v=>`${v.name}=${rnd(scope[v.name],4)} ${v.unit||''}`).join(', ')||'no vars';
+      prev.textContent=`${ref} = ${rnd(res,4)} ${ans.unit}   ·   ${varStr}`;
     }catch(e){prev.textContent=`⚠ ${e.message}`;}
   });
 }
@@ -275,12 +289,12 @@ window.loadProbToForm = function loadProbToForm(prob){
   window.S.editorImg=prob.imgDataUrl||null;
   window.S.formEnabled=prob.enabled!==false;
 
-  // Load answers — support old single-formula problems
+  // Load answers — support old single-formula problems; backfill missing refs
   if(prob.answers&&prob.answers.length){
-    window.S.editorAnswers=prob.answers.map(a=>({...a}));
+    window.S.editorAnswers=prob.answers.map((a,j)=>({...a, ref:a.ref||`B${j+1}`}));
   } else {
     window.S.editorAnswers=[{
-      id:`ans-${Date.now()}`,label:'Answer',
+      id:`ans-${Date.now()}`,label:'Answer',ref:'B1',
       formula:prob.formula||'',unit:prob.unit||'V',tol:prob.tol||'2'
     }];
   }
