@@ -192,17 +192,40 @@
               </div>
             </div>
 
-            <!-- Answer boxes -->
+            <!-- Answer boxes / table -->
             <div class="section-card">
-              <h4><i class="ti ti-math-function"></i> Answer boxes
-                <button class="btn btn-sm" style="margin-left:auto;padding:4px 10px;font-size:11px" onclick="addAnswerBox()">
-                  <i class="ti ti-plus"></i> Add answer box
+              <h4><i class="ti ti-math-function"></i> Answers</h4>
+              <datalist id="answer-units-datalist"></datalist>
+              <div class="answer-mode-tabs">
+                <button type="button" class="answer-mode-tab active" data-mode="boxes" onclick="setAnswerMode('boxes')">
+                  <i class="ti ti-list"></i> Answer boxes
                 </button>
-              </h4>
-              <p style="font-size:11px;color:var(--text3);margin-bottom:10px;line-height:1.6">
-                Each box is a separate answer field students fill in. Use bare variable names (no braces) in formulas — e.g. <code style="font-family:var(--mono);color:var(--accent2);background:var(--bg4);padding:1px 5px;border-radius:3px">Vs*R2/(R1+R2+R3)</code>
-              </p>
-              <div id="answer-boxes-wrap"></div>
+                <button type="button" class="answer-mode-tab" data-mode="table" onclick="setAnswerMode('table')">
+                  <i class="ti ti-table"></i> Answer table
+                </button>
+              </div>
+
+              <!-- Boxes mode -->
+              <div id="answer-mode-boxes">
+                <div style="display:flex;align-items:center;margin-bottom:10px">
+                  <p style="font-size:11px;color:var(--text3);line-height:1.6;margin:0;flex:1">
+                    Each box is a separate answer field. Use bare variable names in formulas — e.g. <code style="font-family:var(--mono);color:var(--accent2);background:var(--bg4);padding:1px 5px;border-radius:3px">Vs*R2/(R1+R2+R3)</code>. Type any unit you like in the Unit field.
+                  </p>
+                  <button class="btn btn-sm" style="margin-left:auto;padding:4px 10px;font-size:11px;white-space:nowrap" onclick="addAnswerBox()">
+                    <i class="ti ti-plus"></i> Add box
+                  </button>
+                </div>
+                <div id="answer-boxes-wrap"></div>
+              </div>
+
+              <!-- Table mode -->
+              <div id="answer-mode-table" style="display:none">
+                <p style="font-size:11px;color:var(--text3);margin-bottom:10px;line-height:1.6">
+                  Build a grid of answers — rows are quantities, columns are conditions (e.g. t = 0⁻, 0⁺, ∞). Each cell is a formula; the Unit column applies to its whole row.
+                </p>
+                <div id="answer-table-builder"></div>
+              </div>
+
               <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:12px;padding-top:12px;border-top:0.5px solid var(--border)">
                 <div class="field" style="margin:0"><label>Default pts (per problem)</label><input type="number" id="e-pts" value="10" min="1" max="100"/></div>
                 <div class="field" style="margin:0"><label>Max attempts (0 = unlimited)</label><input type="number" id="e-max-attempts" value="0" min="0" max="100"/></div>
@@ -392,7 +415,6 @@
                   <div class="rte-sep"></div>
                   <button class="rte-btn" onclick="rteInsertCode()" title="Inline code"><i class="ti ti-code"></i></button>
                   <button class="rte-btn" onclick="rteInsertHR()"   title="Divider">   <i class="ti ti-minus"></i></button>
-                  <button class="rte-btn" onclick="rteInsertEmbed()" title="Embed YouTube video"><i class="ti ti-brand-youtube"></i></button>
                   <div class="rte-sep"></div>
                   <button class="rte-btn" onclick="rteExec('undo')" title="Undo"><i class="ti ti-arrow-back-up"></i></button>
                   <button class="rte-btn" onclick="rteExec('redo')" title="Redo"><i class="ti ti-arrow-forward-up"></i></button>
