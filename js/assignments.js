@@ -46,22 +46,15 @@ function genSeededVariant(prob, seedKey) {
     answer = Math.round(fn(...Object.values(vals)) * 10000) / 10000;
   } catch(e) {}
 
-  const answerDefs = prob.answers && prob.answers.length
-    ? prob.answers
-    : [{ id:'ans0', label:'Answer', ref:'B1', formula: prob.formula, unit: prob.unit, tol: prob.tol }];
+  const { answerDefs, table: tableLayout } = window.expandProblemAnswers(prob);
 
-  // Evaluate boxes in order; each box's result is exposed to later boxes under
-  // its reference name (default B1, B2, …) so formulas can chain off earlier answers.
-  const scope = { ...vals };
-  const answers = answerDefs.map((a, ai) => {
-    const ref = (a.ref || `B${ai+1}`).trim();
+  const answers = answerDefs.map(a => {
     let ans = null;
     try {
-      const fn = new Function(...Object.keys(scope), `return (${a.formula})`);
-      ans = Math.round(fn(...Object.values(scope)) * 10000) / 10000;
+      const fn = new Function(...Object.keys(vals), `return (${a.formula})`);
+      ans = Math.round(fn(...Object.values(vals)) * 10000) / 10000;
     } catch(e) {}
-    if (ref && ans !== null && !isNaN(ans)) scope[ref] = ans;
-    return { id: a.id, label: a.label, ref, answer: ans, unit: a.unit, tol: (parseFloat(a.tol)||2)/100 };
+    return { id: a.id, label: a.label, answer: ans, unit: a.unit, tol: (parseFloat(a.tol)||2)/100 };
   });
 
   function substituteText(tpl, vals, unitMap) {
@@ -79,6 +72,7 @@ function genSeededVariant(prob, seedKey) {
     unit:     answers[0]?.unit ?? prob.unit,
     tol:      answers[0]?.tol ?? 0.02,
     answers,
+    table:    tableLayout,
     maxAttempts: parseInt(prob.maxAttempts) || 0,
     circuit: prob.imgDataUrl ? `<img src="${prob.imgDataUrl}" alt="Circuit"/>` : null,
     vals,
@@ -189,7 +183,9 @@ window.buildProbRow = function buildProbRow(row, assign, ap, idx, p, sub, isLate
 
   const answers = p.answers || [{ id:'ans0', label:'Answer', answer:p.answer, unit:p.unit, tol: p.tol||0.02 }];
 
-  const inputsHTML = answers.map((a, ai) => `
+  const inputsHTML = p.table
+    ? window.buildAnswerTableHTML(p.table, ai => `ai-${assign.id}-${ap.probId}-${ai}`)
+    : answers.map((a, ai) => `
     <div class="multi-ans-row">
       ${answers.length > 1 ? `<div class="multi-ans-label">${a.label}</div>` : ''}
       <div style="display:flex;gap:8px;align-items:center;margin-bottom:4px">

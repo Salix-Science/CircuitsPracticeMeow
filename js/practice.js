@@ -17,6 +17,45 @@ window.toggleEl = function toggleEl(id) {
   if (el) el.style.display = el.style.display === 'block' ? 'none' : 'block';
 }
 
+// ── Answer expansion ──────────────────────────
+// Turns a problem into a flat list of gradable answer definitions
+// (row-major for tables) plus an optional table layout used only for
+// rendering. Grading code stays identical for boxes and tables because
+// it just iterates the flat list by index.
+window.expandProblemAnswers = function expandProblemAnswers(prob) {
+  if (prob.answerMode === 'table' && prob.table &&
+      (prob.table.rows||[]).length && (prob.table.cols||[]).length) {
+    const t = prob.table;
+    const answerDefs = [];
+    const cellIndex  = [];                 // cellIndex[r][c] = flat answer index
+    t.rows.forEach((row, r) => {
+      cellIndex[r] = [];
+      t.cols.forEach((col, c) => {
+        cellIndex[r][c] = answerDefs.length;
+        answerDefs.push({
+          id:      `tbl-${r}-${c}`,
+          label:   `${row.label || 'Row '+(r+1)} · ${col.label || 'Col '+(c+1)}`,
+          formula: (row.cells && row.cells[c]) || '',
+          unit:    row.unit || '',
+          tol:     t.tol || '2',
+        });
+      });
+    });
+    const table = {
+      corner: t.corner || '',
+      cols:   t.cols.map(c => ({ label: c.label || '' })),
+      rows:   t.rows.map(r => ({ label: r.label || '', unit: r.unit || '' })),
+      cellIndex,
+    };
+    return { answerDefs, table };
+  }
+  // boxes / legacy single-answer
+  const answerDefs = (prob.answers && prob.answers.length)
+    ? prob.answers
+    : [{ id:'ans0', label:'Answer', formula: prob.formula, unit: prob.unit, tol: prob.tol }];
+  return { answerDefs, table: null };
+}
+
 // ── Sidebar ───────────────────────────────────
 // Folders are shown in DB order and are draggable to reorder.
 let _sbDragSrc = null; // index of folder being dragged
@@ -198,6 +237,35 @@ window.shuffleFolderProb = function shuffleFolderProb() {
 // ── Problem card ──────────────────────────────
 window._attemptCounts = window._attemptCounts || {};
 
+// Renders an answer table (grid of inputs) shared by practice + assignments.
+// idFor(ai) -> input element id; iconFor(ai) -> icon span id.
+window.buildAnswerTableHTML = function buildAnswerTableHTML(table, idFor, iconFor) {
+  iconFor = iconFor || (ai => `${idFor(ai)}-icon`);
+  const head = `<tr>
+      <th class="at-corner">${escHtml(table.corner || '')}</th>
+      ${table.cols.map(c => `<th>${escHtml(c.label || '')}</th>`).join('')}
+      <th class="at-unit-h">Unit</th>
+    </tr>`;
+  const body = table.rows.map((row, r) => {
+    const cells = table.cols.map((col, c) => {
+      const ai = table.cellIndex[r][c];
+      const id = idFor(ai);
+      return `<td>
+        <div class="at-cell">
+          <input class="mono" type="number" step="any" placeholder="0.000" id="${id}"/>
+          <span class="at-icon" id="${iconFor(ai)}"></span>
+        </div></td>`;
+    }).join('');
+    return `<tr>
+      <th class="at-rowlabel">${escHtml(row.label || '')}</th>
+      ${cells}
+      <td class="at-unit">${escHtml(row.unit || '')}</td>
+    </tr>`;
+  }).join('');
+  return `<div class="answer-table-wrap"><table class="answer-table">
+    <thead>${head}</thead><tbody>${body}</tbody></table></div>`;
+}
+
 window.buildProbCardEl = function buildProbCardEl(p, isFolder) {
   const card = document.createElement('div');
   card.className = 'prob-card';
@@ -213,8 +281,10 @@ window.buildProbCardEl = function buildProbCardEl(p, isFolder) {
        </span>`
     : '';
 
-  // Build answer input rows — one per answer box
-  const answerInputsHTML = (p.answers || [{id:'ans0',label:'Answer',answer:p.answer,unit:p.unit,tol:p.tol}]).map((a,ai) =>
+  // Build answer inputs — table grid OR stacked boxes
+  const answerInputsHTML = p.table
+    ? window.buildAnswerTableHTML(p.table, ai => `main-ans-${ai}`, ai => `main-ans-icon-${ai}`)
+    : (p.answers || [{id:'ans0',label:'Answer',answer:p.answer,unit:p.unit,tol:p.tol}]).map((a,ai) =>
     `<div class="multi-ans-row">
       ${p.answers && p.answers.length > 1 ? `<div class="multi-ans-label">${a.label}</div>` : ''}
       <div class="answer-row" style="margin-bottom:6px;align-items:center">
@@ -229,7 +299,7 @@ window.buildProbCardEl = function buildProbCardEl(p, isFolder) {
   ).join('');
 
   const revealedHTML = (p.answers || [{answer:p.answer,unit:p.unit,label:'Answer'}]).map(a =>
-    `<div>${p.answers && p.answers.length > 1 ? `<strong>${a.label}:</strong> ` : ''}${a.answer} ${a.unit}</div>`
+    `<div>${(p.answers && p.answers.length > 1) || p.table ? `<strong>${a.label}:</strong> ` : ''}${a.answer} ${a.unit}</div>`
   ).join('');
 
   card.innerHTML = `
@@ -418,25 +488,16 @@ window.genAuthoredVariant = function genAuthoredVariant(prob, bustCache = false)
     answer = rnd(fn(...Object.values(vals)), 4);
   } catch(e) {}
 
-  // Compute all answer boxes (supports multi-answer problems).
-  // Boxes are evaluated top-to-bottom; each box's numeric result is added to the
-  // scope under its reference name (default B1, B2, …) so a later box's formula
-  // can build on an earlier box's answer symbolically — e.g. box B1 = R1+R2+R3,
-  // box B2 = Vs/B1.
-  const answerDefs = prob.answers && prob.answers.length
-    ? prob.answers
-    : [{ id:'ans0', label:'Answer', ref:'B1', formula: prob.formula, unit: prob.unit, tol: prob.tol }];
+  // Compute all answer boxes (supports multi-answer + table problems)
+  const { answerDefs, table: tableLayout } = window.expandProblemAnswers(prob);
 
-  const scope = { ...vals };
-  const answers = answerDefs.map((a, ai) => {
-    const ref = (a.ref || `B${ai+1}`).trim();
+  const answers = answerDefs.map(a => {
     let ans = null;
     try {
-      const fn = new Function(...Object.keys(scope), `return (${a.formula})`);
-      ans = rnd(fn(...Object.values(scope)), 4);
+      const fn = new Function(...Object.keys(vals), `return (${a.formula})`);
+      ans = rnd(fn(...Object.values(vals)), 4);
     } catch(e) {}
-    if (ref && ans !== null && !isNaN(ans)) scope[ref] = ans;
-    return { id: a.id, label: a.label, ref, answer: ans, unit: a.unit, tol: (parseFloat(a.tol)||2)/100 };
+    return { id: a.id, label: a.label, answer: ans, unit: a.unit, tol: (parseFloat(a.tol)||2)/100 };
   });
 
   return {
@@ -451,6 +512,7 @@ window.genAuthoredVariant = function genAuthoredVariant(prob, bustCache = false)
     unit:   answers[0]?.unit   ?? prob.unit,
     tol:    answers[0]?.tol    ?? 0.02,
     answers,
+    table:   tableLayout,
     maxAttempts: parseInt(prob.maxAttempts) || 0,
     circuit: prob.imgDataUrl ? `<img src="${prob.imgDataUrl}" alt="Circuit"/>` : null,
     vals,
