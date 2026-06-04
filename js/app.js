@@ -54,7 +54,7 @@ window.showAdminTab = function(t, el) {
   document.getElementById(`atab-${t}`)?.classList.add('active');
   if(t==='notifications') renderAdminNotifPanel?.();
   if(t==='sections') renderSections?.();
-  if(t==='account') renderNotifSettings?.();
+  if(t==='account') renderNotificationSettings?.();
 };
 
 window.showEdTab = function(t, el) {
@@ -68,7 +68,7 @@ window.showEdTab = function(t, el) {
   if(t==='homepage')renderHomepageEditor();
   if(t==='assignments'){renderAssignAdmin();renderAssignProbPicker();}
   if(t==='blog')renderBlogPostList();
-  if(t==='problems')renderPmList();
+  if(t==='problems'){renderPmList();applyAnswerMode&&applyAnswerMode();}
 };
 
 window.enterApp = function() {
