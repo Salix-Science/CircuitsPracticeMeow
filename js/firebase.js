@@ -623,6 +623,14 @@ window.renderUserMgmt = async function() {
     unSpan.textContent = u.username;         // ← textContent, not innerHTML
     row.appendChild(unSpan);
 
+    // Contact email (if on file) — textContent only, never innerHTML
+    if (u.notifPrefs && typeof u.notifPrefs.email === 'string' && u.notifPrefs.email) {
+      const em = document.createElement('span');
+      em.style.cssText = 'font-size:11px;color:var(--text4);font-family:var(--mono)';
+      em.textContent = u.notifPrefs.email;
+      row.appendChild(em);
+    }
+
     // Role pill
     const pill = document.createElement('span');
     pill.className = u.isAdmin ? 'pill pill-admin' : 'pill';
@@ -692,37 +700,47 @@ window.adminCreateUser = async function() {
     console.warn('[security] adminCreateUser blocked — caller is not admin');
     return;
   }
+  const email    = document.getElementById('mu-email').value.trim();
   const username = document.getElementById('mu-user').value.trim();
   const pass     = document.getElementById('mu-pass').value;
   const isAdmin  = document.getElementById('mu-admin').checked;
   const err = document.getElementById('mu-err');
   const ok  = document.getElementById('mu-ok');
   err.classList.add('hidden'); ok.classList.add('hidden');
-  if (!username)     { err.querySelector('span').textContent = 'Enter a username.';        err.classList.remove('hidden'); return; }
-  if (pass.length<6) { err.querySelector('span').textContent = '6+ characters required.';  err.classList.remove('hidden'); return; }
-  const email = username + '@circuitspractice.app';
+  const showErr = m => { err.querySelector('span').textContent = m; err.classList.remove('hidden'); };
+
+  if (!email)                                       { showErr('Enter an email address.');        return; }
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email))     { showErr('Enter a valid email address.');    return; }
+  if (!username)                                    { showErr('Enter a username.');               return; }
+  if (pass.length < 6)                              { showErr('Password needs 6+ characters.');   return; }
+
+  // The username is the login identity (stored internally as username@circuitspractice.app).
+  // The email entered above is the student's real contact address, saved on their profile.
+  const loginEmail = username + '@circuitspractice.app';
   try {
-    const cred = await createUserWithEmailAndPassword(auth, email, pass);
+    const cred = await createUserWithEmailAndPassword(auth, loginEmail, pass);
     await setDoc(doc(db, 'users', cred.user.uid), {
-      username, isAdmin, scores:{}, probScores:{}, streak:0, assignSubmissions:{}
+      username, isAdmin, scores:{}, probScores:{}, streak:0, assignSubmissions:{},
+      // Save the contact email + subscribe by default so notifications reach them.
+      // Students can opt out of any of these under Profile → Email notifications.
+      notifPrefs: { email, posts:true, announcements:true, assignments:true },
     });
-    logAdminAction('create_account', { uid: cred.user.uid, username, isAdmin });
+    logAdminAction('create_account', { uid: cred.user.uid, username, isAdmin, hasEmail: true });
     track('admin_create_account', { is_admin: isAdmin });
-    // Sign back in as admin (creating a user signs you out of your session in Firebase)
-    // We avoid this by using Admin SDK in real apps, but for simplicity just warn:
-    ok.textContent = `"${username}" created. Note: you may need to sign back in.`;
+    // NOTE: creating a user signs the admin into the new account (Firebase client SDK
+    // limitation without the Admin SDK). Hence the "sign back in" reminder.
+    ok.textContent = `"${username}" created (${email}). You may need to sign back in.`;
     ok.classList.remove('hidden');
-    document.getElementById('mu-user').value = '';
-    document.getElementById('mu-pass').value = '';
+    ['mu-email','mu-user','mu-pass'].forEach(id => document.getElementById(id).value = '');
     document.getElementById('mu-admin').checked = false;
     renderUserMgmt();
   } catch(e) {
     if (e.code === 'auth/email-already-in-use') {
-      err.querySelector('span').textContent = 'Username already exists.';
+      showErr('That username is already taken.');
     } else {
-      err.querySelector('span').textContent = e.message;
+      console.error('adminCreateUser failed:', e.code, e.message);
+      showErr(e.message);
     }
-    err.classList.remove('hidden');
   }
 };
 
