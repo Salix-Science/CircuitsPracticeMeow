@@ -394,18 +394,30 @@ window.checkMainAnswer = function checkMainAnswer() {
 
   // Save score
   const u = window.DB.users[window.S.user];
-  if (u && (allOk || noMore) && !p._scored) {
-    p._scored = true;
+  if (u) {
     const key = p.topicKey || 'custom';
-    // Update local cache for immediate UI feedback
     if (!u.scores[key]) u.scores[key] = { correct:0, attempted:0 };
-    u.scores[key].attempted++;
-    if (allOk) u.scores[key].correct++;
-    if (allOk) u.streak = (parseInt(u.streak) || 0) + 1; else u.streak = 0;
-    document.getElementById('streak-val').textContent = u.streak;
-    // Write to Firestore using atomic increment — client can't fake the value
-    window.recordScore(key, allOk);
-    window.recordStreak(allOk);
+
+    // "Attempted" = a problem the student has actually tried — counted on the
+    // FIRST submission, regardless of whether it's right or wrong.
+    if (!p._attemptScored) {
+      p._attemptScored = true;
+      u.scores[key].attempted++;
+      window.recordAttempt(key);
+    }
+    // "Correct" = problem solved — counted the first time the answer is right.
+    if (allOk && !p._correctScored) {
+      p._correctScored = true;
+      u.scores[key].correct++;
+      window.recordCorrect(key);
+    }
+    // Streak updates once per problem, when it's resolved (solved or out of attempts).
+    if ((allOk || noMore) && !p._streakScored) {
+      p._streakScored = true;
+      if (allOk) u.streak = (parseInt(u.streak) || 0) + 1; else u.streak = 0;
+      const sv = document.getElementById('streak-val'); if (sv) sv.textContent = u.streak;
+      window.recordStreak(allOk);
+    }
   }
 
   if (allOk) {

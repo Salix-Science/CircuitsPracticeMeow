@@ -391,6 +391,40 @@ window.recordScore = async function(topicKey, correct) {
   }
 };
 
+// Record a problem as ATTEMPTED — atomic +1 to scores.<topic>.attempted.
+// Called on a student's first submission to a problem, regardless of outcome,
+// so "attempted" reflects the actual number of problems tried.
+window.recordAttempt = async function(topicKey) {
+  const uid = window.S.uid;
+  if (!uid) return;
+  try {
+    await updateDoc(doc(db, 'users', uid), {
+      [`scores.${topicKey}.attempted`]: increment(1),
+    });
+  } catch(e) {
+    // Document/field path not yet present — create it without clobbering siblings
+    await setDoc(doc(db, 'users', uid), {
+      scores: { [topicKey]: { attempted: 1 } },
+    }, { merge: true });
+  }
+};
+
+// Record a problem as CORRECT — atomic +1 to scores.<topic>.correct.
+// Called the first time a student solves a problem.
+window.recordCorrect = async function(topicKey) {
+  const uid = window.S.uid;
+  if (!uid) return;
+  try {
+    await updateDoc(doc(db, 'users', uid), {
+      [`scores.${topicKey}.correct`]: increment(1),
+    });
+  } catch(e) {
+    await setDoc(doc(db, 'users', uid), {
+      scores: { [topicKey]: { correct: 1 } },
+    }, { merge: true });
+  }
+};
+
 // Record streak atomically — separate from score so we can set it to 0 on wrong answer
 window.recordStreak = async function(correct) {
   const uid = window.S.uid;
