@@ -22,8 +22,7 @@
   <div class="wordmark">Circuits Practice</div>
   <div class="auth-card">
     <div class="auth-tabs">
-      <button class="auth-tab active" onclick="setAuthTab('login',this)">Sign in</button>
-      <button class="auth-tab" onclick="setAuthTab('register',this)">Register</button>
+      <button class="auth-tab active">Sign in</button>
     </div>
 
     <!-- Login -->
@@ -32,16 +31,9 @@
       <div class="field"><label>Password</label><input type="password" id="l-pass" autocomplete="current-password" placeholder="••••••••"/></div>
       <button class="btn btn-accent" style="width:100%;justify-content:center" onclick="doLogin()"><i class="ti ti-login"></i> Enter</button>
       <div class="err-msg hidden" id="l-err"><i class="ti ti-alert-circle"></i><span></span></div>
-    </div>
-
-    <!-- Register -->
-    <div id="auth-register" class="hidden">
-      <div class="field"><label>Username</label><input type="text" id="r-user" autocomplete="username" placeholder="choose a username"/></div>
-      <div class="field"><label>Password</label><input type="password" id="r-pass" autocomplete="new-password" placeholder="at least 6 characters"/></div>
-      <div class="field"><label>Confirm password</label><input type="password" id="r-pass2" autocomplete="new-password" placeholder="repeat password"/></div>
-      <button class="btn btn-accent" style="width:100%;justify-content:center" onclick="doRegister()"><i class="ti ti-user-plus"></i> Create account</button>
-      <div class="err-msg hidden" id="r-err"><i class="ti ti-alert-circle"></i><span></span></div>
-      <div class="ok-msg hidden" id="r-ok"></div>
+      <div style="margin-top:14px;font-size:11px;color:var(--text4);text-align:center;line-height:1.6">
+        Accounts are created by your instructor.<br/>Contact them if you need access or a password reset.
+      </div>
     </div>
   </div>
 </div>
@@ -94,6 +86,15 @@
         <div class="blog-hero">
           <div class="blog-hero-title">From the Instructor</div>
           <div class="blog-hero-sub">Tutorials · Updates · Announcements · Resources</div>
+        </div>
+        <div class="blog-controls">
+          <div class="blog-search">
+            <i class="ti ti-search"></i>
+            <input type="text" id="blog-search-input" placeholder="Search posts…" autocomplete="off"
+                   oninput="onBlogSearch(this.value)"/>
+            <button class="blog-search-clear hidden" id="blog-search-clear" title="Clear" onclick="clearBlogSearch()"><i class="ti ti-x"></i></button>
+          </div>
+          <select id="blog-author-filter" onchange="onBlogAuthor(this.value)" title="Filter by author"></select>
         </div>
         <div class="blog-filter-bar" id="blog-filter-bar"></div>
         <div class="blog-grid" id="blog-grid"></div>
@@ -192,40 +193,17 @@
               </div>
             </div>
 
-            <!-- Answer boxes / table -->
+            <!-- Answer boxes -->
             <div class="section-card">
-              <h4><i class="ti ti-math-function"></i> Answers</h4>
-              <datalist id="answer-units-datalist"></datalist>
-              <div class="answer-mode-tabs">
-                <button type="button" class="answer-mode-tab active" data-mode="boxes" onclick="setAnswerMode('boxes')">
-                  <i class="ti ti-list"></i> Answer boxes
+              <h4><i class="ti ti-math-function"></i> Answer boxes
+                <button class="btn btn-sm" style="margin-left:auto;padding:4px 10px;font-size:11px" onclick="addAnswerBox()">
+                  <i class="ti ti-plus"></i> Add answer box
                 </button>
-                <button type="button" class="answer-mode-tab" data-mode="table" onclick="setAnswerMode('table')">
-                  <i class="ti ti-table"></i> Answer table
-                </button>
-              </div>
-
-              <!-- Boxes mode -->
-              <div id="answer-mode-boxes">
-                <div style="display:flex;align-items:center;margin-bottom:10px">
-                  <p style="font-size:11px;color:var(--text3);line-height:1.6;margin:0;flex:1">
-                    Each box is a separate answer field. Use bare variable names in formulas — e.g. <code style="font-family:var(--mono);color:var(--accent2);background:var(--bg4);padding:1px 5px;border-radius:3px">Vs*R2/(R1+R2+R3)</code>. Type any unit you like in the Unit field.
-                  </p>
-                  <button class="btn btn-sm" style="margin-left:auto;padding:4px 10px;font-size:11px;white-space:nowrap" onclick="addAnswerBox()">
-                    <i class="ti ti-plus"></i> Add box
-                  </button>
-                </div>
-                <div id="answer-boxes-wrap"></div>
-              </div>
-
-              <!-- Table mode -->
-              <div id="answer-mode-table" style="display:none">
-                <p style="font-size:11px;color:var(--text3);margin-bottom:10px;line-height:1.6">
-                  Build a grid of answers — rows are quantities, columns are conditions (e.g. t = 0⁻, 0⁺, ∞). Each cell is a formula; the Unit column applies to its whole row.
-                </p>
-                <div id="answer-table-builder"></div>
-              </div>
-
+              </h4>
+              <p style="font-size:11px;color:var(--text3);margin-bottom:10px;line-height:1.6">
+                Each box is a separate answer field students fill in. Use bare variable names (no braces) in formulas — e.g. <code style="font-family:var(--mono);color:var(--accent2);background:var(--bg4);padding:1px 5px;border-radius:3px">Vs*R2/(R1+R2+R3)</code>
+              </p>
+              <div id="answer-boxes-wrap"></div>
               <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:12px;padding-top:12px;border-top:0.5px solid var(--border)">
                 <div class="field" style="margin:0"><label>Default pts (per problem)</label><input type="number" id="e-pts" value="10" min="1" max="100"/></div>
                 <div class="field" style="margin:0"><label>Max attempts (0 = unlimited)</label><input type="number" id="e-max-attempts" value="0" min="0" max="100"/></div>
@@ -331,13 +309,6 @@
                 </div>
                 <div class="field">
                   <label>Problems — all selectable regardless of enabled state</label>
-                  <div class="assign-prob-picker-tools">
-                    <input type="text" id="apc-search" placeholder="Search problems…"
-                      oninput="filterAssignProbPicker()" autocomplete="off"/>
-                    <select id="apc-tag-filter" onchange="filterAssignProbPicker()">
-                      <option value="">All topics</option>
-                    </select>
-                  </div>
                   <div class="assign-prob-picker" id="assign-prob-picker"></div>
                 </div>
                 <button class="btn btn-accent" onclick="saveAssignment()"><i class="ti ti-device-floppy"></i> Save assignment</button>
@@ -506,6 +477,7 @@
       <div style="font-family:var(--font-display);font-size:16px;letter-spacing:.08em;color:var(--accent2);margin-bottom:1rem">Admin Panel</div>
       <div class="admin-tabs">
         <button class="admin-tab active" onclick="showAdminTab('analytics',this)">Analytics</button>
+        <button class="admin-tab"        onclick="showAdminTab('analysis',this);renderProblemAnalysis()"><i class="ti ti-microscope" style="font-size:11px"></i> Problem analysis</button>
         <button class="admin-tab"        onclick="showAdminTab('grades',this)">Assignment grades</button>
         <button class="admin-tab"        onclick="showAdminTab('users',this)">User management</button>
         <button class="admin-tab"        onclick="showAdminTab('sections',this)"><i class="ti ti-users-group" style="font-size:11px"></i> Sections</button>
@@ -518,34 +490,23 @@
       <div class="admin-subtab active" id="atab-analytics">
         <div class="dash-grid" id="dash-metrics"></div>
         <div class="dash-section">
-          <div class="dash-head">
-            <span><i class="ti ti-users"></i> Students</span>
-            <select id="analytics-section-filter" class="analytics-filter-select" onchange="renderAnalyticsStudents()">
-              <option value="">All sections</option>
-            </select>
-          </div>
-          <table class="dash-table"><thead><tr>
-            <th class="th-sort" onclick="sortAnalytics('name')">Username<span class="sort-ind" data-k="name"></span></th>
-            <th class="th-sort" onclick="sortAnalytics('section')">Section<span class="sort-ind" data-k="section"></span></th>
-            <th class="th-sort" onclick="sortAnalytics('attempted')">Attempted<span class="sort-ind" data-k="attempted"></span></th>
-            <th class="th-sort" onclick="sortAnalytics('correct')">Correct<span class="sort-ind" data-k="correct"></span></th>
-            <th class="th-sort" onclick="sortAnalytics('wrong')">Wrong<span class="sort-ind" data-k="wrong"></span></th>
-            <th class="th-sort" onclick="sortAnalytics('accuracy')">Accuracy<span class="sort-ind" data-k="accuracy"></span></th>
-            <th class="th-sort" onclick="sortAnalytics('streak')">Streak<span class="sort-ind" data-k="streak"></span></th>
-            <th>Role</th>
-          </tr></thead>
+          <div class="dash-head"><span><i class="ti ti-users"></i> Students</span></div>
+          <table class="dash-table"><thead><tr><th>Username</th><th>Attempted</th><th>Accuracy</th><th>Streak</th><th>Role</th></tr></thead>
           <tbody id="dt-students"></tbody></table>
         </div>
         <div class="dash-section">
           <div class="dash-head"><span><i class="ti ti-chart-bar"></i> Topic accuracy</span></div>
-          <table class="dash-table"><thead><tr>
-            <th class="th-sort" onclick="sortAnalyticsTopics('topic')">Topic<span class="sort-ind" data-k="topic"></span></th>
-            <th class="th-sort" onclick="sortAnalyticsTopics('attempted')">Attempted<span class="sort-ind" data-k="attempted"></span></th>
-            <th class="th-sort" onclick="sortAnalyticsTopics('correct')">Correct<span class="sort-ind" data-k="correct"></span></th>
-            <th class="th-sort" onclick="sortAnalyticsTopics('wrong')">Wrong<span class="sort-ind" data-k="wrong"></span></th>
-            <th class="th-sort" onclick="sortAnalyticsTopics('accuracy')">Accuracy<span class="sort-ind" data-k="accuracy"></span></th>
-          </tr></thead>
+          <table class="dash-table"><thead><tr><th>Topic</th><th>Attempts</th><th>Accuracy</th></tr></thead>
           <tbody id="dt-topics"></tbody></table>
+        </div>
+      </div>
+
+      <!-- Problem analysis -->
+      <div class="admin-subtab" id="atab-analysis">
+        <div class="dash-grid" id="pa-metrics"></div>
+        <div class="dash-section">
+          <div class="dash-head"><span><i class="ti ti-microscope"></i> Per-problem analysis</span></div>
+          <div id="pa-wrap" style="overflow-x:auto"></div>
         </div>
       </div>
 
