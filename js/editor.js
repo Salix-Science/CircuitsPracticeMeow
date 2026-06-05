@@ -791,21 +791,66 @@ window.deleteFolder = async function deleteFolder(id){
 window.renderAssignProbPicker = function renderAssignProbPicker(){
   const wrap=document.getElementById('assign-prob-picker');wrap.innerHTML='';
   if(!window.DB.problems.length){wrap.innerHTML='<div style="color:var(--text4);font-size:12px">No problems yet.</div>';return;}
+
+  // Populate topic filter dropdown (preserve current selection)
+  const tagSel=document.getElementById('apc-tag-filter');
+  if(tagSel){
+    const cur=tagSel.value||'';
+    const tags=[...new Set(window.DB.problems.map(p=>p.topic).filter(Boolean))].sort();
+    tagSel.innerHTML='<option value="">All topics</option>'+
+      tags.map(t=>`<option value="${escHtml(t)}" ${t===cur?'selected':''}>${escHtml(t)}</option>`).join('');
+  }
+
   window.DB.problems.forEach(p=>{
     const row=document.createElement('div');row.className='assign-prob-picker-row';
+    row.dataset.title=(p.title||'').toLowerCase();
+    row.dataset.topic=p.topic||'';
     const existing=window.S.editingAssignId?window.DB.assignments.find(a=>a.id===window.S.editingAssignId)?.problems.find(ap=>ap.probId===p.id):null;
-    row.innerHTML=`<label><input type="checkbox" id="apc-${p.id}" style="width:auto" ${existing?'checked':''}/> ${p.title}
-      ${p.enabled===false?'<span class="pill pill-disabled" style="font-size:9px">hidden</span>':''}</label>
+    const topicPill=p.topic?`<span class="pill pill-purple" style="font-size:9px;margin-left:4px">${escHtml(p.topic)}</span>`:'';
+    row.innerHTML=`<label><input type="checkbox" id="apc-${p.id}" style="width:auto" ${existing?'checked':''} onchange="filterAssignProbPicker()"/> ${escHtml(p.title)}
+      ${p.enabled===false?'<span class="pill pill-disabled" style="font-size:9px">hidden</span>':''}${topicPill}</label>
       <input class="assign-pts-input" type="number" id="appts-${p.id}" value="${existing?.points||p.defaultPts||10}" min="1" max="100"/>`;
     wrap.appendChild(row);
   });
+
+  // No-match placeholder (hidden unless a filter excludes everything)
+  const nm=document.createElement('div');
+  nm.id='apc-no-match';nm.style.cssText='color:var(--text4);font-size:12px;padding:8px 2px;display:none';
+  nm.textContent='No problems match this filter.';
+  wrap.appendChild(nm);
+
+  filterAssignProbPicker();
+}
+
+// Cosmetic filter — hides non-matching rows but keeps them in the DOM so
+// checked selections are never lost. Checked rows always stay visible.
+window.filterAssignProbPicker = function filterAssignProbPicker(){
+  const wrap=document.getElementById('assign-prob-picker');if(!wrap)return;
+  const search=(document.getElementById('apc-search')?.value||'').toLowerCase().trim();
+  const tag=document.getElementById('apc-tag-filter')?.value||'';
+  let shown=0;
+  wrap.querySelectorAll('.assign-prob-picker-row').forEach(row=>{
+    const checked=row.querySelector('input[type=checkbox]')?.checked;
+    const matchSearch=!search||(row.dataset.title||'').includes(search);
+    const matchTag=!tag||row.dataset.topic===tag;
+    const visible=checked||(matchSearch&&matchTag);
+    row.style.display=visible?'':'none';
+    if(visible)shown++;
+  });
+  const nm=document.getElementById('apc-no-match');
+  if(nm)nm.style.display=shown?'none':'block';
 }
 window.newAssignment = function newAssignment(){
   window.S.editingAssignId=null;
   ['as-title','as-instructions','as-open','as-due'].forEach(id=>document.getElementById(id).value='');
   const lateToggle=document.getElementById('as-allow-late');
   if(lateToggle) lateToggle.checked=true; // default: allow late
+  resetAssignPickerFilters();
   renderAssignProbPicker();
+}
+window.resetAssignPickerFilters = function resetAssignPickerFilters(){
+  const s=document.getElementById('apc-search'); if(s) s.value='';
+  const t=document.getElementById('apc-tag-filter'); if(t) t.value='';
 }
 window.saveAssignment = async function saveAssignment(){
   if(!window.S.isAdmin){console.warn("[security] saveAssignment blocked");return;}
@@ -848,6 +893,7 @@ window.loadAssignToEditor = function loadAssignToEditor(id){
   document.getElementById('as-open').value=a.opens||'';document.getElementById('as-due').value=a.due||'';
   const lateToggle=document.getElementById('as-allow-late');
   if(lateToggle) lateToggle.checked=a.allowLate!==false;
+  resetAssignPickerFilters();
   renderAssignProbPicker();
   a.problems.forEach(ap=>{
     const cb=document.getElementById(`apc-${ap.probId}`);if(cb)cb.checked=true;
