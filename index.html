@@ -636,6 +636,11 @@
       <div class="admin-subtab" id="atab-account">
         <div id="notif-settings-wrap"></div>
         <div class="section-card" style="max-width:400px;margin-top:16px">
+          <h4><i class="ti ti-mail"></i> Email address</h4>
+          <p style="font-size:12px;color:var(--text3);line-height:1.7;margin-bottom:10px">Set or update the email used for password reset and notifications.</p>
+          <button class="btn btn-sm btn-accent" onclick="openEmailMigrate()"><i class="ti ti-mail"></i> Set / update email</button>
+        </div>
+        <div class="section-card" style="max-width:400px;margin-top:16px">
           <h4><i class="ti ti-key"></i> Change password</h4>
           <div class="field"><label>New password</label><input type="password" id="cp-new"/></div>
           <div class="field" style="margin-bottom:10px"><label>Confirm new password</label><input type="password" id="cp-new2"/></div>
@@ -861,6 +866,21 @@
             <i class="ti ti-device-floppy"></i> Save preferences
           </button>
           <div class="ok-msg hidden" id="notif-ok" style="margin-top:8px">Preferences saved!</div>
+        </div>
+      </div>
+
+      <!-- Set / update email for password reset -->
+      <div style="background:var(--bg2);border:0.5px solid var(--border);border-radius:var(--r2);overflow:hidden">
+        <div style="padding:10px 16px;border-bottom:0.5px solid var(--border);background:var(--bg3);font-size:11px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.08em;display:flex;align-items:center;gap:6px">
+          <i class="ti ti-mail" style="font-size:13px"></i> Password reset email
+        </div>
+        <div style="padding:16px">
+          <p style="font-size:12px;color:var(--text3);margin-bottom:12px;line-height:1.7">
+            Set or update the email address your password reset link is sent to.
+          </p>
+          <button class="btn btn-sm btn-accent" onclick="openEmailMigrate()">
+            <i class="ti ti-mail"></i> Set / update email
+          </button>
         </div>
       </div>
 
