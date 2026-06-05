@@ -230,7 +230,7 @@ function toArray(snapshot) {
 
 // ── Load shared content from Firestore ────────
 async function loadSharedData() {
-  const [probSnap, postSnap, assignSnap, folderSnap, topicSnap, hpSnap, evSnap, ratingSnap, sectSnap, catSnap] = await Promise.all([
+  const [probSnap, postSnap, assignSnap, folderSnap, topicSnap, hpSnap, evSnap, ratingSnap, sectSnap] = await Promise.all([
     getDocs(collection(db, 'problems')),
     getDocs(collection(db, 'posts')),
     getDocs(collection(db, 'assignments')),
@@ -240,7 +240,6 @@ async function loadSharedData() {
     getDocs(collection(db, 'events')),
     getDocs(collection(db, 'ratings')),
     window.S.isAdmin ? getDocs(collection(db, 'sections')) : Promise.resolve({ docs: [] }),
-    getDoc(doc(db, 'config', 'blogCategories')),
   ]);
   window.DB.problems    = toArray(probSnap).sort((a,b) => (a.order ?? 999) - (b.order ?? 999));
   window.DB.posts       = toArray(postSnap);
@@ -250,16 +249,24 @@ async function loadSharedData() {
   window.DB.homepage    = hpSnap.exists() ? hpSnap.data() : { banner:'', bannerEnabled:true };
   window.DB.events      = toArray(evSnap);
   window.DB.sections    = toArray(sectSnap);
-  // Blog categories — sanitize each entry; fall back to defaults if unset
-  const _catList = (catSnap.exists() && Array.isArray(catSnap.data().list)) ? catSnap.data().list : null;
-  window.DB.categories = (_catList && _catList.length)
-    ? _catList
+  // Blog categories — read separately and defensively. If this doc is missing
+  // OR the Firestore rules deny reading it, we fall back to defaults instead of
+  // letting the whole app fail to load.
+  window.DB.categories = window.DEFAULT_CATEGORIES.map(c => ({ ...c }));
+  try {
+    const catSnap = await getDoc(doc(db, 'config', 'blogCategories'));
+    const _catList = (catSnap.exists() && Array.isArray(catSnap.data().list)) ? catSnap.data().list : null;
+    if (_catList && _catList.length) {
+      window.DB.categories = _catList
         .filter(c => c && typeof c.name === 'string')
         .map(c => ({
           name:  c.name.replace(/<[^>]*>/g, '').slice(0, 40),
           color: (typeof c.color === 'string' && /^#[0-9a-fA-F]{3,6}$/.test(c.color.trim())) ? c.color.trim() : '#9d7de8',
-        }))
-    : window.DEFAULT_CATEGORIES.map(c => ({ ...c }));
+        }));
+    }
+  } catch(e) {
+    console.warn('blogCategories read failed — using default categories:', e.code || e.message);
+  }
   // Merge rating aggregates onto problem objects
   const ratingsMap = {};
   toArray(ratingSnap).forEach(r => { ratingsMap[r.id] = r; });

@@ -26,11 +26,14 @@ const scripts = [
 ];
 
 for (const src of scripts) {
-  await new Promise((resolve, reject) => {
+  await new Promise((resolve) => {
     const s = document.createElement('script');
     s.src = src;
     s.onload = resolve;
-    s.onerror = (e) => { console.error('Failed to load', src, e); reject(e); };
+    // Resolve (don't reject) on error so a single missing/failed script can't
+    // halt the chain — app.js still loads and the app stays usable. The failed
+    // feature simply won't be available; the error is logged for diagnosis.
+    s.onerror = (e) => { console.error('Failed to load', src, '— continuing without it', e); resolve(); };
     document.head.appendChild(s);
   });
 }
