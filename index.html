@@ -132,6 +132,7 @@
         <button class="editor-top-tab"         onclick="showEdTab('blog',this)">Blog</button>
         <button class="editor-top-tab"         onclick="showEdTab('labels',this)">Topic Labels</button>
         <button class="editor-top-tab"         onclick="showEdTab('homepage',this)">Homepage</button>
+        <button class="editor-top-tab"         onclick="showEdTab('categories',this)">Categories</button>
       </div>
 
       <!-- Problems tab -->
@@ -468,8 +469,27 @@
         </div>
       </div>
 
-    </div><!-- /editor-shell -->
-  </div><!-- /view-editor -->
+      <!-- Category editor tab -->
+      <div class="editor-view" id="etab-categories">
+        <div style="padding:1.25rem;overflow-y:auto;flex:1;max-width:640px">
+          <div style="font-size:11px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.08em;margin-bottom:8px">Blog categories</div>
+          <p style="font-size:12px;color:var(--text3);margin-bottom:16px;line-height:1.7">
+            Edit category names and colours. These pills appear on the blog page and the home page — the colours stay consistent across both.
+            Renaming a category updates every post that uses it.
+          </p>
+          <div id="cat-editor-list" style="display:flex;flex-direction:column;gap:8px;margin-bottom:14px"></div>
+          <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+            <button class="btn btn-sm" onclick="addCategoryRow()"><i class="ti ti-plus"></i> Add category</button>
+            <button class="btn btn-sm btn-accent" onclick="saveCategoryEditor()"><i class="ti ti-device-floppy"></i> Save categories</button>
+            <div class="ok-msg hidden" id="cat-editor-ok">Saved!</div>
+            <div class="err-msg hidden" id="cat-editor-err"><i class="ti ti-alert-circle"></i><span></span></div>
+          </div>
+          <div style="margin-top:18px">
+            <div style="font-size:10px;color:var(--text4);text-transform:uppercase;letter-spacing:.08em;margin-bottom:8px">Live preview</div>
+            <div id="cat-editor-preview" style="display:flex;gap:6px;flex-wrap:wrap"></div>
+          </div>
+        </div>
+      </div>
 
   <!-- ── ADMIN ── -->
   <div id="view-admin" class="hidden">
@@ -482,6 +502,7 @@
         <button class="admin-tab"        onclick="showAdminTab('users',this)">User management</button>
         <button class="admin-tab"        onclick="showAdminTab('sections',this)"><i class="ti ti-users-group" style="font-size:11px"></i> Sections</button>
         <button class="admin-tab"        onclick="showAdminTab('account',this);showAccountTab()">My account</button>
+        <button class="admin-tab"        onclick="showAdminTab('coursegrades',this);renderCourseGrades()"><i class="ti ti-school" style="font-size:11px"></i> Course grades</button>
         <button class="admin-tab"        onclick="showAdminTab('gradebook',this)"><i class="ti ti-calculator" style="font-size:11px"></i> Gradebook</button>
         <button class="admin-tab"        onclick="showAdminTab('notifications',this)"><i class="ti ti-bell" style="font-size:11px"></i> Notifications</button>
       </div>
@@ -620,6 +641,20 @@
           </p>
           <div id="admin-notif-wrap"></div>
         </div>
+      </div>
+
+      <!-- Course grades subtab (website data) -->
+      <div class="admin-subtab" id="atab-coursegrades">
+        <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:14px">
+          <label style="font-size:11px;color:var(--text3);text-transform:uppercase;letter-spacing:.08em;margin:0">Section</label>
+          <select id="cg-section-filter" onchange="onCourseGradeSection()" style="padding:6px 10px;font-size:12px;width:auto"></select>
+          <div style="margin-left:auto;display:flex;gap:8px;flex-wrap:wrap">
+            <button class="btn btn-sm" onclick="refreshCourseGrades()"><i class="ti ti-refresh"></i> Refresh</button>
+            <button class="btn btn-sm" onclick="exportCourseGradesCSV()"><i class="ti ti-file-spreadsheet"></i> Export CSV</button>
+            <button class="btn btn-sm btn-accent" onclick="exportCourseGradesPDF()"><i class="ti ti-file-type-pdf"></i> Export PDF</button>
+          </div>
+        </div>
+        <div id="cg-content"></div>
       </div>
 
       <!-- Gradebook subtab -->
