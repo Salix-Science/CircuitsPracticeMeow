@@ -1,14 +1,6 @@
 /* admin.js — Analytics, grade table, and grade charts */
 
 // ── Analytics panel ───────────────────────────
-const _anSumAtt = u => Object.values(u.scores||{}).reduce((a,v)=>a+(v.attempted||0),0);
-const _anSumCor = u => Object.values(u.scores||{}).reduce((a,v)=>a+(v.correct||0),0);
-let _anUsers = [];                 // cached [name, userObj] pairs
-let _anSectionByUid = {};          // uid -> "Section A, Section B"
-let _anTopicMap = {};              // topic -> {attempted, correct}
-let _anSort      = { key:'attempted', dir:-1 };  // students table sort
-let _anTopicSort = { key:'attempted', dir:-1 };  // topics table sort
-
 window.renderAnalytics = async function renderAnalytics(){
   // Fetch all users fresh from Firestore — window.DB.users only contains the current user
   let allUsers = [];
@@ -18,127 +10,41 @@ window.renderAnalytics = async function renderAnalytics(){
     console.error('renderAnalytics: failed to fetch users', e);
     return;
   }
-  _anUsers = allUsers.map(u => [u.username || u.uid, u]);
-
-  // Map each student uid to the section name(s) they belong to
-  _anSectionByUid = {};
-  (window.DB.sections||[]).forEach(s=>{
-    (s.studentUids||[]).forEach(uid=>{
-      _anSectionByUid[uid] = _anSectionByUid[uid] ? `${_anSectionByUid[uid]}, ${s.name}` : s.name;
-    });
-  });
-
-  // Top metrics
-  const allAtt = _anUsers.reduce((s,[,u])=>s+_anSumAtt(u),0);
-  const allCor = _anUsers.reduce((s,[,u])=>s+_anSumCor(u),0);
-  const allWrong = Math.max(0, allAtt-allCor);
+  const users = allUsers.map(u => [u.username || u.uid, u]);
+  const allAtt=users.reduce((s,[,u])=>s+Object.values(u.scores||{}).reduce((a,v)=>a+v.attempted,0),0);
+  const allCor=users.reduce((s,[,u])=>s+Object.values(u.scores||{}).reduce((a,v)=>a+v.correct,0),0);
   const acc=allAtt?Math.round(allCor/allAtt*100):0;
   const enabledProbs=window.DB.problems.filter(p=>p.enabled!==false).length;
   const pubPosts=window.DB.posts.filter(p=>p.status==='published').length;
   document.getElementById('dash-metrics').innerHTML=`
-    <div class="metric-card"><div class="metric-label">Students</div><div class="metric-value">${_anUsers.filter(([,u])=>!u.isAdmin).length}</div><div class="metric-sub">registered</div></div>
-    <div class="metric-card"><div class="metric-label">Problems attempted</div><div class="metric-value">${allAtt}</div><div class="metric-sub">total tries, all students</div></div>
-    <div class="metric-card"><div class="metric-label">Correct</div><div class="metric-value" style="color:var(--green)">${allCor}</div></div>
-    <div class="metric-card"><div class="metric-label">Wrong</div><div class="metric-value" style="color:var(--red)">${allWrong}</div></div>
+    <div class="metric-card"><div class="metric-label">Students</div><div class="metric-value">${users.filter(([,u])=>!u.isAdmin).length}</div><div class="metric-sub">registered</div></div>
+    <div class="metric-card"><div class="metric-label">Total attempts</div><div class="metric-value">${allAtt}</div></div>
     <div class="metric-card"><div class="metric-label">Class accuracy</div><div class="metric-value" style="color:${acc>=70?'var(--green)':acc>=50?'var(--warn)':'var(--red)'}">${acc}%</div></div>
     <div class="metric-card"><div class="metric-label">Problems</div><div class="metric-value">${enabledProbs}<span style="font-size:14px;color:var(--text4)">/${window.DB.problems.length}</span></div><div class="metric-sub">enabled / total</div></div>
     <div class="metric-card"><div class="metric-label">Blog posts</div><div class="metric-value">${pubPosts}<span style="font-size:14px;color:var(--text4)">/${window.DB.posts.length}</span></div><div class="metric-sub">published / total</div></div>`;
-
-  // Populate the section filter dropdown (preserve current selection)
-  const secSel=document.getElementById('analytics-section-filter');
-  if(secSel){
-    const cur=secSel.value;
-    secSel.innerHTML='<option value="">All sections</option>'+
-      (window.DB.sections||[]).map(s=>
-        `<option value="${s.id}" ${s.id===cur?'selected':''}>${escHtml(s.name)} (${(s.studentUids||[]).length})</option>`
-      ).join('');
-  }
-
-  // Aggregate per-topic
-  _anTopicMap={};
-  _anUsers.forEach(([,u])=>Object.entries(u.scores||{}).forEach(([k,sc])=>{
-    if(!_anTopicMap[k])_anTopicMap[k]={correct:0,attempted:0};
-    _anTopicMap[k].correct+=(sc.correct||0);_anTopicMap[k].attempted+=(sc.attempted||0);
+  const stb=document.getElementById('dt-students');stb.innerHTML='';
+  if(!users.length){stb.innerHTML='<tr><td colspan="5" style="color:var(--text4)">No users yet.</td></tr>';}
+  users.sort((a,b)=>Object.values(b[1].scores||{}).reduce((s,v)=>s+v.attempted,0)-Object.values(a[1].scores||{}).reduce((s,v)=>s+v.attempted,0))
+  .forEach(([name,u])=>{
+    const tot=Object.values(u.scores||{}).reduce((s,v)=>s+v.attempted,0);
+    const cor=Object.values(u.scores||{}).reduce((s,v)=>s+v.correct,0);
+    const pct=tot?Math.round(cor/tot*100):0,col=pct>=70?'var(--green)':pct>=50?'var(--warn)':'var(--red)';
+    stb.innerHTML+=`<tr><td>${escHtml(name)}</td><td>${tot}</td>
+      <td><div class="acc-bar-outer"><div class="acc-bar-inner" style="width:${pct}%;background:${col}"></div></div>${pct}%</td>
+      <td>🔥${escHtml(String(u.streak||0))}</td><td>${u.isAdmin?'<span class="pill pill-admin">admin</span>':'student'}</td></tr>`;
+  });
+  const topicMap={};
+  users.forEach(([,u])=>Object.entries(u.scores||{}).forEach(([k,sc])=>{
+    if(!topicMap[k])topicMap[k]={correct:0,attempted:0};
+    topicMap[k].correct+=sc.correct;topicMap[k].attempted+=sc.attempted;
   }));
-
-  renderAnalyticsStudents();
-  renderAnalyticsTopics();
-}
-
-// Update the ▲/▼ arrow on the active sort header within a table
-function _anUpdateSortArrows(tbodyId, sort){
-  const table=document.getElementById(tbodyId)?.closest('table'); if(!table)return;
-  table.querySelectorAll('.sort-ind').forEach(s=>{
-    s.textContent = s.dataset.k===sort.key ? (sort.dir>0?' ▲':' ▼') : '';
+  const tb=document.getElementById('dt-topics');tb.innerHTML='';
+  Object.entries(topicMap).sort((a,b)=>b[1].attempted-a[1].attempted).forEach(([k,sc])=>{
+    const pct=sc.attempted?Math.round(sc.correct/sc.attempted*100):0,col=pct>=70?'var(--green)':pct>=50?'var(--warn)':'var(--red)';
+    tb.innerHTML+=`<tr><td>${escHtml(k)}</td><td>${sc.attempted}</td>
+      <td><div class="acc-bar-outer"><div class="acc-bar-inner" style="width:${pct}%;background:${col}"></div></div>${pct}%</td></tr>`;
   });
-}
-
-// Render the students table honoring the section filter + sort state
-window.renderAnalyticsStudents = function renderAnalyticsStudents(){
-  const stb=document.getElementById('dt-students'); if(!stb) return;
-  const sectionId=document.getElementById('analytics-section-filter')?.value||'';
-
-  let rows=_anUsers.map(([name,u])=>{
-    const att=_anSumAtt(u), cor=_anSumCor(u), wrong=Math.max(0,att-cor);
-    const pct=att?Math.round(cor/att*100):0;
-    return { name, u, section:_anSectionByUid[u.uid]||'—', att, cor, wrong, pct, streak:parseInt(u.streak)||0 };
-  });
-
-  if(sectionId){
-    const sec=(window.DB.sections||[]).find(s=>s.id===sectionId);
-    const uids=new Set(sec?.studentUids||[]);
-    rows=rows.filter(r=>uids.has(r.u.uid));
-  }
-
-  const k=_anSort.key, dir=_anSort.dir;
-  const val=r=>({name:r.name.toLowerCase(),section:r.section.toLowerCase(),
-                 attempted:r.att,correct:r.cor,wrong:r.wrong,accuracy:r.pct,streak:r.streak})[k];
-  rows.sort((a,b)=>{const va=val(a),vb=val(b); if(va<vb)return -dir; if(va>vb)return dir; return 0;});
-
-  stb.innerHTML = rows.length ? rows.map(r=>{
-    const col=r.pct>=70?'var(--green)':r.pct>=50?'var(--warn)':'var(--red)';
-    return `<tr><td>${escHtml(r.name)}</td><td>${escHtml(r.section)}</td><td>${r.att}</td>
-      <td style="color:var(--green)">${r.cor}</td><td style="color:var(--red)">${r.wrong}</td>
-      <td><div class="acc-bar-outer"><div class="acc-bar-inner" style="width:${r.pct}%;background:${col}"></div></div>${r.pct}%</td>
-      <td>🔥${escHtml(String(r.streak))}</td>
-      <td>${r.u.isAdmin?'<span class="pill pill-admin">admin</span>':'student'}</td></tr>`;
-  }).join('') : `<tr><td colspan="8" style="color:var(--text4)">No students match this filter.</td></tr>`;
-
-  _anUpdateSortArrows('dt-students', _anSort);
-}
-
-// Render the per-topic table honoring sort state
-window.renderAnalyticsTopics = function renderAnalyticsTopics(){
-  const tb=document.getElementById('dt-topics'); if(!tb) return;
-  let rows=Object.entries(_anTopicMap).map(([topic,sc])=>{
-    const wrong=Math.max(0,sc.attempted-sc.correct);
-    const pct=sc.attempted?Math.round(sc.correct/sc.attempted*100):0;
-    return { topic, attempted:sc.attempted, correct:sc.correct, wrong, pct };
-  });
-  const k=_anTopicSort.key, dir=_anTopicSort.dir;
-  const val=r=>({topic:r.topic.toLowerCase(),attempted:r.attempted,correct:r.correct,wrong:r.wrong,accuracy:r.pct})[k];
-  rows.sort((a,b)=>{const va=val(a),vb=val(b); if(va<vb)return -dir; if(va>vb)return dir; return 0;});
-
-  tb.innerHTML = rows.length ? rows.map(r=>{
-    const col=r.pct>=70?'var(--green)':r.pct>=50?'var(--warn)':'var(--red)';
-    return `<tr><td>${escHtml(r.topic)}</td><td>${r.attempted}</td>
-      <td style="color:var(--green)">${r.correct}</td><td style="color:var(--red)">${r.wrong}</td>
-      <td><div class="acc-bar-outer"><div class="acc-bar-inner" style="width:${r.pct}%;background:${col}"></div></div>${r.pct}%</td></tr>`;
-  }).join('') : `<tr><td colspan="5" style="color:var(--text4)">No practice data yet.</td></tr>`;
-
-  _anUpdateSortArrows('dt-topics', _anTopicSort);
-}
-
-// Header click handlers: toggle direction if same column, else default dir
-window.sortAnalytics = function sortAnalytics(key){
-  if(_anSort.key===key) _anSort.dir*=-1;
-  else { _anSort.key=key; _anSort.dir=(key==='name'||key==='section')?1:-1; }
-  renderAnalyticsStudents();
-}
-window.sortAnalyticsTopics = function sortAnalyticsTopics(key){
-  if(_anTopicSort.key===key) _anTopicSort.dir*=-1;
-  else { _anTopicSort.key=key; _anTopicSort.dir=(key==='topic')?1:-1; }
-  renderAnalyticsTopics();
+  if(!Object.keys(topicMap).length)tb.innerHTML='<tr><td colspan="3" style="color:var(--text4)">No practice data yet.</td></tr>';
 }
 
 // ── Assignment selector buttons ───────────────
@@ -631,3 +537,157 @@ window.filterAttemptLog = function filterAttemptLog(){
   const body = document.getElementById('attempt-log-body');
   if(body) body.innerHTML = renderAttemptRows(filtered);
 }
+
+/* ═══════════════════════════════════════════════
+   Problem analysis tab (admin)
+   Per-problem view: attempts, accuracy, and the
+   difficulty rating students gave it ("what people
+   rate it"). Accuracy/attempts are aggregated from
+   every student's attemptLog; difficulty comes from
+   the rating aggregate merged onto each problem.
+   Read-only — no writes happen here.
+   ═══════════════════════════════════════════════ */
+
+window.renderProblemAnalysis = async function renderProblemAnalysis(){
+  if(!window.S.isAdmin){ console.warn('[security] renderProblemAnalysis blocked'); return; }
+  const wrap = document.getElementById('pa-wrap');
+  const metrics = document.getElementById('pa-metrics');
+  if(!wrap){ console.error('renderProblemAnalysis: #pa-wrap missing'); return; }
+  wrap.innerHTML = '<div style="color:var(--text3);font-size:12px;padding:1rem 0"><i class="ti ti-loader" style="animation:spin 1s linear infinite"></i> Loading attempt data…</div>';
+
+  // Fetch all users (needed for attempt aggregation — DB.users only holds the current admin)
+  let users = [];
+  try {
+    users = await window._fetchAllUsers();
+  } catch(e){
+    console.error('renderProblemAnalysis: failed to fetch users', e);
+    wrap.innerHTML = `<div style="color:var(--red);font-size:12px;padding:1rem 0">Could not load attempt data: ${escHtml(e.message||String(e))}</div>`;
+    return;
+  }
+
+  // Aggregate per-problem attempts/correct/unique-students from attemptLog
+  const agg = {}; // probId -> { attempts, correct, students:Set }
+  users.forEach(u => {
+    (u.attemptLog || []).forEach(e => {
+      if(!e || !e.probId) return;
+      if(!agg[e.probId]) agg[e.probId] = { attempts:0, correct:0, students:new Set() };
+      agg[e.probId].attempts++;
+      if(e.correct) agg[e.probId].correct++;
+      agg[e.probId].students.add(u.username || u.uid);
+    });
+  });
+
+  // Build a row per problem in the bank
+  const rows = (window.DB.problems || []).map(p => {
+    const a   = agg[p.id] || { attempts:0, correct:0, students:new Set() };
+    const acc = a.attempts ? Math.round((a.correct / a.attempts) * 100) : null;
+    return {
+      id:         p.id,
+      title:      p.title || p.id,
+      topic:      p.topic || '—',
+      enabled:    p.enabled !== false,
+      attempts:   a.attempts,
+      correct:    a.correct,
+      students:   a.students.size,
+      acc:        acc,                         // null = never attempted
+      ratingAvg:  p.ratingAvg || 0,
+      ratingCount:p.ratingCount || 0,
+    };
+  });
+
+  window._paRows = rows;
+  window._paSort = window._paSort || { key:'attempts', dir:-1 };
+
+  // ── Summary metric cards ──
+  if(metrics){
+    const attempted   = rows.filter(r => r.attempts > 0);
+    const totalAtt    = rows.reduce((s,r)=>s+r.attempts,0);
+    const totalCor    = rows.reduce((s,r)=>s+r.correct,0);
+    const overallAcc  = totalAtt ? Math.round(totalCor/totalAtt*100) : 0;
+    const rated       = rows.filter(r => r.ratingCount > 0);
+    const avgDiff     = rated.length
+      ? Math.round((rated.reduce((s,r)=>s+r.ratingAvg,0)/rated.length)*10)/10
+      : 0;
+    const accCol = overallAcc>=70?'var(--green)':overallAcc>=50?'var(--warn)':'var(--red)';
+    metrics.innerHTML = `
+      <div class="metric-card"><div class="metric-label">Problems</div><div class="metric-value">${rows.length}</div><div class="metric-sub">${attempted.length} attempted</div></div>
+      <div class="metric-card"><div class="metric-label">Total attempts</div><div class="metric-value">${totalAtt}</div></div>
+      <div class="metric-card"><div class="metric-label">Overall accuracy</div><div class="metric-value" style="color:${accCol}">${overallAcc}%</div><div class="metric-sub">across attempted</div></div>
+      <div class="metric-card"><div class="metric-label">Avg difficulty</div><div class="metric-value" style="color:var(--warn)">${avgDiff||'—'}${avgDiff?'★':''}</div><div class="metric-sub">${rated.length} rated</div></div>`;
+  }
+
+  renderProblemAnalysisTable();
+};
+
+window.paSort = function paSort(key){
+  const s = window._paSort || (window._paSort = { key:'attempts', dir:-1 });
+  if(s.key === key){ s.dir = -s.dir; } else { s.key = key; s.dir = (key==='title'||key==='topic') ? 1 : -1; }
+  renderProblemAnalysisTable();
+};
+
+window.renderProblemAnalysisTable = function renderProblemAnalysisTable(){
+  const wrap = document.getElementById('pa-wrap');
+  if(!wrap) return;
+  const rows = (window._paRows || []).slice();
+  const { key, dir } = window._paSort || { key:'attempts', dir:-1 };
+
+  if(!rows.length){
+    wrap.innerHTML = '<div style="color:var(--text4);font-size:12px;padding:1rem 0">No problems in the bank yet.</div>';
+    return;
+  }
+
+  // Sort — strings alphabetically, numbers numerically; null accuracy always last
+  rows.sort((a,b)=>{
+    let av=a[key], bv=b[key];
+    if(key==='acc'){
+      if(av==null && bv==null) return 0;
+      if(av==null) return 1;          // never-attempted sink to the bottom
+      if(bv==null) return -1;
+    }
+    if(typeof av==='string'){ return av.localeCompare(bv)*dir; }
+    return ((av||0)-(bv||0))*dir;
+  });
+
+  const arrow = k => key===k ? `<span class="pa-arrow">${dir>0?'▲':'▼'}</span>` : '';
+  const stars = avg => {
+    if(!avg) return '<span style="color:var(--text4)">—</span>';
+    const filled = Math.round(avg);
+    return `<span class="pa-stars">${'★'.repeat(filled)}${'☆'.repeat(5-filled)}</span> <span style="color:var(--text3)">${avg}</span>`;
+  };
+  const accCell = r => {
+    if(r.acc==null) return '<span style="color:var(--text4)">—</span>';
+    const col = r.acc>=70?'var(--green)':r.acc>=50?'var(--warn)':'var(--red)';
+    return `<div class="acc-bar-outer" style="display:inline-block;vertical-align:middle"><div class="acc-bar-inner" style="width:${r.acc}%;background:${col}"></div></div> ${r.acc}%`;
+  };
+
+  wrap.innerHTML = `
+    <table class="pa-table">
+      <thead>
+        <tr>
+          <th onclick="paSort('title')">Problem${arrow('title')}</th>
+          <th onclick="paSort('topic')">Topic${arrow('topic')}</th>
+          <th onclick="paSort('attempts')" style="text-align:right">Attempts${arrow('attempts')}</th>
+          <th onclick="paSort('students')" style="text-align:right">Students${arrow('students')}</th>
+          <th onclick="paSort('acc')">Accuracy${arrow('acc')}</th>
+          <th onclick="paSort('ratingAvg')">Difficulty${arrow('ratingAvg')}</th>
+          <th onclick="paSort('ratingCount')" style="text-align:right">Ratings${arrow('ratingCount')}</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${rows.map(r=>`
+          <tr>
+            <td class="pa-title">${escHtml(r.title)}${r.enabled?'':' <span style="font-size:9px;color:var(--text4)">(hidden)</span>'}</td>
+            <td style="color:var(--text3)">${escHtml(r.topic)}</td>
+            <td style="text-align:right;font-family:var(--mono)">${r.attempts}</td>
+            <td style="text-align:right;font-family:var(--mono)">${r.students}</td>
+            <td>${accCell(r)}</td>
+            <td>${stars(r.ratingAvg)}</td>
+            <td style="text-align:right;font-family:var(--mono)">${r.ratingCount}</td>
+          </tr>`).join('')}
+      </tbody>
+    </table>
+    <div style="font-size:10px;color:var(--text4);margin-top:10px;font-family:var(--mono)">
+      <i class="ti ti-info-circle"></i>
+      Attempts &amp; accuracy come from assignment submissions; difficulty is the average student rating. Click a column to sort.
+    </div>`;
+};

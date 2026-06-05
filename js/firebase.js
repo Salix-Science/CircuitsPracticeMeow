@@ -13,7 +13,7 @@ import {
 import {
   getFirestore,
   doc, getDoc, setDoc, updateDoc,
-  collection, getDocs, deleteDoc, arrayUnion, addDoc, increment, deleteField, FieldPath
+  collection, getDocs, deleteDoc, arrayUnion, addDoc, increment
 } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
 import {
   getAnalytics,
@@ -167,7 +167,7 @@ window.S  = {
   activeFolderId:null, activeBuiltin:null, currentBuiltinProb:null,
   folderProblems:[], folderIdx:0,
   editingId:null, editorVars:[], editorImg:null, formEnabled:true,
-  editingAssignId:null, editingPostId:null, blogFilter:'All'
+  editingAssignId:null, editingPostId:null, blogFilter:'All', blogSearch:'', blogAuthor:'All'
 };
 
 let _varCtr = 0;
@@ -391,40 +391,6 @@ window.recordScore = async function(topicKey, correct) {
   }
 };
 
-// Record a problem as ATTEMPTED — atomic +1 to scores.<topic>.attempted.
-// Called on a student's first submission to a problem, regardless of outcome,
-// so "attempted" reflects the actual number of problems tried.
-window.recordAttempt = async function(topicKey) {
-  const uid = window.S.uid;
-  if (!uid) return;
-  try {
-    await updateDoc(doc(db, 'users', uid), {
-      [`scores.${topicKey}.attempted`]: increment(1),
-    });
-  } catch(e) {
-    // Document/field path not yet present — create it without clobbering siblings
-    await setDoc(doc(db, 'users', uid), {
-      scores: { [topicKey]: { attempted: 1 } },
-    }, { merge: true });
-  }
-};
-
-// Record a problem as CORRECT — atomic +1 to scores.<topic>.correct.
-// Called the first time a student solves a problem.
-window.recordCorrect = async function(topicKey) {
-  const uid = window.S.uid;
-  if (!uid) return;
-  try {
-    await updateDoc(doc(db, 'users', uid), {
-      [`scores.${topicKey}.correct`]: increment(1),
-    });
-  } catch(e) {
-    await setDoc(doc(db, 'users', uid), {
-      scores: { [topicKey]: { correct: 1 } },
-    }, { merge: true });
-  }
-};
-
 // Record streak atomically — separate from score so we can set it to 0 on wrong answer
 window.recordStreak = async function(correct) {
   const uid = window.S.uid;
@@ -445,70 +411,7 @@ window._fetchAllUsers = async function() {
     return [];
   }
   const snap = await getDocs(collection(db, 'users'));
-  // IMPORTANT: uid must come from the document ID (d.id), and must win over
-  // any stored `uid` field — otherwise an empty/stale stored uid produces an
-  // invalid document reference when we write back.
-  return snap.docs.map(d => sanitizeUser({ ...d.data(), uid: d.id }));
-};
-
-// Remove a topic's practice scores from EVERY student's profile.
-// Returns the number of students whose scores were changed.
-// NOTE: requires Firestore rules to allow admins to write other users' docs.
-window.deleteTopicScoresAllUsers = async function(topicName) {
-  if (!window.S.isAdmin) { console.warn('[security] deleteTopicScoresAllUsers blocked'); return 0; }
-  if (!topicName) return 0;
-  const users = await window._fetchAllUsers();
-  const writes = [];
-  for (const u of users) {
-    if (!u.uid) { console.warn('[deleteTopicScoresAllUsers] skipping user with no uid', u.username); continue; }
-    if (u.scores && Object.prototype.hasOwnProperty.call(u.scores, topicName)) {
-      writes.push(updateDoc(doc(db, 'users', u.uid),
-        new FieldPath('scores', topicName), deleteField()));
-    }
-  }
-  await Promise.all(writes);
-  // Keep current admin's in-memory copy in sync
-  const me = window.DB.users[window.S.user];
-  if (me && me.scores) { delete me.scores[topicName]; }
-  console.log(`[deleteTopicScoresAllUsers] cleared "${topicName}" for ${writes.length} student(s)`);
-  return writes.length;
-};
-
-// Rename a topic's score key for EVERY student. If a student already has
-// scores under the new name, the two are summed. Returns # students changed.
-// NOTE: requires Firestore rules to allow admins to write other users' docs.
-window.renameTopicScoresAllUsers = async function(oldName, newName) {
-  if (!window.S.isAdmin) { console.warn('[security] renameTopicScoresAllUsers blocked'); return 0; }
-  if (!oldName || !newName || oldName === newName) return 0;
-  const users = await window._fetchAllUsers();
-  const writes = [];
-  for (const u of users) {
-    if (!u.uid) { console.warn('[renameTopicScoresAllUsers] skipping user with no uid', u.username); continue; }
-    const sc = u.scores || {};
-    if (!Object.prototype.hasOwnProperty.call(sc, oldName)) continue;
-    const oldVal = sc[oldName] || { attempted: 0, correct: 0 };
-    const existing = sc[newName];
-    const merged = existing
-      ? { attempted: (existing.attempted || 0) + (oldVal.attempted || 0),
-          correct:   (existing.correct   || 0) + (oldVal.correct   || 0) }
-      : oldVal;
-    writes.push(updateDoc(doc(db, 'users', u.uid),
-      new FieldPath('scores', newName), merged,
-      new FieldPath('scores', oldName), deleteField()));
-  }
-  await Promise.all(writes);
-  // Keep current admin's in-memory copy in sync
-  const me = window.DB.users[window.S.user];
-  if (me && me.scores && Object.prototype.hasOwnProperty.call(me.scores, oldName)) {
-    const ov = me.scores[oldName];
-    const ex = me.scores[newName];
-    me.scores[newName] = ex
-      ? { attempted:(ex.attempted||0)+(ov.attempted||0), correct:(ex.correct||0)+(ov.correct||0) }
-      : ov;
-    delete me.scores[oldName];
-  }
-  console.log(`[renameTopicScoresAllUsers] "${oldName}" → "${newName}" for ${writes.length} student(s)`);
-  return writes.length;
+  return snap.docs.map(d => sanitizeUser({ uid: d.id, ...d.data() }));
 };
 
 // Generic setDoc helper used by calendar.js
@@ -562,39 +465,19 @@ window.doLogin = async function() {
 };
 
 window.doRegister = async function() {
-  hideAuthErr('r-err');
-  document.getElementById('r-ok').classList.add('hidden');
-  const username = document.getElementById('r-user').value.trim();
-  const pass     = document.getElementById('r-pass').value;
-  const pass2    = document.getElementById('r-pass2').value;
-  if (!username || username.length < 3) { showAuthErr('r-err', 'At least 3 characters.'); return; }
-  if (pass.length < 6)                   { showAuthErr('r-err', 'Password needs 6+ characters.'); return; }
-  if (pass !== pass2)                    { showAuthErr('r-err', 'Passwords do not match.'); return; }
-
-  const email = username + '@circuitspractice.app';
-  try {
-    const cred = await createUserWithEmailAndPassword(auth, email, pass);
-    // Write user profile to Firestore
-    await setDoc(doc(db, 'users', cred.user.uid), {
-      username,
-      isAdmin: false,
-      scores: {},
-      probScores: {},
-      streak: 0,
-      assignSubmissions: {},
-    });
-    track('sign_up', { method: 'username' });
-    const ok = document.getElementById('r-ok');
-    ok.textContent = 'Account created! You can now sign in.';
-    ok.classList.remove('hidden');
-    ['r-user','r-pass','r-pass2'].forEach(id => document.getElementById(id).value = '');
-    await signOut(auth); // sign out so user signs in fresh
-  } catch(e) {
-    if (e.code === 'auth/email-already-in-use') {
-      showAuthErr('r-err', 'Username already taken.');
-    } else {
-      showAuthErr('r-err', e.message);
-    }
+  // Public self-registration is disabled — accounts are created by admins only
+  // (Admin → User management → create account). This guard ensures that even if
+  // doRegister is invoked (e.g. an old cached page, or the console), no public
+  // account is ever created.
+  console.warn('[security] public registration is disabled — accounts are admin-created only');
+  const err = document.getElementById('r-err');
+  if (err) {
+    const span = err.querySelector('span');
+    if (span) span.textContent = 'Registration is disabled. Contact your instructor for an account.';
+    err.classList.remove('hidden');
+  } else {
+    // Registration UI has been removed; surface the message on the login form instead
+    try { showAuthErr('l-err', 'Registration is disabled. Contact your instructor for an account.'); } catch(e) {}
   }
 };
 

@@ -15,17 +15,56 @@ window.catPill = function catPill(cat) {
   return `<span class="pill" style="${s}">${cat}</span>`;
 }
 
+// ── Search / author filter handlers ───────────
+window.onBlogSearch = function onBlogSearch(val) {
+  window.S.blogSearch = val || '';
+  const clearBtn = document.getElementById('blog-search-clear');
+  if (clearBtn) clearBtn.classList.toggle('hidden', !window.S.blogSearch);
+  renderBlogList();
+};
+window.clearBlogSearch = function clearBlogSearch() {
+  window.S.blogSearch = '';
+  const input = document.getElementById('blog-search-input');
+  if (input) input.value = '';
+  const clearBtn = document.getElementById('blog-search-clear');
+  if (clearBtn) clearBtn.classList.add('hidden');
+  renderBlogList();
+};
+window.onBlogAuthor = function onBlogAuthor(val) {
+  window.S.blogAuthor = val || 'All';
+  renderBlogList();
+};
+window.resetBlogFilters = function resetBlogFilters() {
+  window.S.blogSearch = '';
+  window.S.blogAuthor = 'All';
+  window.S.blogFilter = 'All';
+  const input = document.getElementById('blog-search-input');
+  if (input) input.value = '';
+  const clearBtn = document.getElementById('blog-search-clear');
+  if (clearBtn) clearBtn.classList.add('hidden');
+  renderBlogList();
+};
+
+// Strip HTML tags so post body text is searchable as plain text
+function _blogPlainText(html) {
+  return String(html || '').replace(/<[^>]*>/g, ' ');
+}
+
 // ── Blog list (reader) ────────────────────────
 window.renderBlogList = function renderBlogList() {
   document.getElementById('blog-list-view').classList.remove('hidden');
   document.getElementById('blog-post-view').classList.add('hidden');
+
+  // Default state (in case S wasn't initialised with these keys)
+  if (window.S.blogSearch == null) window.S.blogSearch = '';
+  if (window.S.blogAuthor == null) window.S.blogAuthor = 'All';
 
   // Visible posts: published always, drafts only for admin
   const posts = window.DB.posts
     .filter(p => p.status === 'published' || (window.S.isAdmin && p.status === 'draft'))
     .sort((a, b) => b.createdAt - a.createdAt);
 
-  // Build filter chips
+  // Build category filter chips
   const cats = ['All', ...new Set(posts.map(p => p.category))];
   const bar  = document.getElementById('blog-filter-bar');
   bar.innerHTML = '';
@@ -37,16 +76,54 @@ window.renderBlogList = function renderBlogList() {
     bar.appendChild(chip);
   });
 
-  const filtered = window.S.blogFilter === 'All'
+  // Build author (poster) dropdown from the visible posts
+  const authorSel = document.getElementById('blog-author-filter');
+  if (authorSel) {
+    const authors = ['All', ...[...new Set(posts.map(p => p.author).filter(Boolean))].sort()];
+    // If the currently selected author no longer exists, fall back to All
+    if (!authors.includes(window.S.blogAuthor)) window.S.blogAuthor = 'All';
+    authorSel.innerHTML = authors.map(a =>
+      `<option value="${escHtml(a)}">${a === 'All' ? 'All authors' : escHtml(a)}</option>`
+    ).join('');
+    authorSel.value = window.S.blogAuthor;
+  }
+
+  // Apply filters: category → author → text search
+  let filtered = window.S.blogFilter === 'All'
     ? posts
     : posts.filter(p => p.category === window.S.blogFilter);
+
+  if (window.S.blogAuthor !== 'All') {
+    filtered = filtered.filter(p => p.author === window.S.blogAuthor);
+  }
+
+  const q = window.S.blogSearch.trim().toLowerCase();
+  if (q) {
+    filtered = filtered.filter(p => {
+      const haystack = [
+        p.title, p.excerpt, p.author, p.category, _blogPlainText(p.content)
+      ].join(' ').toLowerCase();
+      return haystack.includes(q);
+    });
+  }
 
   const grid  = document.getElementById('blog-grid');
   const empty = document.getElementById('blog-empty');
   grid.innerHTML = '';
 
   if (!filtered.length) {
-    empty.classList.remove('hidden');
+    // Distinguish "no posts at all" from "no matches for this search/filter"
+    const filtering = q || window.S.blogAuthor !== 'All' || window.S.blogFilter !== 'All';
+    if (filtering) {
+      empty.classList.add('hidden');
+      grid.innerHTML = `<div class="blog-no-results">
+        <i class="ti ti-search-off" style="font-size:28px;display:block;margin-bottom:8px;color:var(--text4)"></i>
+        No posts match your search or filters.
+        <div style="margin-top:10px"><button class="btn btn-sm" onclick="resetBlogFilters()"><i class="ti ti-rotate"></i> Clear filters</button></div>
+      </div>`;
+    } else {
+      empty.classList.remove('hidden');
+    }
     return;
   }
   empty.classList.add('hidden');
@@ -116,22 +193,6 @@ window.rteInsertCode = function rteInsertCode() {
 window.rteInsertHR = function rteInsertHR() {
   document.getElementById('rte-body').focus();
   document.execCommand('insertHTML', false, '<hr/><p><br></p>');
-}
-
-window.rteInsertEmbed = function rteInsertEmbed() {
-  const input = prompt('Paste a YouTube link or embed code:');
-  if (!input) return;
-  // Pull the 11-char video ID out of a watch URL, youtu.be link, or <iframe> src
-  const m = input.match(/(?:youtu\.be\/|youtube\.com\/(?:embed\/|watch\?v=|.*[?&]v=))([A-Za-z0-9_-]{11})/);
-  const id = m ? m[1] : (/^[A-Za-z0-9_-]{11}$/.test(input.trim()) ? input.trim() : null);
-  if (!id) { alert("Couldn't find a YouTube video ID in that."); return; }
-  const html =
-    `<div class="embed-video"><iframe src="https://www.youtube.com/embed/${id}" ` +
-    `title="YouTube video" frameborder="0" allow="accelerometer; autoplay; ` +
-    `clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" ` +
-    `referrerpolicy="strict-origin-when-cross-origin" allowfullscreen></iframe></div><p><br></p>`;
-  document.getElementById('rte-body').focus();
-  document.execCommand('insertHTML', false, html);
 }
 
 // Category custom tag toggle

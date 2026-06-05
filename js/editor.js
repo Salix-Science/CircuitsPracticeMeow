@@ -19,8 +19,6 @@ window.resetForm = function resetForm(){
   window.S.editorImg=null;
   window.S.formEnabled=true;
   window.S.editorAnswers=[{id:`ans-${Date.now()}`,label:'Answer',formula:'',unit:'V',tol:'2'}];
-  window.S.editorAnswerMode='boxes';
-  window.S.editorTable=defaultTable();
   ['e-title','e-topic','e-question','e-hint'].forEach(id=>{
     const el=document.getElementById(id); if(el) el.value='';
   });
@@ -36,7 +34,6 @@ window.resetForm = function resetForm(){
   document.getElementById('form-toggle-label').textContent='Enabled';
   renderVarInsertChips();
   renderAnswerBoxes();
-  applyAnswerMode();
   rebuildTopicDropdown(); // ← always rebuild on form reset so dropdown is current
   document.getElementById('e-title')?.focus();
 }
@@ -118,28 +115,14 @@ window.renderVarInsertChips = function renderVarInsertChips(){
 if(!window.S.editorAnswers) window.S.editorAnswers=[
   {id:`ans-${Date.now()}`,label:'Answer',formula:'',unit:'V',tol:'2'}
 ];
-if(!window.S.editorAnswerMode) window.S.editorAnswerMode='boxes';
-if(!window.S.editorTable) window.S.editorTable=(typeof defaultTable==='function'?defaultTable():null);
 
 const ANSWER_UNITS=['V','mV','kV','A','mA','μA','Ω','kΩ','MΩ','W','kW','F','μF','nF','H','mH'];
 
-// Build the shared <datalist> of unit suggestions: presets + any custom
-// units already used across saved problems (so your own units come back).
-window.rebuildUnitDatalist = function rebuildUnitDatalist(){
-  const dl=document.getElementById('answer-units-datalist'); if(!dl) return;
-  const used=new Set(ANSWER_UNITS);
-  (window.DB?.problems||[]).forEach(p=>{
-    (p.answers||[]).forEach(a=>{ if(a.unit) used.add(a.unit); });
-    (p.table?.rows||[]).forEach(r=>{ if(r.unit) used.add(r.unit); });
-  });
-  dl.innerHTML=[...used].map(u=>`<option value="${u}"></option>`).join('');
-}
-
 window.renderAnswerBoxes = function renderAnswerBoxes(){
   const wrap=document.getElementById('answer-boxes-wrap');if(!wrap)return;
-  rebuildUnitDatalist();
   wrap.innerHTML='';
   window.S.editorAnswers.forEach((ans,i)=>{
+    const unitOpts=ANSWER_UNITS.map(u=>`<option value="${u}" ${u===ans.unit?'selected':''}>${u}</option>`).join('');
     const box=document.createElement('div');
     box.className='answer-box';
     box.innerHTML=`
@@ -161,9 +144,10 @@ window.renderAnswerBoxes = function renderAnswerBoxes(){
         </div>
         <div>
           <label>Unit</label>
-          <input type="text" list="answer-units-datalist" value="${ans.unit}"
-            placeholder="e.g. V" style="padding:6px 8px;font-size:12px"
-            oninput="window.S.editorAnswers[${i}].unit=this.value"/>
+          <select style="padding:6px 8px;font-size:12px"
+            onchange="window.S.editorAnswers[${i}].unit=this.value">
+            ${unitOpts}
+          </select>
         </div>
         <div>
           <label>Tolerance %</label>
@@ -210,166 +194,6 @@ window.previewAllFormulas = function previewAllFormulas(){
 // Keep old previewFormula name so nothing breaks
 window.previewFormula = function previewFormula(){ previewAllFormulas(); }
 
-// ── Answer mode (boxes vs table) ──────────────
-window.defaultTable = function defaultTable(){
-  return {
-    corner:'',
-    tol:'2',
-    cols:[{label:'t = 0⁻'},{label:'t = 0⁺'},{label:'t = ∞'}],
-    rows:[
-      {label:'I',     unit:'A', cells:['','','']},
-      {label:'V_C1',  unit:'V', cells:['','','']},
-      {label:'V_C2',  unit:'V', cells:['','','']},
-    ],
-  };
-}
-
-// Show/hide the right builder + sync the segmented control
-window.applyAnswerMode = function applyAnswerMode(){
-  const mode=window.S.editorAnswerMode||'boxes';
-  const boxesWrap=document.getElementById('answer-mode-boxes');
-  const tableWrap=document.getElementById('answer-mode-table');
-  if(boxesWrap) boxesWrap.style.display = mode==='boxes' ? '' : 'none';
-  if(tableWrap) tableWrap.style.display = mode==='table' ? '' : 'none';
-  document.querySelectorAll('.answer-mode-tab').forEach(b=>
-    b.classList.toggle('active', b.dataset.mode===mode));
-  // Always (re)render the active panel so it never shows empty
-  if(mode==='table') renderAnswerTable(); else renderAnswerBoxes();
-}
-
-window.setAnswerMode = function setAnswerMode(mode){
-  window.S.editorAnswerMode=mode;
-  if(mode==='table' && !window.S.editorTable) window.S.editorTable=defaultTable();
-  applyAnswerMode();
-}
-
-// Render the table builder grid into #answer-table-builder
-window.renderAnswerTable = function renderAnswerTable(){
-  const wrap=document.getElementById('answer-table-builder'); if(!wrap)return;
-  rebuildUnitDatalist();
-  const t=window.S.editorTable; if(!t){wrap.innerHTML='';return;}
-
-  // Header: corner + column-label inputs + remove-col buttons + Unit
-  const colHead=t.cols.map((c,ci)=>`
-    <th style="padding:4px">
-      <input type="text" value="${escAttr(c.label)}" placeholder="Column ${ci+1}"
-        style="width:100%;min-width:90px;padding:5px 7px;font-size:11px;font-weight:600;text-align:center"
-        oninput="window.S.editorTable.cols[${ci}].label=this.value"/>
-      ${t.cols.length>1?`<button class="pm-icon-btn del" style="margin-top:3px" title="Remove column"
-        onclick="removeTableCol(${ci})"><i class="ti ti-x"></i></button>`:''}
-    </th>`).join('');
-
-  const bodyRows=t.rows.map((row,ri)=>{
-    const cells=t.cols.map((c,ci)=>`
-      <td style="padding:4px">
-        <input type="text" value="${escAttr((row.cells&&row.cells[ci])||'')}" placeholder="formula"
-          class="mono" style="width:100%;min-width:90px;padding:5px 7px;font-size:11px"
-          oninput="setTableCell(${ri},${ci},this.value)"/>
-      </td>`).join('');
-    return `<tr>
-      <th style="padding:4px">
-        <input type="text" value="${escAttr(row.label)}" placeholder="Row ${ri+1}"
-          style="width:74px;padding:5px 7px;font-size:11px;font-weight:600"
-          oninput="window.S.editorTable.rows[${ri}].label=this.value"/>
-      </th>
-      ${cells}
-      <td style="padding:4px">
-        <input type="text" list="answer-units-datalist" value="${escAttr(row.unit)}" placeholder="unit"
-          style="width:60px;padding:5px 7px;font-size:11px"
-          oninput="window.S.editorTable.rows[${ri}].unit=this.value;previewTable()"/>
-      </td>
-      <td style="padding:4px;width:24px">
-        ${t.rows.length>1?`<button class="pm-icon-btn del" title="Remove row"
-          onclick="removeTableRow(${ri})"><i class="ti ti-trash"></i></button>`:''}
-      </td>
-    </tr>`;
-  }).join('');
-
-  wrap.innerHTML=`
-    <div class="field" style="display:flex;gap:8px;align-items:end;margin-bottom:10px;flex-wrap:wrap">
-      <div style="flex:1;min-width:140px;margin:0">
-        <label>Corner label (top-left, optional)</label>
-        <input type="text" value="${escAttr(t.corner)}" placeholder="(blank)"
-          style="padding:6px 8px;font-size:12px"
-          oninput="window.S.editorTable.corner=this.value"/>
-      </div>
-      <div style="width:130px;margin:0">
-        <label>Tolerance % (all cells)</label>
-        <input type="number" value="${escAttr(t.tol)}" min="0.1" max="20" step="0.1"
-          style="padding:6px 8px;font-size:12px"
-          oninput="window.S.editorTable.tol=this.value;previewTable()"/>
-      </div>
-    </div>
-    <div style="overflow-x:auto">
-      <table class="answer-table-builder">
-        <thead><tr><th style="padding:4px"></th>${colHead}<th style="padding:4px">Unit</th><th></th></tr></thead>
-        <tbody>${bodyRows}</tbody>
-      </table>
-    </div>
-    <div style="display:flex;gap:8px;margin-top:10px">
-      <button class="add-var-btn" onclick="addTableRow()"><i class="ti ti-plus" style="font-size:11px"></i> Add row</button>
-      <button class="add-var-btn" onclick="addTableCol()"><i class="ti ti-plus" style="font-size:11px"></i> Add column</button>
-    </div>
-    <p style="font-size:11px;color:var(--text3);margin-top:8px;line-height:1.6">
-      Each cell is a formula using bare variable names. The Unit column applies to every cell in its row.
-    </p>
-    <div class="formula-preview" id="table-preview" style="margin-top:8px">Table preview</div>`;
-  previewTable();
-}
-
-window.setTableCell = function setTableCell(ri,ci,val){
-  const row=window.S.editorTable.rows[ri]; if(!row)return;
-  if(!row.cells) row.cells=[];
-  row.cells[ci]=val;
-  previewTable();
-}
-window.addTableRow = function addTableRow(){
-  const t=window.S.editorTable;
-  t.rows.push({label:`Row ${t.rows.length+1}`,unit:'',cells:t.cols.map(()=> '')});
-  renderAnswerTable();
-}
-window.removeTableRow = function removeTableRow(ri){
-  const t=window.S.editorTable; if(t.rows.length<=1)return;
-  t.rows.splice(ri,1); renderAnswerTable();
-}
-window.addTableCol = function addTableCol(){
-  const t=window.S.editorTable;
-  t.cols.push({label:`Column ${t.cols.length+1}`});
-  t.rows.forEach(r=>{ if(!r.cells)r.cells=[]; r.cells.push(''); });
-  renderAnswerTable();
-}
-window.removeTableCol = function removeTableCol(ci){
-  const t=window.S.editorTable; if(t.cols.length<=1)return;
-  t.cols.splice(ci,1);
-  t.rows.forEach(r=>{ if(r.cells) r.cells.splice(ci,1); });
-  renderAnswerTable();
-}
-
-// Live preview: evaluate every cell at the midpoint of each variable
-window.previewTable = function previewTable(){
-  const prev=document.getElementById('table-preview'); if(!prev)return;
-  const t=window.S.editorTable; if(!t){prev.textContent='Table preview';return;}
-  const vals={};
-  window.S.editorVars.forEach(v=>{vals[v.name]=(parseFloat(v.min)+parseFloat(v.max))/2;});
-  let ok=0,err=0,empty=0;
-  t.rows.forEach(row=>{
-    t.cols.forEach((c,ci)=>{
-      const f=(row.cells&&row.cells[ci])||'';
-      if(!f.trim()){empty++;return;}
-      try{ new Function(...Object.keys(vals),`return (${f})`)(...Object.values(vals)); ok++; }
-      catch(e){ err++; }
-    });
-  });
-  const total=t.rows.length*t.cols.length;
-  prev.textContent=`Preview: ${t.rows.length}×${t.cols.length} grid · ${ok}/${total} formulas OK`
-    +(empty?` · ${empty} empty`:'')+(err?` · ⚠ ${err} error${err!==1?'s':''}`:'');
-}
-
-// Small attribute-escaper for values rendered into HTML attributes
-window.escAttr = function escAttr(s){
-  return String(s==null?'':s).replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
-}
-
 // ── Image ─────────────────────────────────────
 window.handleImg = function handleImg(e){
   const file=e.target.files[0];if(!file)return;
@@ -389,52 +213,22 @@ window.saveProblem = async function saveProblem(){
   const title=document.getElementById('e-title').value.trim();
   const question=document.getElementById('e-question').value.trim();
   if(!title||!question){alert('Title and Question are required.');return;}
-
-  const mode=window.S.editorAnswerMode||'boxes';
   const answers=window.S.editorAnswers;
-  const table=window.S.editorTable;
-
-  if(mode==='table'){
-    if(!table||!table.rows.length||!table.cols.length){alert('Add at least one row and column to the table.');return;}
-    const hasAny=table.rows.some(r=>(r.cells||[]).some(f=>f&&f.trim()));
-    if(!hasAny){alert('Fill in at least one cell formula in the table.');return;}
-    // Validate every non-empty cell parses
-    const vals={}; window.S.editorVars.forEach(v=>{vals[v.name]=(parseFloat(v.min)+parseFloat(v.max))/2;});
-    for(const row of table.rows){
-      for(let ci=0;ci<table.cols.length;ci++){
-        const f=(row.cells&&row.cells[ci])||'';
-        if(!f.trim()) continue;
-        try{ new Function(...Object.keys(vals),`return (${f})`)(...Object.values(vals)); }
-        catch(e){ alert(`Cell "${row.label||''} · ${table.cols[ci].label||''}" has an invalid formula:\n${e.message}`); return; }
-      }
-    }
-  } else {
-    if(!answers.length||!answers[0].formula.trim()){alert('At least one answer formula is required.');return;}
-    const badFormulas=answers.filter(a=>!a.formula.trim());
-    if(badFormulas.length){alert(`Answer box "${badFormulas[0].label}" has no formula.`);return;}
-  }
+  if(!answers.length||!answers[0].formula.trim()){alert('At least one answer formula is required.');return;}
+  const badFormulas=answers.filter(a=>!a.formula.trim());
+  if(badFormulas.length){alert(`Answer box "${badFormulas[0].label}" has no formula.`);return;}
 
   const maxAttempts=parseInt(document.getElementById('e-max-attempts').value)||0;
-  // First gradable answer (for legacy single-answer compatibility)
-  const firstDef=(window.expandProblemAnswers
-    ? window.expandProblemAnswers({answerMode:mode,table,answers}).answerDefs[0]
-    : answers[0]) || {formula:'',unit:'',tol:'2'};
   const prob={
     id:window.S.editingId||`prob-${Date.now()}`,
     title,
     topic:document.getElementById('e-topic').value.trim(),
     question,
-    answerMode:mode,
-    answers:answers.map(a=>({...a})),   // array of answer boxes (boxes mode)
-    table: mode==='table'
-      ? {corner:table.corner||'',tol:table.tol||'2',
-         cols:table.cols.map(c=>({label:c.label||''})),
-         rows:table.rows.map(r=>({label:r.label||'',unit:r.unit||'',cells:(r.cells||[]).slice()}))}
-      : null,
+    answers:answers.map(a=>({...a})),   // array of answer boxes
     // Legacy single-answer fields kept for compatibility with old problems
-    formula:firstDef.formula,
-    unit:firstDef.unit,
-    tol:firstDef.tol,
+    formula:answers[0].formula,
+    unit:answers[0].unit,
+    tol:answers[0].tol,
     vars:window.S.editorVars.map(v=>({...v})),
     defaultPts:parseInt(document.getElementById('e-pts').value)||10,
     maxAttempts,
@@ -449,7 +243,7 @@ window.saveProblem = async function saveProblem(){
   document.getElementById('form-mode-label').textContent='Saving…';
   await saveDB();
   document.getElementById('form-mode-label').textContent=`Editing: ${prob.title}`;
-  logAdminAction(isNew ? 'create_problem' : 'edit_problem', { id: prob.id, title: prob.title, topic: prob.topic, enabled: prob.enabled, answerMode: prob.answerMode, answerCount: (window.expandProblemAnswers(prob).answerDefs||[]).length });
+  logAdminAction(isNew ? 'create_problem' : 'edit_problem', { id: prob.id, title: prob.title, topic: prob.topic, enabled: prob.enabled, answerCount: (prob.answers||[]).length });
   buildPracticeSidebar();renderPmList();renderFolderList();
 
   // Preview
@@ -458,28 +252,9 @@ window.saveProblem = async function saveProblem(){
   if(!v){wrap.textContent='Check formula.';return;}
   const attNote=maxAttempts>0
     ?`<div style="font-size:10px;color:var(--warn);font-family:var(--mono);margin-top:4px">Max ${maxAttempts} attempt${maxAttempts!==1?'s':''}</div>`:'';
-  let answerRows;
-  if(v.table){
-    // Show the computed solution grid (read-only, values filled in)
-    const t=v.table;
-    const head=`<tr><th class="at-corner"></th>${
-      t.cols.map(c=>`<th>${escHtml(c.label||'')}</th>`).join('')
-    }<th class="at-unit-h">Unit</th></tr>`;
-    const body=t.rows.map((row,r)=>{
-      const cells=t.cols.map((col,c)=>{
-        const ai=t.cellIndex[r][c];
-        const val=v.answers[ai]?.answer;
-        return `<td style="font-family:var(--mono);font-size:11px;color:${val!=null?'var(--text)':'var(--red)'}">${val!=null?val:'⚠'}</td>`;
-      }).join('');
-      return `<tr><th class="at-rowlabel">${escHtml(row.label||'')}</th>${cells}<td class="at-unit">${escHtml(row.unit||'')}</td></tr>`;
-    }).join('');
-    answerRows=`<div class="answer-table-wrap" style="margin-top:4px"><table class="answer-table">
-      <thead>${head}</thead><tbody>${body}</tbody></table></div>`;
-  } else {
-    answerRows=v.answers.map(a=>
-      `<div style="font-family:var(--mono);font-size:10px;color:var(--text4)">${a.label}: ${a.answer!==null?a.answer+' '+a.unit:'⚠ error'}</div>`
-    ).join('');
-  }
+  const answerRows=v.answers.map(a=>
+    `<div style="font-family:var(--mono);font-size:10px;color:var(--text4)">${a.label}: ${a.answer!==null?a.answer+' '+a.unit:'⚠ error'}</div>`
+  ).join('');
   wrap.innerHTML=`<div style="background:var(--bg3);border:0.5px solid var(--border);border-radius:var(--r2);padding:10px;font-size:12px">
     <div style="display:flex;align-items:center;gap:6px;margin-bottom:6px">
       <span style="font-family:var(--font-display);font-size:12px;color:var(--accent2)">${prob.title}</span>
@@ -510,14 +285,6 @@ window.loadProbToForm = function loadProbToForm(prob){
     }];
   }
 
-  // Load answer mode + table
-  window.S.editorAnswerMode = prob.answerMode==='table' ? 'table' : 'boxes';
-  window.S.editorTable = (prob.table && prob.table.rows && prob.table.cols)
-    ? {corner:prob.table.corner||'',tol:prob.table.tol||'2',
-       cols:prob.table.cols.map(c=>({label:c.label||''})),
-       rows:prob.table.rows.map(r=>({label:r.label||'',unit:r.unit||'',cells:(r.cells||[]).slice()}))}
-    : defaultTable();
-
   document.getElementById('e-title').value=prob.title||'';
   document.getElementById('e-question').value=prob.question||'';
   document.getElementById('e-hint').value=prob.hint||'';
@@ -539,7 +306,6 @@ window.loadProbToForm = function loadProbToForm(prob){
   if(topicInp) topicInp.value=prob.topic||'';
 
   renderVarRows();renderVarInsertChips();renderAnswerBoxes();
-  applyAnswerMode();
   showEdTab('problems',document.querySelector('.editor-top-tab'));
 }
 
@@ -690,6 +456,65 @@ window.createFolder = async function createFolder(){
   document.getElementById('new-folder-name').value='';
   await saveDB();renderFolderList();buildPracticeSidebar();
 }
+// ── Rename a folder (inline edit) ─────────────
+window.startRenameFolder = function startRenameFolder(id){
+  if(!window.S.isAdmin){console.warn("[security] startRenameFolder blocked");return;}
+  const span = document.getElementById('fname-'+id);
+  const f    = window.DB.folders.find(x=>x.id===id);
+  if(!span || !f){ console.error('startRenameFolder: folder or element not found', id); return; }
+
+  // Replace the name span content with an input + save/cancel (DOM-built so the
+  // current name can never be misinterpreted as markup)
+  span.textContent='';
+  const inp = document.createElement('input');
+  inp.type='text';
+  inp.id='fname-input-'+id;
+  inp.value=f.name;
+  inp.style.cssText='padding:4px 8px;font-size:12px;width:160px;background:var(--bg3);border:0.5px solid var(--accent);border-radius:var(--r2);color:var(--text1)';
+  inp.onkeydown=(e)=>{ if(e.key==='Enter') commitRenameFolder(id); if(e.key==='Escape') renderFolderList(); };
+
+  const save = document.createElement('button');
+  save.className='btn btn-sm btn-accent';
+  save.style.marginLeft='6px';
+  save.innerHTML='<i class="ti ti-check"></i>';
+  save.onclick=()=>commitRenameFolder(id);
+
+  const cancel = document.createElement('button');
+  cancel.className='btn btn-sm';
+  cancel.style.marginLeft='4px';
+  cancel.innerHTML='<i class="ti ti-x"></i>';
+  cancel.onclick=()=>renderFolderList();
+
+  span.appendChild(inp);
+  span.appendChild(save);
+  span.appendChild(cancel);
+  inp.focus(); inp.select();
+};
+
+window.commitRenameFolder = async function commitRenameFolder(id){
+  if(!window.S.isAdmin){console.warn("[security] commitRenameFolder blocked");return;}
+  const inp = document.getElementById('fname-input-'+id);
+  const f   = window.DB.folders.find(x=>x.id===id);
+  if(!inp || !f){ console.error('commitRenameFolder: input or folder not found', id); renderFolderList(); return; }
+  const name = inp.value.trim();
+  if(!name){ renderFolderList(); return; }            // empty → no change
+  if(name === f.name){ renderFolderList(); return; }   // unchanged → no save
+
+  const old = f.name;
+  f.name = name;
+  try {
+    logAdminAction('rename_folder', { id, from: old, to: name });
+    await saveDB();
+    renderFolderList();
+    buildPracticeSidebar();
+  } catch(e){
+    console.error('commitRenameFolder: save failed', e);
+    f.name = old; // roll back in-memory so UI matches DB
+    renderFolderList();
+    alert('Could not rename folder — see console for details.');
+  }
+};
+
 // Track which problem is being dragged within a folder
 let _folderDragSrc = null; // { folderId, idx }
 
@@ -761,9 +586,10 @@ window.renderFolderList = function renderFolderList(){
     const head=document.createElement('div');
     head.className='folder-head';
     head.innerHTML=`
-      <span class="folder-name"><i class="ti ti-folder" style="font-size:13px;margin-right:6px;color:var(--text3)"></i>${escHtml(f.name)}</span>
+      <span class="folder-name" id="fname-${f.id}"><i class="ti ti-folder" style="font-size:13px;margin-right:6px;color:var(--text3)"></i>${escHtml(f.name)}</span>
       <span style="font-size:11px;color:var(--text3);font-family:var(--mono)">${f.problemIds.length} problem${f.problemIds.length!==1?'s':''}</span>
-      <button class="btn btn-sm btn-red" style="margin-left:10px" onclick="deleteFolder('${f.id}')"><i class="ti ti-trash"></i></button>`;
+      <button class="btn btn-sm" style="margin-left:10px" title="Rename folder" onclick="startRenameFolder('${f.id}')"><i class="ti ti-edit"></i></button>
+      <button class="btn btn-sm btn-red" style="margin-left:6px" onclick="deleteFolder('${f.id}')"><i class="ti ti-trash"></i></button>`;
 
     // Add-to-folder row
     const addRow=document.createElement('div');
@@ -791,66 +617,21 @@ window.deleteFolder = async function deleteFolder(id){
 window.renderAssignProbPicker = function renderAssignProbPicker(){
   const wrap=document.getElementById('assign-prob-picker');wrap.innerHTML='';
   if(!window.DB.problems.length){wrap.innerHTML='<div style="color:var(--text4);font-size:12px">No problems yet.</div>';return;}
-
-  // Populate topic filter dropdown (preserve current selection)
-  const tagSel=document.getElementById('apc-tag-filter');
-  if(tagSel){
-    const cur=tagSel.value||'';
-    const tags=[...new Set(window.DB.problems.map(p=>p.topic).filter(Boolean))].sort();
-    tagSel.innerHTML='<option value="">All topics</option>'+
-      tags.map(t=>`<option value="${escHtml(t)}" ${t===cur?'selected':''}>${escHtml(t)}</option>`).join('');
-  }
-
   window.DB.problems.forEach(p=>{
     const row=document.createElement('div');row.className='assign-prob-picker-row';
-    row.dataset.title=(p.title||'').toLowerCase();
-    row.dataset.topic=p.topic||'';
     const existing=window.S.editingAssignId?window.DB.assignments.find(a=>a.id===window.S.editingAssignId)?.problems.find(ap=>ap.probId===p.id):null;
-    const topicPill=p.topic?`<span class="pill pill-purple" style="font-size:9px;margin-left:4px">${escHtml(p.topic)}</span>`:'';
-    row.innerHTML=`<label><input type="checkbox" id="apc-${p.id}" style="width:auto" ${existing?'checked':''} onchange="filterAssignProbPicker()"/> ${escHtml(p.title)}
-      ${p.enabled===false?'<span class="pill pill-disabled" style="font-size:9px">hidden</span>':''}${topicPill}</label>
+    row.innerHTML=`<label><input type="checkbox" id="apc-${p.id}" style="width:auto" ${existing?'checked':''}/> ${p.title}
+      ${p.enabled===false?'<span class="pill pill-disabled" style="font-size:9px">hidden</span>':''}</label>
       <input class="assign-pts-input" type="number" id="appts-${p.id}" value="${existing?.points||p.defaultPts||10}" min="1" max="100"/>`;
     wrap.appendChild(row);
   });
-
-  // No-match placeholder (hidden unless a filter excludes everything)
-  const nm=document.createElement('div');
-  nm.id='apc-no-match';nm.style.cssText='color:var(--text4);font-size:12px;padding:8px 2px;display:none';
-  nm.textContent='No problems match this filter.';
-  wrap.appendChild(nm);
-
-  filterAssignProbPicker();
-}
-
-// Cosmetic filter — hides non-matching rows but keeps them in the DOM so
-// checked selections are never lost. Checked rows always stay visible.
-window.filterAssignProbPicker = function filterAssignProbPicker(){
-  const wrap=document.getElementById('assign-prob-picker');if(!wrap)return;
-  const search=(document.getElementById('apc-search')?.value||'').toLowerCase().trim();
-  const tag=document.getElementById('apc-tag-filter')?.value||'';
-  let shown=0;
-  wrap.querySelectorAll('.assign-prob-picker-row').forEach(row=>{
-    const checked=row.querySelector('input[type=checkbox]')?.checked;
-    const matchSearch=!search||(row.dataset.title||'').includes(search);
-    const matchTag=!tag||row.dataset.topic===tag;
-    const visible=checked||(matchSearch&&matchTag);
-    row.style.display=visible?'':'none';
-    if(visible)shown++;
-  });
-  const nm=document.getElementById('apc-no-match');
-  if(nm)nm.style.display=shown?'none':'block';
 }
 window.newAssignment = function newAssignment(){
   window.S.editingAssignId=null;
   ['as-title','as-instructions','as-open','as-due'].forEach(id=>document.getElementById(id).value='');
   const lateToggle=document.getElementById('as-allow-late');
   if(lateToggle) lateToggle.checked=true; // default: allow late
-  resetAssignPickerFilters();
   renderAssignProbPicker();
-}
-window.resetAssignPickerFilters = function resetAssignPickerFilters(){
-  const s=document.getElementById('apc-search'); if(s) s.value='';
-  const t=document.getElementById('apc-tag-filter'); if(t) t.value='';
 }
 window.saveAssignment = async function saveAssignment(){
   if(!window.S.isAdmin){console.warn("[security] saveAssignment blocked");return;}
@@ -893,7 +674,6 @@ window.loadAssignToEditor = function loadAssignToEditor(id){
   document.getElementById('as-open').value=a.opens||'';document.getElementById('as-due').value=a.due||'';
   const lateToggle=document.getElementById('as-allow-late');
   if(lateToggle) lateToggle.checked=a.allowLate!==false;
-  resetAssignPickerFilters();
   renderAssignProbPicker();
   a.problems.forEach(ap=>{
     const cb=document.getElementById(`apc-${ap.probId}`);if(cb)cb.checked=true;
@@ -920,8 +700,7 @@ window.renderTopicManager = function renderTopicManager(){
     const count=window.DB.problems.filter(p=>p.topic===t.name).length;
     row.innerHTML=`<span class="topic-label-chip">${t.name}</span>
       <span style="font-size:10px;color:var(--text4);font-family:var(--mono)">${count} problem${count!==1?'s':''}</span>
-      <button class="pm-icon-btn" onclick="editTopic('${t.id}')" title="Rename label"><i class="ti ti-pencil"></i></button>
-      <button class="pm-icon-btn del" onclick="deleteTopic('${t.id}')" title="Delete label"><i class="ti ti-trash"></i></button>`;
+      <button class="pm-icon-btn del" onclick="deleteTopic('${t.id}')"><i class="ti ti-trash"></i></button>`;
     list.appendChild(row);
   });
   rebuildTopicDropdown();
@@ -957,51 +736,13 @@ window.addTopic = async function addTopic(){
 window.deleteTopic = async function deleteTopic(id){
   if(!window.S.isAdmin){console.warn("[security] deleteTopic blocked");return;}
   const t=(window.DB.topics||[]).find(t=>t.id===id);if(!t)return;
-  const oldName=t.name;
-  const count=window.DB.problems.filter(p=>p.topic===oldName).length;
-  const msg=`Delete label "${oldName}"?\n\nThis will:\n`+
-    (count>0?`• Affect ${count} problem${count!==1?'s':''} that use this label\n`:'')+
-    `• Permanently delete EVERY student's practice scores for this topic\n\nThis cannot be undone.`;
+  const count=window.DB.problems.filter(p=>p.topic===t.name).length;
+  const msg=count>0
+    ?`Delete label "${t.name}"? It's used by ${count} problem${count!==1?'s':''}.`
+    :`Delete label "${t.name}"?`;
   if(!confirm(msg))return;
-  logAdminAction('delete_topic_label', { id, name: oldName });
+  logAdminAction('delete_topic_label', { id, name: t?.name });
   await deleteFromDB('topics',id);
   window.DB.topics=window.DB.topics.filter(t=>t.id!==id);
-  // Wipe associated student scores across all accounts
-  try{
-    const n=await window.deleteTopicScoresAllUsers(oldName);
-    if(n>0) console.log(`[deleteTopic] removed "${oldName}" scores from ${n} student(s)`);
-  }catch(e){
-    console.error('[deleteTopic] failed to remove student scores:',e);
-    alert(`Label deleted, but removing student scores failed:\n${e.message}\n\nThis usually means your Firestore rules don't allow admins to write other users' documents.`);
-  }
-  renderTopicManager();rebuildTopicDropdown();
-}
-
-window.editTopic = async function editTopic(id){
-  if(!window.S.isAdmin){console.warn("[security] editTopic blocked");return;}
-  const t=(window.DB.topics||[]).find(t=>t.id===id);if(!t)return;
-  const oldName=t.name;
-  const newName=(prompt(`Rename label "${oldName}" to:`, oldName)||'').trim();
-  if(!newName||newName===oldName)return;
-  if((window.DB.topics||[]).find(x=>x.id!==id && x.name.toLowerCase()===newName.toLowerCase())){
-    alert(`"${newName}" already exists.`);return;
-  }
-  const probCount=window.DB.problems.filter(p=>p.topic===oldName).length;
-  if(!confirm(`Rename "${oldName}" → "${newName}"?\n\nThis updates ${probCount} problem${probCount!==1?'s':''} and migrates every student's scores for this topic.`))return;
-
-  // 1. Topic label + 2. all problems using it
-  t.name=newName;
-  window.DB.problems.forEach(p=>{ if(p.topic===oldName) p.topic=newName; });
-  await saveDB(); // persists topics + problems
-
-  // 3. Migrate student scores across all accounts
-  let n=0;
-  try{
-    n=await window.renameTopicScoresAllUsers(oldName,newName);
-  }catch(e){
-    console.error('[editTopic] failed to migrate student scores:',e);
-    alert(`Label and problems renamed, but migrating student scores failed:\n${e.message}\n\nThis usually means your Firestore rules don't allow admins to write other users' documents.`);
-  }
-  logAdminAction('rename_topic_label', { id, oldName, newName, problems:probCount, studentsUpdated:n });
   renderTopicManager();rebuildTopicDropdown();
 }
