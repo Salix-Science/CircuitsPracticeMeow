@@ -68,7 +68,7 @@ window.showEdTab = function(t, el) {
   if(t==='homepage')renderHomepageEditor();
   if(t==='assignments'){renderAssignAdmin();renderAssignProbPicker();}
   if(t==='blog')renderBlogPostList();
-  if(t==='problems'){renderPmList();applyAnswerMode&&applyAnswerMode();}
+  if(t==='problems'){renderPmList();applyAnswerMode&&applyAnswerMode();rebuildTopicDropdown&&rebuildTopicDropdown();}
 };
 
 window.enterApp = function() {
