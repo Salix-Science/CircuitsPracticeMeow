@@ -153,6 +153,56 @@ window.escHtml = function(str) {
 };
 
 
+// ── Blog categories — single source of truth ──
+// Both the blog page AND the home page render category pills from here,
+// so a colour set in the Category editor is consistent everywhere.
+// Stored in Firestore at config/blogCategories as { list:[{name,color}] }.
+window.DEFAULT_CATEGORIES = [
+  { name:'Tutorial',     color:'#4ade80' },
+  { name:'Update',       color:'#9d7de8' },
+  { name:'Announcement', color:'#e8c96b' },
+  { name:'Resource',     color:'#2dd4bf' },
+];
+
+// Convert a #rrggbb (or #rgb) hex to "r,g,b" for use inside rgba()
+window.hexToRgb = function(hex) {
+  let h = String(hex || '').trim().replace(/^#/, '');
+  if (h.length === 3) h = h.split('').map(c => c + c).join('');
+  if (!/^[0-9a-fA-F]{6}$/.test(h)) return '157,125,232'; // fallback to accent purple
+  const n = parseInt(h, 16);
+  return `${(n >> 16) & 255},${(n >> 8) & 255},${n & 255}`;
+};
+
+// Look up a category's colour by name (falls back to a neutral grey)
+window.getCatColor = function(name) {
+  const cats = window.DB.categories && window.DB.categories.length
+    ? window.DB.categories : window.DEFAULT_CATEGORIES;
+  const c = cats.find(c => c.name === name);
+  return c ? c.color : null;
+};
+
+// Canonical pill renderer used by blog.js AND home.js
+window.catPill = function(cat) {
+  const color = window.getCatColor(cat);
+  const style = color
+    ? `background:rgba(${window.hexToRgb(color)},.12);color:${color};border:0.5px solid rgba(${window.hexToRgb(color)},.30)`
+    : 'background:rgba(157,125,232,.08);color:var(--text3);border:0.5px solid var(--border)';
+  return `<span class="pill" style="${style}">${window.escHtml(cat)}</span>`;
+};
+
+// Persist the category list (admin only). Firestore rules also enforce admin.
+window.saveCategories = async function() {
+  if (!window.S.isAdmin) { console.warn('[security] saveCategories blocked'); return; }
+  const list = Array.isArray(window.DB.categories) ? window.DB.categories : [];
+  try {
+    await setDoc(doc(db, 'config', 'blogCategories'), { list }, { merge: false });
+  } catch(e) {
+    console.error('saveCategories failed:', e.code, e.message);
+    throw e;
+  }
+};
+
+
 function track(eventName, params = {}) {
   if (!analytics) return;
   try { logEvent(analytics, eventName, params); } catch(e) {}
@@ -161,7 +211,7 @@ function track(eventName, params = {}) {
 window.track = track;
 
 // ── In-memory DB mirror ───────────────────────
-window.DB = { users:{}, problems:[], folders:[], assignments:[], posts:[], topics:[], homepage:{}, events:[], sections:[] };
+window.DB = { users:{}, problems:[], folders:[], assignments:[], posts:[], topics:[], homepage:{}, events:[], sections:[], categories:[] };
 window.S  = {
   user:null, isAdmin:false, uid:null,
   activeFolderId:null, activeBuiltin:null, currentBuiltinProb:null,
@@ -180,7 +230,7 @@ function toArray(snapshot) {
 
 // ── Load shared content from Firestore ────────
 async function loadSharedData() {
-  const [probSnap, postSnap, assignSnap, folderSnap, topicSnap, hpSnap, evSnap, ratingSnap, sectSnap] = await Promise.all([
+  const [probSnap, postSnap, assignSnap, folderSnap, topicSnap, hpSnap, evSnap, ratingSnap, sectSnap, catSnap] = await Promise.all([
     getDocs(collection(db, 'problems')),
     getDocs(collection(db, 'posts')),
     getDocs(collection(db, 'assignments')),
@@ -190,6 +240,7 @@ async function loadSharedData() {
     getDocs(collection(db, 'events')),
     getDocs(collection(db, 'ratings')),
     window.S.isAdmin ? getDocs(collection(db, 'sections')) : Promise.resolve({ docs: [] }),
+    getDoc(doc(db, 'config', 'blogCategories')),
   ]);
   window.DB.problems    = toArray(probSnap).sort((a,b) => (a.order ?? 999) - (b.order ?? 999));
   window.DB.posts       = toArray(postSnap);
@@ -199,6 +250,16 @@ async function loadSharedData() {
   window.DB.homepage    = hpSnap.exists() ? hpSnap.data() : { banner:'', bannerEnabled:true };
   window.DB.events      = toArray(evSnap);
   window.DB.sections    = toArray(sectSnap);
+  // Blog categories — sanitize each entry; fall back to defaults if unset
+  const _catList = (catSnap.exists() && Array.isArray(catSnap.data().list)) ? catSnap.data().list : null;
+  window.DB.categories = (_catList && _catList.length)
+    ? _catList
+        .filter(c => c && typeof c.name === 'string')
+        .map(c => ({
+          name:  c.name.replace(/<[^>]*>/g, '').slice(0, 40),
+          color: (typeof c.color === 'string' && /^#[0-9a-fA-F]{3,6}$/.test(c.color.trim())) ? c.color.trim() : '#9d7de8',
+        }))
+    : window.DEFAULT_CATEGORIES.map(c => ({ ...c }));
   // Merge rating aggregates onto problem objects
   const ratingsMap = {};
   toArray(ratingSnap).forEach(r => { ratingsMap[r.id] = r; });

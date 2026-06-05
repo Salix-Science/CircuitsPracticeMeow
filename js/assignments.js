@@ -46,7 +46,9 @@ function genSeededVariant(prob, seedKey) {
     answer = Math.round(fn(...Object.values(vals)) * 10000) / 10000;
   } catch(e) {}
 
-  const { answerDefs, table: tableLayout } = window.expandProblemAnswers(prob);
+  const answerDefs = prob.answers && prob.answers.length
+    ? prob.answers
+    : [{ id:'ans0', label:'Answer', formula: prob.formula, unit: prob.unit, tol: prob.tol }];
 
   const answers = answerDefs.map(a => {
     let ans = null;
@@ -72,7 +74,6 @@ function genSeededVariant(prob, seedKey) {
     unit:     answers[0]?.unit ?? prob.unit,
     tol:      answers[0]?.tol ?? 0.02,
     answers,
-    table:    tableLayout,
     maxAttempts: parseInt(prob.maxAttempts) || 0,
     circuit: prob.imgDataUrl ? `<img src="${prob.imgDataUrl}" alt="Circuit"/>` : null,
     vals,
@@ -182,41 +183,62 @@ window.buildProbRow = function buildProbRow(row, assign, ap, idx, p, sub, isLate
     : '';
 
   const answers = p.answers || [{ id:'ans0', label:'Answer', answer:p.answer, unit:p.unit, tol: p.tol||0.02 }];
+  const boxPts  = Array.isArray(ap.boxPoints) ? ap.boxPoints : null;
 
-  const inputsHTML = p.table
-    ? window.buildAnswerTableHTML(p.table, ai => `ai-${assign.id}-${ap.probId}-${ai}`)
-    : answers.map((a, ai) => `
+  const inputsHTML = answers.map((a, ai) => {
+    const pts = boxPts && boxPts[ai] != null ? boxPts[ai].points : null;
+    const ptsBadge = (pts != null && answers.length > 1)
+      ? `<span style="font-size:10px;color:var(--text4);font-family:var(--mono);margin-left:auto">${pts} pt${pts===1?'':'s'}</span>` : '';
+    return `
     <div class="multi-ans-row">
-      ${answers.length > 1 ? `<div class="multi-ans-label">${a.label}</div>` : ''}
+      ${answers.length > 1 ? `<div class="multi-ans-label" style="display:flex;align-items:center">${escHtml(a.label)}${ptsBadge}</div>` : ''}
       <div style="display:flex;gap:8px;align-items:center;margin-bottom:4px">
         <input class="mono" type="number" step="any" placeholder="0.000"
           id="ai-${assign.id}-${ap.probId}-${ai}"
           style="width:120px;padding:6px 10px;font-size:12px"/>
         <span style="font-size:13px;font-weight:500;color:var(--text2)">${a.unit}</span>
       </div>
-    </div>`).join('');
+    </div>`;
+  }).join('');
 
   const lateNote = isLate ? `<span class="pill pill-warn" style="font-size:9px">Late</span>` : '';
+
+  // Partial-credit display: per-box points → show earned/max instead of ✓/✗
+  const partial  = Array.isArray(ap.boxPoints) && ap.boxPoints.length > 1;
+  const maxPts    = (typeof window.problemMaxPoints==='function') ? window.problemMaxPoints(ap) : (ap.points||0);
+  const earnedPts = done ? ((typeof window.problemEarned==='function') ? window.problemEarned(ap, done) : (done.correct?(ap.points||0):0)) : 0;
+  const earnedCol = earnedPts===maxPts ? 'pill-green' : earnedPts>0 ? 'pill-warn' : 'pill-red';
+
+  const doneStatusPill = !done ? ''
+    : partial
+      ? `<span class="pill ${earnedCol}">${earnedPts}/${maxPts} pts</span>`
+      : `<span class="pill ${done.correct ? 'pill-green' : 'pill-red'}">${done.correct ? '✓ Correct' : '✗ Incorrect'}</span>`;
+
+  const doneFeedback = !done
+    ? `<div class="feedback wrong" style="display:block">No attempts remaining.</div>`
+    : partial
+      ? `<div class="feedback ${earnedPts===maxPts?'correct':'wrong'}" style="display:block">
+           You earned ${earnedPts} / ${maxPts} pts.
+           ${(done.details||[]).map(d=>`<div style="font-size:11px;margin-top:2px">${escHtml(d.label)}: ${d.ok?'<span style="color:var(--green)">✓</span>':'<span style="color:var(--red)">✗</span>'}${window.S.isAdmin && !d.ok ? ` <span style="color:var(--text4)">(expected ≈${d.answer ?? d.expected} ${escHtml(d.unit||'')})</span>`:''}</div>`).join('')}
+         </div>`
+      : `<div class="feedback ${done.correct ? 'correct' : 'wrong'}" style="display:block">
+           ${done.correct
+             ? '✓ Correct!'
+             : '✗ Incorrect' + (window.S.isAdmin ? ' — ' + (done.details || []).map(d => `${escHtml(d.label)}: expected ${d.answer ?? d.expected} ${escHtml(d.unit||'')}`).join(' · ') : '')}
+         </div>`;
 
   row.innerHTML = `
     <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;flex-wrap:wrap">
       <span style="font-size:12px;font-weight:600;color:var(--accent2)">${idx+1}. ${escHtml(p.title)}</span>
-      <span style="font-size:11px;font-family:var(--mono);color:var(--text3)">${ap.points} pts</span>
-      ${done ? `<span class="pill ${done.correct ? 'pill-green' : 'pill-red'}">${done.correct ? '✓ Correct' : '✗ Incorrect'}</span>` : ''}
+      <span style="font-size:11px;font-family:var(--mono);color:var(--text3)">${maxPts} pts</span>
+      ${doneStatusPill}
       ${done && done.late ? lateNote : ''}
       ${attBadge}
-      ${''/* No shuffle in assignments — students must work with the numbers they were given */}
     </div>
     ${p.circuit ? `<div class="circuit-wrap" style="margin-bottom:8px;min-height:60px">${p.circuit}</div>` : ''}
     <p style="font-size:12px;color:var(--text);margin-bottom:8px;line-height:1.7">${p.question}</p>
     ${locked
-      ? done
-        ? `<div class="feedback ${done.correct ? 'correct' : 'wrong'}" style="display:block">
-             ${done.correct
-               ? '✓ Correct!'
-               : '✗ Incorrect' + (window.S.isAdmin ? ' — ' + (done.details || []).map(d => `${d.label}: expected ${d.answer} ${d.unit}`).join(' · ') : '')}
-           </div>`
-        : `<div class="feedback wrong" style="display:block">No attempts remaining.</div>`
+      ? doneFeedback
       : `${inputsHTML}
          <div style="display:flex;gap:8px;align-items:center;margin-top:4px">
            <button class="btn btn-sm btn-accent"

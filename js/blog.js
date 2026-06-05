@@ -2,18 +2,10 @@
    blog.js — Blog reader and rich text editor
    ═══════════════════════════════════════════ */
 
-// ── Category pill colors ──────────────────────
-const CAT_COLORS = {
-  Tutorial:     'background:rgba(74,222,128,.10);color:#4ade80;border:0.5px solid rgba(74,222,128,.25)',
-  Update:       'background:rgba(157,125,232,.15);color:#c4a8ff;border:0.5px solid rgba(157,125,232,.30)',
-  Announcement: 'background:rgba(232,201,107,.12);color:#e8c96b;border:0.5px solid rgba(232,201,107,.30)',
-  Resource:     'background:rgba(20,184,166,.10);color:#2dd4bf;border:0.5px solid rgba(20,184,166,.25)',
-};
-
-window.catPill = function catPill(cat) {
-  const s = CAT_COLORS[cat] || 'background:rgba(157,125,232,.08);color:var(--text3);border:0.5px solid var(--border)';
-  return `<span class="pill" style="${s}">${cat}</span>`;
-}
+// ── Category pills ────────────────────────────
+// catPill() and the category colour map now live in firebase.js so the blog
+// page and the home page render identical pills from one editable source.
+// (window.catPill is defined before this file loads.)
 
 // ── Search / author filter handlers ───────────
 window.onBlogSearch = function onBlogSearch(val) {
@@ -202,13 +194,27 @@ window.toggleCustomTag = function toggleCustomTag(sel) {
 }
 
 // ── Blog editor form ──────────────────────────
+// Fill the category <select> from the editable category list (+ a custom option)
+window.populateBpCategory = function populateBpCategory(selected) {
+  const sel = document.getElementById('bp-category');
+  if (!sel) return;
+  const cats = (window.DB.categories && window.DB.categories.length)
+    ? window.DB.categories : (window.DEFAULT_CATEGORIES || []);
+  sel.innerHTML = cats.map(c =>
+    `<option value="${escHtml(c.name)}">${escHtml(c.name)}</option>`
+  ).join('') + `<option value="custom">Custom…</option>`;
+  if (selected != null) sel.value = selected;
+};
+
 window.resetBlogForm = function resetBlogForm() {
   window.S.editingPostId = null;
   ['bp-title', 'bp-excerpt', 'bp-custom-tag'].forEach(id => {
     const el = document.getElementById(id);
     if (el) el.value = '';
   });
-  document.getElementById('bp-category').value = 'Tutorial';
+  populateBpCategory();
+  const firstCat = (window.DB.categories && window.DB.categories[0]?.name) || 'Tutorial';
+  document.getElementById('bp-category').value = firstCat;
   document.getElementById('bp-status').value   = 'published';
   document.getElementById('bp-custom-wrap').style.display = 'none';
   document.getElementById('rte-body').innerHTML = '';
@@ -251,12 +257,16 @@ window.saveBlogPost = async function saveBlogPost() {
   await saveDB();
   logAdminAction(_pIsNew ? 'create_post' : 'edit_post', { id: post.id, title: post.title, category: post.category, status: post.status });
   renderBlogPostList();
-  // Send email notification when a new post is published (not drafts, not edits)
+  // Send email notification when a new post is published (not drafts, not edits).
+  // Announcements go to announcement subscribers; everything else to post subscribers.
   if (_pIsNew && post.status === 'published' && typeof sendEmailNotification === 'function') {
+    const _type = post.category === 'Announcement' ? 'announcements' : 'posts';
     sendEmailNotification(
-      `New post: ${post.title}`,
-      `A new ${post.category} post has been published on Circuits Practice.\n\n"${post.title}"\n\n${post.excerpt || 'Log in to read the full post.'}\n\n— ${post.author}`
-    ).then(r => { if (r.sent > 0) console.log(`Notified ${r.sent} student(s).`); });
+      `New ${post.category}: ${post.title}`,
+      `A new ${post.category} post has been published on Circuits Practice.\n\n"${post.title}"\n\n${post.excerpt || 'Log in to read the full post.'}\n\n— ${post.author}`,
+      _type
+    ).then(r => { if (r && r.sent > 0) console.log(`Notified ${r.sent} student(s).`); })
+     .catch(e => console.error('[notifications] post auto-send failed:', e));
   }
   alert(`"${post.title}" ${post.status === 'draft' ? 'saved as draft' : 'published'}!`);
 }
@@ -266,7 +276,10 @@ window.loadPostToEditor = function loadPostToEditor(post) {
   document.getElementById('bp-title').value   = post.title   || '';
   document.getElementById('bp-excerpt').value = post.excerpt || '';
 
-  const known = ['Tutorial', 'Update', 'Announcement', 'Resource'];
+  const known = (window.DB.categories && window.DB.categories.length)
+    ? window.DB.categories.map(c => c.name)
+    : ['Tutorial', 'Update', 'Announcement', 'Resource'];
+  populateBpCategory();
   if (known.includes(post.category)) {
     document.getElementById('bp-category').value        = post.category;
     document.getElementById('bp-custom-wrap').style.display = 'none';
@@ -297,6 +310,8 @@ window.deletePost = async function deletePost(id) {
 
 // ── Blog post list (editor sidebar) ──────────
 window.renderBlogPostList = function renderBlogPostList() {
+  // Keep the category dropdown in sync with the current category list
+  populateBpCategory(document.getElementById('bp-category')?.value);
   const list  = document.getElementById('blog-post-list');
   const empty = document.getElementById('blog-post-list-empty');
   document.getElementById('post-count').textContent = `(${window.DB.posts.length})`;

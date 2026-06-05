@@ -617,12 +617,37 @@ window.deleteFolder = async function deleteFolder(id){
 window.renderAssignProbPicker = function renderAssignProbPicker(){
   const wrap=document.getElementById('assign-prob-picker');wrap.innerHTML='';
   if(!window.DB.problems.length){wrap.innerHTML='<div style="color:var(--text4);font-size:12px">No problems yet.</div>';return;}
+  const editing = window.S.editingAssignId
+    ? window.DB.assignments.find(a=>a.id===window.S.editingAssignId) : null;
+
   window.DB.problems.forEach(p=>{
-    const row=document.createElement('div');row.className='assign-prob-picker-row';
-    const existing=window.S.editingAssignId?window.DB.assignments.find(a=>a.id===window.S.editingAssignId)?.problems.find(ap=>ap.probId===p.id):null;
-    row.innerHTML=`<label><input type="checkbox" id="apc-${p.id}" style="width:auto" ${existing?'checked':''}/> ${p.title}
-      ${p.enabled===false?'<span class="pill pill-disabled" style="font-size:9px">hidden</span>':''}</label>
-      <input class="assign-pts-input" type="number" id="appts-${p.id}" value="${existing?.points||p.defaultPts||10}" min="1" max="100"/>`;
+    const existing = editing?.problems.find(ap=>ap.probId===p.id) || null;
+    const answers  = (p.answers && p.answers.length) ? p.answers : [{ id:'ans0', label:'Answer' }];
+
+    // One points input per answer box. Default from the saved boxPoints, then the
+    // saved whole-problem points (single-box legacy), then the problem default.
+    const boxesHtml = answers.map((a,i)=>{
+      let dft;
+      if(existing && Array.isArray(existing.boxPoints) && existing.boxPoints[i] != null) dft = existing.boxPoints[i].points;
+      else if(existing && answers.length===1 && existing.points != null)                 dft = existing.points;
+      else dft = p.defaultPts || 10;
+      const label = a.label || `Part ${i+1}`;
+      return `<div style="display:flex;align-items:center;gap:8px">
+        <span style="flex:1;font-size:11px;color:var(--text3)">${answers.length>1?escHtml(label):'Points'}</span>
+        <input class="assign-pts-input" type="number" id="apbox-${p.id}-${i}" value="${dft}" min="0" max="1000"/>
+      </div>`;
+    }).join('');
+
+    const row=document.createElement('div');
+    row.className='assign-prob-picker-row';
+    row.style.cssText='flex-direction:column;align-items:stretch;gap:8px';
+    row.innerHTML=`
+      <label style="display:flex;align-items:center;gap:6px">
+        <input type="checkbox" id="apc-${p.id}" style="width:auto" ${existing?'checked':''}/> ${escHtml(p.title)}
+        ${p.enabled===false?'<span class="pill pill-disabled" style="font-size:9px">hidden</span>':''}
+        ${answers.length>1?`<span style="font-size:9px;color:var(--text4)">${answers.length} boxes</span>`:''}
+      </label>
+      <div style="padding-left:22px;display:flex;flex-direction:column;gap:6px">${boxesHtml}</div>`;
     wrap.appendChild(row);
   });
 }
@@ -637,7 +662,16 @@ window.saveAssignment = async function saveAssignment(){
   if(!window.S.isAdmin){console.warn("[security] saveAssignment blocked");return;}
   const title=document.getElementById('as-title').value.trim();if(!title){alert('Enter a title.');return;}
   const allowLate=document.getElementById('as-allow-late')?.checked!==false;
-  const problems=window.DB.problems.filter(p=>document.getElementById(`apc-${p.id}`)?.checked).map(p=>({probId:p.id,points:parseInt(document.getElementById(`appts-${p.id}`)?.value)||10}));
+  const problems=window.DB.problems.filter(p=>document.getElementById(`apc-${p.id}`)?.checked).map(p=>{
+    const answers = (p.answers && p.answers.length) ? p.answers : [{ id:'ans0', label:'Answer' }];
+    const boxPoints = answers.map((a,i)=>({
+      id:    a.id || `ans${i}`,
+      label: a.label || `Part ${i+1}`,
+      points: parseFloat(document.getElementById(`apbox-${p.id}-${i}`)?.value) || 0,
+    }));
+    const points = boxPoints.reduce((s,b)=>s+b.points,0);   // total = sum of box points
+    return { probId:p.id, points, boxPoints };
+  });
   const assign={id:window.S.editingAssignId||`assign-${Date.now()}`,title,
     instructions:document.getElementById('as-instructions').value,
     opens:document.getElementById('as-open').value,due:document.getElementById('as-due').value,
@@ -647,6 +681,19 @@ window.saveAssignment = async function saveAssignment(){
   if(_aIdx>=0)window.DB.assignments[_aIdx]=assign;else window.DB.assignments.push(assign);
   logAdminAction(_aIsNew?'create_assignment':'edit_assignment', { id: assign.id, title: assign.title, due: assign.due, allowLate: assign.allowLate, problemCount: assign.problems.length });
   window.S.editingAssignId=assign.id;await saveDB();renderAssignAdmin();
+  // Auto-notify assignment subscribers when a NEW assignment is created and open now
+  if(_aIsNew && typeof sendEmailNotification==='function'){
+    const openNow = !assign.opens || new Date(assign.opens).getTime() <= Date.now();
+    if(openNow){
+      const dueStr = assign.due ? new Date(assign.due).toLocaleString() : 'No due date';
+      sendEmailNotification(
+        `New assignment: ${assign.title}`,
+        `A new assignment "${assign.title}" is now available on Circuits Practice.\n\nDue: ${dueStr}\n\nLog in to get started.`,
+        'assignments'
+      ).then(r=>{ if(r && r.sent>0) console.log(`Notified ${r.sent} student(s) of new assignment.`); })
+       .catch(e=>console.error('[notifications] assignment auto-send failed:', e));
+    }
+  }
   const ok=document.getElementById('as-ok');ok.textContent='Saved!';ok.classList.remove('hidden');setTimeout(()=>ok.classList.add('hidden'),2000);
 }
 window.renderAssignAdmin = function renderAssignAdmin(){
@@ -674,11 +721,8 @@ window.loadAssignToEditor = function loadAssignToEditor(id){
   document.getElementById('as-open').value=a.opens||'';document.getElementById('as-due').value=a.due||'';
   const lateToggle=document.getElementById('as-allow-late');
   if(lateToggle) lateToggle.checked=a.allowLate!==false;
+  // The picker reads window.S.editingAssignId and pre-fills checkboxes + per-box points itself.
   renderAssignProbPicker();
-  a.problems.forEach(ap=>{
-    const cb=document.getElementById(`apc-${ap.probId}`);if(cb)cb.checked=true;
-    const pts=document.getElementById(`appts-${ap.probId}`);if(pts)pts.value=ap.points;
-  });
 }
 window.deleteAssignment = async function deleteAssignment(id){
   if(!window.S.isAdmin){console.warn("[security] deleteAssignment blocked");return;}
@@ -746,3 +790,111 @@ window.deleteTopic = async function deleteTopic(id){
   window.DB.topics=window.DB.topics.filter(t=>t.id!==id);
   renderTopicManager();rebuildTopicDropdown();
 }
+
+/* ═══════════════════════════════════════════════
+   Category editor — edit blog category names + colours.
+   Colours are the single source of truth shared by the
+   blog page and home page (see window.catPill in firebase.js).
+   ═══════════════════════════════════════════════ */
+let _catDraft = [];
+
+window.renderCategoryEditor = function renderCategoryEditor(){
+  if(!window.S.isAdmin){ console.warn('[security] renderCategoryEditor blocked'); return; }
+  const src = (window.DB.categories && window.DB.categories.length)
+    ? window.DB.categories : (window.DEFAULT_CATEGORIES || []);
+  // Working copy; _orig tracks the original name so we can cascade renames to posts
+  _catDraft = src.map(c => ({ name:c.name, color:c.color, _orig:c.name }));
+  _drawCategoryEditor();
+};
+
+function _drawCategoryEditor(){
+  const list = document.getElementById('cat-editor-list');
+  if(!list) return;
+  list.innerHTML = '';
+  _catDraft.forEach((c,i)=>{
+    const row = document.createElement('div');
+    row.style.cssText = 'display:flex;align-items:center;gap:8px';
+    const safeColor = /^#[0-9a-fA-F]{6}$/.test(c.color) ? c.color : '#9d7de8';
+    row.innerHTML = `
+      <input type="color" value="${safeColor}" title="Colour"
+        style="width:40px;height:34px;padding:2px;background:var(--bg3);border:0.5px solid var(--border);border-radius:var(--r2);cursor:pointer"
+        oninput="window._catDraftSet(${i},'color',this.value)"/>
+      <input type="text" placeholder="Category name" id="cat-name-${i}"
+        style="flex:1;padding:7px 10px;font-size:13px;background:var(--bg3);border:0.5px solid var(--border);border-radius:var(--r2);color:var(--text1)"
+        oninput="window._catDraftSet(${i},'name',this.value)"/>
+      <button class="btn btn-sm btn-red" title="Delete" onclick="window.removeCategoryRow(${i})"><i class="ti ti-trash"></i></button>`;
+    list.appendChild(row);
+    // Set the text value via property (avoids attribute-escaping pitfalls)
+    const nameInput = row.querySelector('#cat-name-'+i);
+    if(nameInput) nameInput.value = c.name || '';
+  });
+  _updateCatPreview();
+}
+
+window._catDraftSet = function(i, key, val){
+  if(_catDraft[i]){ _catDraft[i][key] = val; _updateCatPreview(); }
+};
+
+window.addCategoryRow = function addCategoryRow(){
+  _catDraft.push({ name:'', color:'#9d7de8', _orig:null });
+  _drawCategoryEditor();
+  // Focus the new name input
+  const last = document.getElementById('cat-name-'+(_catDraft.length-1));
+  if(last) last.focus();
+};
+
+window.removeCategoryRow = function removeCategoryRow(i){
+  _catDraft.splice(i,1);
+  _drawCategoryEditor();
+};
+
+function _updateCatPreview(){
+  const prev = document.getElementById('cat-editor-preview');
+  if(!prev) return;
+  prev.innerHTML = _catDraft.map(c=>{
+    const color = /^#[0-9a-fA-F]{3,6}$/.test((c.color||'').trim()) ? c.color.trim() : '#9d7de8';
+    const rgb = window.hexToRgb(color);
+    return `<span class="pill" style="background:rgba(${rgb},.12);color:${color};border:0.5px solid rgba(${rgb},.30)">${escHtml(c.name||'Unnamed')}</span>`;
+  }).join('') || '<span style="font-size:12px;color:var(--text4)">No categories yet.</span>';
+}
+
+window.saveCategoryEditor = async function saveCategoryEditor(){
+  if(!window.S.isAdmin){ console.warn('[security] saveCategoryEditor blocked'); return; }
+  const err = document.getElementById('cat-editor-err');
+  const ok  = document.getElementById('cat-editor-ok');
+  err?.classList.add('hidden'); ok?.classList.add('hidden');
+  const showErr = m => { if(err){ err.querySelector('span').textContent = m; err.classList.remove('hidden'); } };
+
+  const cleaned = _catDraft.map(c=>({ name:(c.name||'').trim(), color:(c.color||'').trim(), _orig:c._orig }));
+  if(!cleaned.length){ showErr('Add at least one category.'); return; }
+  if(cleaned.some(c=>!c.name)){ showErr('Every category needs a name.'); return; }
+  const lower = cleaned.map(c=>c.name.toLowerCase());
+  if(new Set(lower).size !== lower.length){ showErr('Category names must be unique.'); return; }
+  cleaned.forEach(c=>{ if(!/^#[0-9a-fA-F]{6}$/.test(c.color)) c.color = '#9d7de8'; });
+
+  // Cascade renames onto existing posts so their pills keep the right colour
+  let postsChanged = false;
+  cleaned.forEach(c=>{
+    if(c._orig && c._orig !== c.name){
+      window.DB.posts.forEach(p=>{ if(p.category === c._orig){ p.category = c.name; postsChanged = true; } });
+    }
+  });
+
+  window.DB.categories = cleaned.map(c=>({ name:c.name, color:c.color }));
+  try{
+    await window.saveCategories();
+    if(postsChanged) await saveDB();   // persist updated post.category values
+    logAdminAction('edit_categories', { count: window.DB.categories.length, postsChanged });
+  }catch(e){
+    console.error('saveCategoryEditor failed:', e);
+    showErr('Save failed — see console for details.');
+    return;
+  }
+
+  // Refresh everything that renders category pills + the post dropdown
+  renderCategoryEditor();
+  if(typeof renderBlogList === 'function')     renderBlogList();
+  if(typeof renderBlogPostList === 'function') renderBlogPostList();
+  if(typeof renderHomepage === 'function')     renderHomepage();
+  if(ok){ ok.classList.remove('hidden'); setTimeout(()=>ok.classList.add('hidden'), 2000); }
+};

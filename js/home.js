@@ -1,16 +1,12 @@
 /* home.js — Homepage render (student view) + homepage editor (admin) */
 
-// catPill is defined in blog.js, but home.js loads first.
-// Define a self-contained version here to avoid a ReferenceError.
-const _homeCatColors = {
-  Tutorial:     'background:rgba(96,165,250,.10);color:#60a5fa;border:0.5px solid rgba(96,165,250,.3)',
-  Update:       'background:rgba(74,222,128,.10);color:#4ade80;border:0.5px solid rgba(74,222,128,.3)',
-  Announcement: 'background:rgba(248,113,113,.10);color:#f87171;border:0.5px solid rgba(248,113,113,.3)',
-  Resource:     'background:rgba(251,191,36,.10);color:#fbbf24;border:0.5px solid rgba(251,191,36,.3)',
-};
+// Category pills are rendered by window.catPill (defined in firebase.js, which
+// loads before this file). Using it here keeps home-page pill colours identical
+// to the blog page and respects the admin's Category editor settings.
 function _homeCatPill(cat) {
-  const s = _homeCatColors[cat] || 'background:rgba(157,125,232,.08);color:var(--text3);border:0.5px solid var(--border)';
-  return `<span class="pill" style="${s}">${cat}</span>`;
+  return (typeof window.catPill === 'function')
+    ? window.catPill(cat)
+    : `<span class="pill" style="background:rgba(157,125,232,.08);color:var(--text3);border:0.5px solid var(--border)">${escHtml(cat)}</span>`;
 }
 
 // ── Student homepage ──────────────────────────

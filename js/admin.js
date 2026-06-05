@@ -1,5 +1,52 @@
 /* admin.js — Analytics, grade table, and grade charts */
 
+/* ── Partial-credit scoring helpers ───────────────
+   Points can be assigned per answer box (ap.boxPoints = [{id,label,points}]).
+   Legacy assignments use a single ap.points (whole-problem, all-or-nothing).
+   These helpers are the ONE place scoring logic lives — grade table, score
+   distribution, and the course gradebook all call them. */
+
+// Max points a problem is worth in an assignment
+window.problemMaxPoints = function problemMaxPoints(ap){
+  if(ap && Array.isArray(ap.boxPoints) && ap.boxPoints.length){
+    return ap.boxPoints.reduce((s,b)=> s + (parseFloat(b.points)||0), 0);
+  }
+  return parseFloat(ap?.points) || 0;
+};
+
+// Points a student earned on one problem, given their submission (or undefined).
+// With box points: sum the points of each box marked ok in the saved details.
+// Without box points: full points iff the whole problem was correct.
+window.problemEarned = function problemEarned(ap, sub){
+  if(!sub) return 0;
+  if(ap && Array.isArray(ap.boxPoints) && ap.boxPoints.length){
+    const details = Array.isArray(sub.details) ? sub.details : [];
+    let earned = 0;
+    ap.boxPoints.forEach((b,i)=>{
+      // Match a box to its saved detail by id, then label, then index
+      let det = (b.id != null) ? details.find(d=>d.id===b.id) : null;
+      if(!det && b.label != null) det = details.find(d=>d.label===b.label);
+      if(!det) det = details[i];
+      if(det && det.ok) earned += (parseFloat(b.points)||0);
+    });
+    return earned;
+  }
+  return sub.correct ? (parseFloat(ap.points)||0) : 0;
+};
+
+// Totals for one assignment across one user: { earned, max, pct, submitted }
+window.assignScoreForUser = function assignScoreForUser(assign, user){
+  const sub = user.assignSubmissions?.[assign.id] || {};
+  let earned = 0, max = 0;
+  (assign.problems||[]).forEach(ap=>{
+    max    += window.problemMaxPoints(ap);
+    earned += window.problemEarned(ap, sub[ap.probId]);
+  });
+  const pct = max ? Math.round(earned/max*100) : 0;
+  return { earned, max, pct, submitted: Object.keys(sub).length };
+};
+
+
 // ── Analytics panel ───────────────────────────
 window.renderAnalytics = async function renderAnalytics(){
   // Fetch all users fresh from Firestore — window.DB.users only contains the current user
@@ -154,22 +201,24 @@ window.switchGradeTab = function switchGradeTab(tab, shellWrap){
 
 // ── Tab 1: Grade table ────────────────────────
 window.renderGradeTable = function renderGradeTable(el, assign, users){
-  const totalPts = assign.problems.reduce((s,ap)=>s+ap.points, 0);
+  const totalPts = assign.problems.reduce((s,ap)=>s+window.problemMaxPoints(ap), 0);
 
   let html = `<div style="overflow-x:auto"><table class="dash-table"><thead><tr><th>Student</th>`;
   assign.problems.forEach(ap=>{
     const p = window.DB.problems.find(pr=>pr.id===ap.probId);
-    html += `<th>${p?.title||'Problem'}<br/><span style="font-weight:400;color:var(--text4)">${ap.points}pts</span></th>`;
+    const max = window.problemMaxPoints(ap);
+    const boxNote = (Array.isArray(ap.boxPoints) && ap.boxPoints.length>1)
+      ? `<br/><span style="font-weight:400;color:var(--text4);font-size:9px">${ap.boxPoints.map(b=>b.points).join('+')}</span>` : '';
+    html += `<th>${escHtml(p?.title||'Problem')}<br/><span style="font-weight:400;color:var(--text4)">${max}pts</span>${boxNote}</th>`;
   });
   html += `<th>Score</th><th>%</th></tr></thead><tbody>`;
 
   if(!users.length){
     html += `<tr><td colspan="${assign.problems.length+3}" style="color:var(--text4);text-align:center;padding:2rem">No students yet.</td></tr>`;
   } else {
-    // Sort by score descending
     const withScores = users.map(u=>{
       const sub = u.assignSubmissions?.[assign.id]||{};
-      const earned = assign.problems.reduce((s,ap)=> s + (sub[ap.probId]?.correct ? ap.points : 0), 0);
+      const earned = assign.problems.reduce((s,ap)=> s + window.problemEarned(ap, sub[ap.probId]), 0);
       return { u, sub, earned };
     }).sort((a,b)=>b.earned-a.earned);
 
@@ -180,8 +229,14 @@ window.renderGradeTable = function renderGradeTable(el, assign, users){
       assign.problems.forEach(ap=>{
         const s = sub[ap.probId];
         if(s){
-          html += `<td style="text-align:center">
-            ${s.correct?'<span style="color:var(--green)">✓</span>':'<span style="color:var(--red)">✗</span>'}
+          const eMax = window.problemMaxPoints(ap);
+          const eGot = window.problemEarned(ap, s);
+          const partial = Array.isArray(ap.boxPoints) && ap.boxPoints.length>1;
+          // For partial-credit problems show earned/max; otherwise the ✓/✗ mark
+          const cell = partial
+            ? `<span style="font-family:var(--mono);color:${eGot===eMax?'var(--green)':eGot>0?'var(--warn)':'var(--red)'}">${eGot}/${eMax}</span>`
+            : (s.correct?'<span style="color:var(--green)">✓</span>':'<span style="color:var(--red)">✗</span>');
+          html += `<td style="text-align:center">${cell}
             ${s.late?'<span class="pill pill-warn" style="font-size:9px;margin-left:2px">late</span>':''}
           </td>`;
         } else {
@@ -199,14 +254,9 @@ window.renderGradeTable = function renderGradeTable(el, assign, users){
 // ── Tab 2: Score distribution histogram ───────
 window.renderScoreDistribution = function renderScoreDistribution(el, assign, users){
   if(!users.length){ el.innerHTML = emptyChart('No submissions yet.'); return; }
-  const totalPts = assign.problems.reduce((s,ap)=>s+ap.points, 0);
 
-  // Build scores array
-  const scores = users.map(u=>{
-    const sub = u.assignSubmissions?.[assign.id]||{};
-    const earned = assign.problems.reduce((s,ap)=> s+(sub[ap.probId]?.correct?ap.points:0), 0);
-    return totalPts ? Math.round(earned/totalPts*100) : 0;
-  });
+  // Build scores array using partial-credit-aware scoring
+  const scores = users.map(u => window.assignScoreForUser(assign, u).pct);
 
   // Buckets: 0-9, 10-19, ... 90-100
   const buckets = Array(11).fill(0); // index 0=0-9, ..., 10=100

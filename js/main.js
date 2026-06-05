@@ -15,6 +15,7 @@ const scripts = [
   'js/assignments.js',
   'js/gradebook.js',
   'js/admin.js',
+  'js/sitegrades.js',
   'js/sections.js',
   'js/progress.js',
   'js/calendar.js',

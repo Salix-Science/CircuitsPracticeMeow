@@ -52,7 +52,6 @@ window.showAdminTab = function(t, el) {
   el.classList.add('active');
   document.querySelectorAll('.admin-subtab').forEach(d=>d.classList.remove('active'));
   document.getElementById(`atab-${t}`)?.classList.add('active');
-  if(t==='analytics') renderAnalytics?.();
   if(t==='notifications') renderAdminNotifPanel?.();
   if(t==='sections') renderSections?.();
   if(t==='account') renderNotificationSettings?.();
@@ -67,9 +66,10 @@ window.showEdTab = function(t, el) {
   if(t==='topics')renderFolderList();
   if(t==='labels')renderTopicManager();
   if(t==='homepage')renderHomepageEditor();
+  if(t==='categories')renderCategoryEditor();
   if(t==='assignments'){renderAssignAdmin();renderAssignProbPicker();}
   if(t==='blog')renderBlogPostList();
-  if(t==='problems'){renderPmList();applyAnswerMode&&applyAnswerMode();rebuildTopicDropdown&&rebuildTopicDropdown();}
+  if(t==='problems')renderPmList();
 };
 
 window.enterApp = function() {

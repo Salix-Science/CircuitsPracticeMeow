@@ -45,11 +45,30 @@ async function sendOneEmail(toEmail, subject, message) {
   }
 }
 
+// ── Resolve subscribers for a type ────────────
+// IMPORTANT: window.DB.users only holds the *current* session's user, so the
+// old code could never reach other students. We fetch all users (admin-only)
+// so auto-sends and bulk sends actually reach every subscriber.
+async function getAllSubscribers(type) {
+  let users = [];
+  try {
+    if (window.S.isAdmin && typeof window._fetchAllUsers === 'function') {
+      users = await window._fetchAllUsers();
+    }
+  } catch(e) {
+    console.error('[notifications] getAllSubscribers fetch failed:', e);
+  }
+  if (!users.length) users = Object.values(window.DB.users || {});
+  return users
+    .filter(u => u.notifPrefs?.email && u.notifPrefs?.[type])
+    .map(u => ({ email: u.notifPrefs.email, username: u.username }));
+}
+
 // ── Send bulk to all subscribers of a type ────
 // type: 'posts' | 'announcements' | 'assignments'
 async function sendBulkNotification(type, subject, message) {
-  if (!window.S.isAdmin) return;
-  const recipients = window.getSubscribedEmails(type);
+  if (!window.S.isAdmin) { console.warn('[notifications] sendBulkNotification blocked — not admin'); return { sent:0, failed:0 }; }
+  const recipients = await getAllSubscribers(type);
   if (!recipients.length) return { sent:0, failed:0 };
   let sent=0, failed=0;
   for (const r of recipients) {
@@ -60,14 +79,24 @@ async function sendBulkNotification(type, subject, message) {
   return { sent, failed };
 }
 
+// Wrapper used by auto-send hooks (blog.js, editor.js). Was previously
+// referenced but never defined, so auto-emails silently did nothing.
+window.sendEmailNotification = async function sendEmailNotification(subject, message, type = 'posts') {
+  return sendBulkNotification(type, subject, message);
+};
+window.sendBulkNotification = sendBulkNotification;
+
 // ── Admin notification panel ──────────────────
-window.renderAdminNotifPanel = function renderAdminNotifPanel() {
+window.renderAdminNotifPanel = async function renderAdminNotifPanel() {
   const wrap = document.getElementById('admin-notif-wrap');
   if (!wrap) return;
   const configured = emailjsConfigured();
 
-  // Count subscribers per type
-  const users      = Object.values(window.DB.users);
+  // Count subscribers per type across ALL users (not just the loaded session user)
+  let users = [];
+  try { if (typeof window._fetchAllUsers === 'function') users = await window._fetchAllUsers(); }
+  catch(e) { console.error('[notifications] subscriber count fetch failed:', e); }
+  if (!users.length) users = Object.values(window.DB.users || {});
   const countPosts = users.filter(u => u.notifPrefs?.email && u.notifPrefs?.posts).length;
   const countAnn   = users.filter(u => u.notifPrefs?.email && u.notifPrefs?.announcements).length;
   const countAss   = users.filter(u => u.notifPrefs?.email && u.notifPrefs?.assignments).length;
