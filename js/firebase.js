@@ -7,6 +7,7 @@ import {
   getAuth,
   createUserWithEmailAndPassword,
   signInWithEmailAndPassword,
+  sendPasswordResetEmail,
   signOut,
   onAuthStateChanged
 } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
@@ -514,20 +515,63 @@ window.setAuthTab = function(t, el) {
 
 window.doLogin = async function() {
   hideAuthErr('l-err');
-  const username = document.getElementById('l-user').value.trim();
-  const pass     = document.getElementById('l-pass').value;
-  if (!username || !pass) { showAuthErr('l-err', 'Enter username and password.'); return; }
+  const idRaw = document.getElementById('l-user').value.trim();
+  const pass  = document.getElementById('l-pass').value;
+  if (!idRaw || !pass) { showAuthErr('l-err', 'Enter your username/email and password.'); return; }
 
-  // We store users as username@circuitspractice.app internally
-  const email = username + '@circuitspractice.app';
+  // Accept either a username (legacy → username@circuitspractice.app) OR a real
+  // email address. Accounts created with a real email log in with that email;
+  // older username-based accounts keep working exactly as before.
+  const email = idRaw.includes('@') ? idRaw : idRaw + '@circuitspractice.app';
   try {
     const cred = await signInWithEmailAndPassword(auth, email, pass);
     // onAuthStateChanged handles the rest
   } catch(e) {
     if (e.code === 'auth/user-not-found' || e.code === 'auth/invalid-credential' || e.code === 'auth/wrong-password') {
-      showAuthErr('l-err', 'Username or password incorrect.');
+      showAuthErr('l-err', 'Username/email or password incorrect.');
     } else {
       showAuthErr('l-err', e.message);
+    }
+  }
+};
+
+// ── Self-serve password reset ─────────────────
+// Sends a Firebase reset email to the address entered. Only works for accounts
+// whose Auth email is a real address (all accounts created with an email, and
+// any older account migrated in the Firebase console). We never reveal whether
+// an address is registered.
+window.toggleResetForm = function() {
+  const box = document.getElementById('auth-reset');
+  if (!box) return;
+  const showing = !box.classList.contains('hidden');
+  box.classList.toggle('hidden', showing);
+  if (!showing) {
+    const pre = document.getElementById('l-user').value.trim();
+    const inp = document.getElementById('l-reset-email');
+    if (inp && pre.includes('@')) inp.value = pre;   // prefill if they typed an email
+    inp?.focus();
+  }
+};
+
+window.sendPasswordReset = async function() {
+  const email = document.getElementById('l-reset-email')?.value.trim() || '';
+  const ok  = document.getElementById('l-reset-ok');
+  const err = document.getElementById('l-reset-err');
+  ok?.classList.add('hidden'); err?.classList.add('hidden');
+  const showErr = m => { if (err) { err.querySelector('span').textContent = m; err.classList.remove('hidden'); } };
+  const showOk  = m => { if (ok)  { ok.textContent = m; ok.classList.remove('hidden'); } };
+
+  if (!email || !email.includes('@')) { showErr('Enter the email address on your account.'); return; }
+  try {
+    await sendPasswordResetEmail(auth, email);
+    showOk('If an account uses that email, a reset link is on its way. Check your inbox (and spam).');
+  } catch(e) {
+    // Don't disclose whether the address exists.
+    if (e.code === 'auth/user-not-found' || e.code === 'auth/invalid-email') {
+      showOk('If an account uses that email, a reset link is on its way. Check your inbox (and spam).');
+    } else {
+      console.error('sendPasswordReset failed:', e.code, e.message);
+      showErr(e.message);
     }
   }
 };
@@ -700,7 +744,7 @@ window.adminCreateUser = async function() {
     console.warn('[security] adminCreateUser blocked — caller is not admin');
     return;
   }
-  const email    = document.getElementById('mu-email').value.trim();
+  const email    = document.getElementById('mu-email').value.trim().toLowerCase();
   const username = document.getElementById('mu-user').value.trim();
   const pass     = document.getElementById('mu-pass').value;
   const isAdmin  = document.getElementById('mu-admin').checked;
@@ -714,29 +758,36 @@ window.adminCreateUser = async function() {
   if (!username)                                    { showErr('Enter a username.');               return; }
   if (pass.length < 6)                              { showErr('Password needs 6+ characters.');   return; }
 
-  // The username is the login identity (stored internally as username@circuitspractice.app).
-  // The email entered above is the student's real contact address, saved on their profile.
-  const loginEmail = username + '@circuitspractice.app';
+  // Username is the student's display name (shown in grade tables, analytics),
+  // so keep it unique even though it's no longer the login identity.
   try {
-    const cred = await createUserWithEmailAndPassword(auth, loginEmail, pass);
+    const existing = await window._fetchAllUsers();
+    if (existing.some(u => (u.username || '').toLowerCase() === username.toLowerCase())) {
+      showErr('That username is already in use — pick another.'); return;
+    }
+  } catch(e) { console.warn('username uniqueness check skipped:', e); }
+
+  // The REAL email is the Firebase Auth identity. This is what makes native
+  // password reset work (Firebase sends reset mail to the Auth email), and the
+  // student signs in with their email. Username is stored as their display name.
+  try {
+    const cred = await createUserWithEmailAndPassword(auth, email, pass);
     await setDoc(doc(db, 'users', cred.user.uid), {
       username, isAdmin, scores:{}, probScores:{}, streak:0, assignSubmissions:{},
-      // Save the contact email + subscribe by default so notifications reach them.
-      // Students can opt out of any of these under Profile → Email notifications.
       notifPrefs: { email, posts:true, announcements:true, assignments:true },
     });
     logAdminAction('create_account', { uid: cred.user.uid, username, isAdmin, hasEmail: true });
     track('admin_create_account', { is_admin: isAdmin });
-    // NOTE: creating a user signs the admin into the new account (Firebase client SDK
-    // limitation without the Admin SDK). Hence the "sign back in" reminder.
-    ok.textContent = `"${username}" created (${email}). You may need to sign back in.`;
+    // NOTE: creating a user signs the admin into the new account (Firebase client
+    // SDK limitation without the Admin SDK). Hence the "sign back in" reminder.
+    ok.textContent = `"${username}" created. They sign in with ${email}. You may need to sign back in.`;
     ok.classList.remove('hidden');
     ['mu-email','mu-user','mu-pass'].forEach(id => document.getElementById(id).value = '');
     document.getElementById('mu-admin').checked = false;
     renderUserMgmt();
   } catch(e) {
     if (e.code === 'auth/email-already-in-use') {
-      showErr('That username is already taken.');
+      showErr('An account with that email already exists.');
     } else {
       console.error('adminCreateUser failed:', e.code, e.message);
       showErr(e.message);
