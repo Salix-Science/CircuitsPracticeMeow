@@ -91,6 +91,10 @@ window.enterApp = function() {
   document.getElementById('streak-val').textContent = parseInt(window.DB.users[u]?.streak) || 0;
   buildPracticeSidebar();
   window.showView('home');
+  // Restore persisted assignment attempt counts so limits survive page refreshes.
+  if (window.syncAssignAttempts) window.syncAssignAttempts();
+  // Offer legacy accounts a one-time prompt to set a real email (for reset).
+  if (window.maybePromptEmailMigration) window.maybePromptEmailMigration();
 };
 
 // Attach Enter-key listeners to auth form inputs

@@ -115,10 +115,25 @@ window.sanitizeUser = function(data) {
     }
   }
 
+  // assignAttempts — tracks how many times each student has attempted a problem
+  // in an assignment. Keyed by "assignId-probId-username". Used to enforce
+  // per-problem attempt limits and must survive page refreshes.
+  safe.assignAttempts = {};
+  if (data.assignAttempts && typeof data.assignAttempts === 'object') {
+    for (const [k, v] of Object.entries(data.assignAttempts)) {
+      if (typeof k !== 'string' || k.length > 200) continue;
+      const cleanKey = k.replace(/<[^>]*>/g, '').trim();
+      if (!cleanKey) continue;                               // skip empty / pure-tag keys
+      const n = parseInt(v, 10);
+      if (Number.isFinite(n) && n >= 0 && n <= 9999) {
+        safe.assignAttempts[cleanKey] = n;
+      }
+    }
+  }
+
   // attemptLog — array, keep structure but sanitize string fields
   safe.attemptLog = [];
-  if (Array.isArray(data.attemptLog)) {
-    safe.attemptLog = data.attemptLog.slice(-500).map(e => ({
+  if (Array.isArray(data.attemptLog)) {    safe.attemptLog = data.attemptLog.slice(-500).map(e => ({
       ts:          safeInt(e.ts, Date.now() + 1e10),
       assignId:    stripTags(String(e.assignId  || '')).slice(0, 100),
       probId:      stripTags(String(e.probId    || '')).slice(0, 100),
@@ -365,6 +380,8 @@ window.saveUserOnly = async function() {
                            }
                          : {},
     attemptLog:        Array.isArray(u.attemptLog) ? u.attemptLog : [],
+    assignAttempts:    (u.assignAttempts && typeof u.assignAttempts === 'object')
+                         ? u.assignAttempts : {},
   };
 
   try {
@@ -519,15 +536,23 @@ window.doLogin = async function() {
   const pass  = document.getElementById('l-pass').value;
   if (!idRaw || !pass) { showAuthErr('l-err', 'Enter your username/email and password.'); return; }
 
-  // Accept either a username (legacy → username@circuitspractice.app) OR a real
-  // email address. Accounts created with a real email log in with that email;
-  // older username-based accounts keep working exactly as before.
-  const email = idRaw.includes('@') ? idRaw : idRaw + '@circuitspractice.app';
+  // Accept either a real email (contains @) or a username. For legacy accounts
+  // the username maps to username@circuitspractice.app. Spaces in the username
+  // are encoded as dots so Firebase sees a valid email address.
+  // New accounts (created with a real email) always log in by email.
+  let email;
+  if (idRaw.includes('@')) {
+    email = idRaw;
+  } else {
+    const safePart = idRaw.replace(/\s+/g, '.').replace(/[^a-zA-Z0-9._%+\-]/g, '');
+    email = safePart + '@circuitspractice.app';
+  }
   try {
-    const cred = await signInWithEmailAndPassword(auth, email, pass);
+    await signInWithEmailAndPassword(auth, email, pass);
     // onAuthStateChanged handles the rest
   } catch(e) {
-    if (e.code === 'auth/user-not-found' || e.code === 'auth/invalid-credential' || e.code === 'auth/wrong-password') {
+    if (e.code === 'auth/user-not-found' || e.code === 'auth/invalid-credential' ||
+        e.code === 'auth/wrong-password'  || e.code === 'auth/invalid-email') {
       showAuthErr('l-err', 'Username/email or password incorrect.');
     } else {
       showAuthErr('l-err', e.message);
@@ -576,6 +601,104 @@ window.sendPasswordReset = async function() {
   }
 };
 
+// ── One-time email migration prompt ───────────
+// Legacy accounts were created with username@circuitspractice.app as their Auth
+// email, so native password reset can't reach them. On login we offer to set a
+// real email — that becomes their Auth identity (sign-in + reset) and contact
+// address. Once migrated (Auth email no longer @circuitspractice.app), it never
+// shows again. "Skip for now" hides it for this session only.
+window.maybePromptEmailMigration = function() {
+  try {
+    if (window._emailMigrateSkipped) return;
+    const legacy = (window.S.authEmail || '').toLowerCase().endsWith('@circuitspractice.app');
+    console.info('[email-migration] authEmail:', window.S.authEmail, '| legacy:', legacy);
+    if (!legacy) return;
+    const modal = document.getElementById('email-migrate-modal');
+    if (!modal) { console.error('[email-migration] modal element not found'); return; }
+    const u   = window.DB.users[window.S.user];
+    const inp = document.getElementById('em-email');
+    if (inp) inp.value = (u && u.notifPrefs && u.notifPrefs.email) || '';
+    document.getElementById('em-ok')?.classList.add('hidden');
+    document.getElementById('em-err')?.classList.add('hidden');
+    modal.classList.remove('hidden');
+  } catch(e) { console.error('maybePromptEmailMigration failed:', e); }
+};
+
+// Can also be called manually (e.g. from profile) to update the email at any time.
+window.openEmailMigrate = function() {
+  const modal = document.getElementById('email-migrate-modal');
+  if (!modal) return;
+  const u   = window.DB.users[window.S.user];
+  const inp = document.getElementById('em-email');
+  if (inp) inp.value = (u && u.notifPrefs && u.notifPrefs.email) || '';
+  document.getElementById('em-ok')?.classList.add('hidden');
+  document.getElementById('em-err')?.classList.add('hidden');
+  modal.classList.remove('hidden');
+};
+
+window.skipEmailMigrate  = function() { window._emailMigrateSkipped = true; closeEmailMigrate(); };
+window.closeEmailMigrate = function() { document.getElementById('email-migrate-modal')?.classList.add('hidden'); };
+
+window.submitEmailMigration = async function() {
+  const email = (document.getElementById('em-email')?.value || '').trim().toLowerCase();
+  const ok  = document.getElementById('em-ok');
+  const err = document.getElementById('em-err');
+  ok?.classList.add('hidden'); err?.classList.add('hidden');
+  const showErr = m => { if (err) { err.querySelector('span').textContent = m; err.classList.remove('hidden'); } };
+  const showOk  = m => { if (ok)  { ok.textContent = m; ok.classList.remove('hidden'); } };
+
+  if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) { showErr('Enter a valid email address.'); return; }
+
+  // 1. Always save the contact email to the profile (notifications + record),
+  //    even if the Auth migration needs a verification click.
+  try {
+    const u = window.DB.users[window.S.user];
+    if (u) {
+      const prev = u.notifPrefs || {};
+      u.notifPrefs = {
+        email,
+        posts:         prev.posts !== undefined ? prev.posts : true,
+        announcements: prev.announcements !== undefined ? prev.announcements : true,
+        assignments:   prev.assignments !== undefined ? prev.assignments : true,
+      };
+      await saveUserOnly();
+    }
+  } catch(e) { console.error('migration: saving contact email failed:', e); }
+
+  // 2. Migrate the Firebase Auth email so password reset reaches them.
+  try {
+    const authMod = await import("https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js");
+    try {
+      await authMod.updateEmail(auth.currentUser, email);
+      window.S.authEmail = email;
+      logAdminAction('email_migrated', { username: window.S.user });
+      showOk('Saved! Sign in and reset your password with this email from now on.');
+      setTimeout(closeEmailMigrate, 2200);
+    } catch(e1) {
+      if (e1.code === 'auth/requires-recent-login') {
+        showErr('For security, please sign out and sign back in, then set your email again.');
+      } else if (e1.code === 'auth/email-already-in-use') {
+        showErr('That email is already used by another account.');
+      } else if (e1.code === 'auth/operation-not-allowed' || e1.code === 'auth/unverified-email') {
+        // Project requires verifying the new address first — send the link.
+        try {
+          await authMod.verifyBeforeUpdateEmail(auth.currentUser, email);
+          showOk('Check your inbox and click the link to confirm. Until then, keep signing in with your username.');
+        } catch(e2) {
+          console.error('verifyBeforeUpdateEmail failed:', e2.code, e2.message);
+          showErr(e2.message);
+        }
+      } else {
+        console.error('updateEmail failed:', e1.code, e1.message);
+        showErr(e1.message);
+      }
+    }
+  } catch(e) {
+    console.error('migration: auth module import failed:', e);
+    showErr('Could not update your email right now — your contact email was still saved.');
+  }
+};
+
 window.doRegister = async function() {
   // Public self-registration is disabled — accounts are created by admins only
   // (Admin → User management → create account). This guard ensures that even if
@@ -611,6 +734,7 @@ onAuthStateChanged(auth, async (firebaseUser) => {
     window.S.uid     = firebaseUser.uid;
     window.S.user    = profile.username;
     window.S.isAdmin = !!profile.isAdmin;
+    window.S.authEmail = firebaseUser.email || '';
 
     if (analytics) {
       setUserId(analytics, firebaseUser.uid);

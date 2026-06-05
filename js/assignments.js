@@ -8,6 +8,19 @@
 if (!window._assignVals)     window._assignVals     = {};
 if (!window._assignAttempts) window._assignAttempts = {};
 
+// Sync the in-memory attempt counter from the user's saved profile.
+// Called after login so attempt limits are restored after a page refresh.
+window.syncAssignAttempts = function() {
+  const u = window.DB && window.S && window.DB.users[window.S.user];
+  if (u && u.assignAttempts && typeof u.assignAttempts === 'object') {
+    // Merge in persisted counts — in-memory keys that already exist (e.g. from
+    // the current session) keep their value if it's higher than what's stored.
+    for (const [k, v] of Object.entries(u.assignAttempts)) {
+      window._assignAttempts[k] = Math.max(window._assignAttempts[k] || 0, v);
+    }
+  }
+};
+
 // Generate a variant using a deterministic seed based on assignId + probId + username.
 // This ensures the same student always sees the same numbers, even after a page refresh
 // or switching devices — critical for exam integrity.
@@ -300,6 +313,9 @@ window.submitAssignProb = async function submitAssignProb(assignId, probId) {
   const allOk  = results.every(r => r.ok);
   window._assignAttempts[varKey] = (window._assignAttempts[varKey] || 0) + 1;
   const used   = window._assignAttempts[varKey];
+  // Mirror the updated count into the user profile so saveUserOnly persists it.
+  const _u = window.DB.users[window.S.user];
+  if (_u) { if (!_u.assignAttempts) _u.assignAttempts = {}; _u.assignAttempts[varKey] = used; }
   const maxAtt = p.maxAttempts || 0;
   const noMore = maxAtt > 0 && used >= maxAtt;
 
