@@ -52,6 +52,7 @@ window.showAdminTab = function(t, el) {
   el.classList.add('active');
   document.querySelectorAll('.admin-subtab').forEach(d=>d.classList.remove('active'));
   document.getElementById(`atab-${t}`)?.classList.add('active');
+  if(t==='analytics') renderAnalytics?.();
   if(t==='notifications') renderAdminNotifPanel?.();
   if(t==='sections') renderSections?.();
   if(t==='account') renderNotificationSettings?.();

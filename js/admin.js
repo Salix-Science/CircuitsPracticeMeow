@@ -1,6 +1,14 @@
 /* admin.js — Analytics, grade table, and grade charts */
 
 // ── Analytics panel ───────────────────────────
+const _anSumAtt = u => Object.values(u.scores||{}).reduce((a,v)=>a+(v.attempted||0),0);
+const _anSumCor = u => Object.values(u.scores||{}).reduce((a,v)=>a+(v.correct||0),0);
+let _anUsers = [];                 // cached [name, userObj] pairs
+let _anSectionByUid = {};          // uid -> "Section A, Section B"
+let _anTopicMap = {};              // topic -> {attempted, correct}
+let _anSort      = { key:'attempted', dir:-1 };  // students table sort
+let _anTopicSort = { key:'attempted', dir:-1 };  // topics table sort
+
 window.renderAnalytics = async function renderAnalytics(){
   // Fetch all users fresh from Firestore — window.DB.users only contains the current user
   let allUsers = [];
@@ -10,50 +18,127 @@ window.renderAnalytics = async function renderAnalytics(){
     console.error('renderAnalytics: failed to fetch users', e);
     return;
   }
-  const users = allUsers.map(u => [u.username || u.uid, u]);
-  const sumAtt = u => Object.values(u.scores||{}).reduce((a,v)=>a+(v.attempted||0),0);
-  const sumCor = u => Object.values(u.scores||{}).reduce((a,v)=>a+(v.correct||0),0);
-  const allAtt = users.reduce((s,[,u])=>s+sumAtt(u),0);
-  const allCor = users.reduce((s,[,u])=>s+sumCor(u),0);
+  _anUsers = allUsers.map(u => [u.username || u.uid, u]);
+
+  // Map each student uid to the section name(s) they belong to
+  _anSectionByUid = {};
+  (window.DB.sections||[]).forEach(s=>{
+    (s.studentUids||[]).forEach(uid=>{
+      _anSectionByUid[uid] = _anSectionByUid[uid] ? `${_anSectionByUid[uid]}, ${s.name}` : s.name;
+    });
+  });
+
+  // Top metrics
+  const allAtt = _anUsers.reduce((s,[,u])=>s+_anSumAtt(u),0);
+  const allCor = _anUsers.reduce((s,[,u])=>s+_anSumCor(u),0);
   const allWrong = Math.max(0, allAtt-allCor);
   const acc=allAtt?Math.round(allCor/allAtt*100):0;
   const enabledProbs=window.DB.problems.filter(p=>p.enabled!==false).length;
   const pubPosts=window.DB.posts.filter(p=>p.status==='published').length;
   document.getElementById('dash-metrics').innerHTML=`
-    <div class="metric-card"><div class="metric-label">Students</div><div class="metric-value">${users.filter(([,u])=>!u.isAdmin).length}</div><div class="metric-sub">registered</div></div>
+    <div class="metric-card"><div class="metric-label">Students</div><div class="metric-value">${_anUsers.filter(([,u])=>!u.isAdmin).length}</div><div class="metric-sub">registered</div></div>
     <div class="metric-card"><div class="metric-label">Problems attempted</div><div class="metric-value">${allAtt}</div><div class="metric-sub">total tries, all students</div></div>
     <div class="metric-card"><div class="metric-label">Correct</div><div class="metric-value" style="color:var(--green)">${allCor}</div></div>
     <div class="metric-card"><div class="metric-label">Wrong</div><div class="metric-value" style="color:var(--red)">${allWrong}</div></div>
     <div class="metric-card"><div class="metric-label">Class accuracy</div><div class="metric-value" style="color:${acc>=70?'var(--green)':acc>=50?'var(--warn)':'var(--red)'}">${acc}%</div></div>
     <div class="metric-card"><div class="metric-label">Problems</div><div class="metric-value">${enabledProbs}<span style="font-size:14px;color:var(--text4)">/${window.DB.problems.length}</span></div><div class="metric-sub">enabled / total</div></div>
     <div class="metric-card"><div class="metric-label">Blog posts</div><div class="metric-value">${pubPosts}<span style="font-size:14px;color:var(--text4)">/${window.DB.posts.length}</span></div><div class="metric-sub">published / total</div></div>`;
-  const stb=document.getElementById('dt-students');stb.innerHTML='';
-  if(!users.length){stb.innerHTML='<tr><td colspan="7" style="color:var(--text4)">No users yet.</td></tr>';}
-  users.sort((a,b)=>sumAtt(b[1])-sumAtt(a[1]))
-  .forEach(([name,u])=>{
-    const tot=sumAtt(u);
-    const cor=sumCor(u);
-    const wrong=Math.max(0,tot-cor);
-    const pct=tot?Math.round(cor/tot*100):0,col=pct>=70?'var(--green)':pct>=50?'var(--warn)':'var(--red)';
-    stb.innerHTML+=`<tr><td>${escHtml(name)}</td><td>${tot}</td>
-      <td style="color:var(--green)">${cor}</td><td style="color:var(--red)">${wrong}</td>
-      <td><div class="acc-bar-outer"><div class="acc-bar-inner" style="width:${pct}%;background:${col}"></div></div>${pct}%</td>
-      <td>🔥${escHtml(String(u.streak||0))}</td><td>${u.isAdmin?'<span class="pill pill-admin">admin</span>':'student'}</td></tr>`;
-  });
-  const topicMap={};
-  users.forEach(([,u])=>Object.entries(u.scores||{}).forEach(([k,sc])=>{
-    if(!topicMap[k])topicMap[k]={correct:0,attempted:0};
-    topicMap[k].correct+=sc.correct;topicMap[k].attempted+=sc.attempted;
+
+  // Populate the section filter dropdown (preserve current selection)
+  const secSel=document.getElementById('analytics-section-filter');
+  if(secSel){
+    const cur=secSel.value;
+    secSel.innerHTML='<option value="">All sections</option>'+
+      (window.DB.sections||[]).map(s=>
+        `<option value="${s.id}" ${s.id===cur?'selected':''}>${escHtml(s.name)} (${(s.studentUids||[]).length})</option>`
+      ).join('');
+  }
+
+  // Aggregate per-topic
+  _anTopicMap={};
+  _anUsers.forEach(([,u])=>Object.entries(u.scores||{}).forEach(([k,sc])=>{
+    if(!_anTopicMap[k])_anTopicMap[k]={correct:0,attempted:0};
+    _anTopicMap[k].correct+=(sc.correct||0);_anTopicMap[k].attempted+=(sc.attempted||0);
   }));
-  const tb=document.getElementById('dt-topics');tb.innerHTML='';
-  Object.entries(topicMap).sort((a,b)=>b[1].attempted-a[1].attempted).forEach(([k,sc])=>{
-    const wrong=Math.max(0,sc.attempted-sc.correct);
-    const pct=sc.attempted?Math.round(sc.correct/sc.attempted*100):0,col=pct>=70?'var(--green)':pct>=50?'var(--warn)':'var(--red)';
-    tb.innerHTML+=`<tr><td>${escHtml(k)}</td><td>${sc.attempted}</td>
-      <td style="color:var(--green)">${sc.correct}</td><td style="color:var(--red)">${wrong}</td>
-      <td><div class="acc-bar-outer"><div class="acc-bar-inner" style="width:${pct}%;background:${col}"></div></div>${pct}%</td></tr>`;
+
+  renderAnalyticsStudents();
+  renderAnalyticsTopics();
+}
+
+// Update the ▲/▼ arrow on the active sort header within a table
+function _anUpdateSortArrows(tbodyId, sort){
+  const table=document.getElementById(tbodyId)?.closest('table'); if(!table)return;
+  table.querySelectorAll('.sort-ind').forEach(s=>{
+    s.textContent = s.dataset.k===sort.key ? (sort.dir>0?' ▲':' ▼') : '';
   });
-  if(!Object.keys(topicMap).length)tb.innerHTML='<tr><td colspan="5" style="color:var(--text4)">No practice data yet.</td></tr>';
+}
+
+// Render the students table honoring the section filter + sort state
+window.renderAnalyticsStudents = function renderAnalyticsStudents(){
+  const stb=document.getElementById('dt-students'); if(!stb) return;
+  const sectionId=document.getElementById('analytics-section-filter')?.value||'';
+
+  let rows=_anUsers.map(([name,u])=>{
+    const att=_anSumAtt(u), cor=_anSumCor(u), wrong=Math.max(0,att-cor);
+    const pct=att?Math.round(cor/att*100):0;
+    return { name, u, section:_anSectionByUid[u.uid]||'—', att, cor, wrong, pct, streak:parseInt(u.streak)||0 };
+  });
+
+  if(sectionId){
+    const sec=(window.DB.sections||[]).find(s=>s.id===sectionId);
+    const uids=new Set(sec?.studentUids||[]);
+    rows=rows.filter(r=>uids.has(r.u.uid));
+  }
+
+  const k=_anSort.key, dir=_anSort.dir;
+  const val=r=>({name:r.name.toLowerCase(),section:r.section.toLowerCase(),
+                 attempted:r.att,correct:r.cor,wrong:r.wrong,accuracy:r.pct,streak:r.streak})[k];
+  rows.sort((a,b)=>{const va=val(a),vb=val(b); if(va<vb)return -dir; if(va>vb)return dir; return 0;});
+
+  stb.innerHTML = rows.length ? rows.map(r=>{
+    const col=r.pct>=70?'var(--green)':r.pct>=50?'var(--warn)':'var(--red)';
+    return `<tr><td>${escHtml(r.name)}</td><td>${escHtml(r.section)}</td><td>${r.att}</td>
+      <td style="color:var(--green)">${r.cor}</td><td style="color:var(--red)">${r.wrong}</td>
+      <td><div class="acc-bar-outer"><div class="acc-bar-inner" style="width:${r.pct}%;background:${col}"></div></div>${r.pct}%</td>
+      <td>🔥${escHtml(String(r.streak))}</td>
+      <td>${r.u.isAdmin?'<span class="pill pill-admin">admin</span>':'student'}</td></tr>`;
+  }).join('') : `<tr><td colspan="8" style="color:var(--text4)">No students match this filter.</td></tr>`;
+
+  _anUpdateSortArrows('dt-students', _anSort);
+}
+
+// Render the per-topic table honoring sort state
+window.renderAnalyticsTopics = function renderAnalyticsTopics(){
+  const tb=document.getElementById('dt-topics'); if(!tb) return;
+  let rows=Object.entries(_anTopicMap).map(([topic,sc])=>{
+    const wrong=Math.max(0,sc.attempted-sc.correct);
+    const pct=sc.attempted?Math.round(sc.correct/sc.attempted*100):0;
+    return { topic, attempted:sc.attempted, correct:sc.correct, wrong, pct };
+  });
+  const k=_anTopicSort.key, dir=_anTopicSort.dir;
+  const val=r=>({topic:r.topic.toLowerCase(),attempted:r.attempted,correct:r.correct,wrong:r.wrong,accuracy:r.pct})[k];
+  rows.sort((a,b)=>{const va=val(a),vb=val(b); if(va<vb)return -dir; if(va>vb)return dir; return 0;});
+
+  tb.innerHTML = rows.length ? rows.map(r=>{
+    const col=r.pct>=70?'var(--green)':r.pct>=50?'var(--warn)':'var(--red)';
+    return `<tr><td>${escHtml(r.topic)}</td><td>${r.attempted}</td>
+      <td style="color:var(--green)">${r.correct}</td><td style="color:var(--red)">${r.wrong}</td>
+      <td><div class="acc-bar-outer"><div class="acc-bar-inner" style="width:${r.pct}%;background:${col}"></div></div>${r.pct}%</td></tr>`;
+  }).join('') : `<tr><td colspan="5" style="color:var(--text4)">No practice data yet.</td></tr>`;
+
+  _anUpdateSortArrows('dt-topics', _anTopicSort);
+}
+
+// Header click handlers: toggle direction if same column, else default dir
+window.sortAnalytics = function sortAnalytics(key){
+  if(_anSort.key===key) _anSort.dir*=-1;
+  else { _anSort.key=key; _anSort.dir=(key==='name'||key==='section')?1:-1; }
+  renderAnalyticsStudents();
+}
+window.sortAnalyticsTopics = function sortAnalyticsTopics(key){
+  if(_anTopicSort.key===key) _anTopicSort.dir*=-1;
+  else { _anTopicSort.key=key; _anTopicSort.dir=(key==='topic')?1:-1; }
+  renderAnalyticsTopics();
 }
 
 // ── Assignment selector buttons ───────────────
