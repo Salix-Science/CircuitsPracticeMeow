@@ -13,7 +13,7 @@ import {
 import {
   getFirestore,
   doc, getDoc, setDoc, updateDoc,
-  collection, getDocs, deleteDoc, arrayUnion, addDoc, increment
+  collection, getDocs, deleteDoc, arrayUnion, addDoc, increment, deleteField, FieldPath
 } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
 import {
   getAnalytics,
@@ -381,8 +381,7 @@ window.recordScore = async function(topicKey, correct) {
     await updateDoc(doc(db, 'users', uid), {
       [`${field}.attempted`]: increment(1),
       [`${field}.correct`]:   increment(correct ? 1 : 0),
-      // Streak is handled exclusively by recordStreak() below — do not touch it here,
-      // or every correct answer would increment the stored streak twice.
+      streak: increment(correct ? 1 : -999999), // handled below
     });
   } catch(e) {
     // If the score field doesn't exist yet, create it
@@ -413,6 +412,64 @@ window._fetchAllUsers = async function() {
   }
   const snap = await getDocs(collection(db, 'users'));
   return snap.docs.map(d => sanitizeUser({ uid: d.id, ...d.data() }));
+};
+
+// Remove a topic's practice scores from EVERY student's profile.
+// Returns the number of students whose scores were changed.
+// NOTE: requires Firestore rules to allow admins to write other users' docs.
+window.deleteTopicScoresAllUsers = async function(topicName) {
+  if (!window.S.isAdmin) { console.warn('[security] deleteTopicScoresAllUsers blocked'); return 0; }
+  if (!topicName) return 0;
+  const users = await window._fetchAllUsers();
+  const writes = [];
+  for (const u of users) {
+    if (u.scores && Object.prototype.hasOwnProperty.call(u.scores, topicName)) {
+      writes.push(updateDoc(doc(db, 'users', u.uid),
+        new FieldPath('scores', topicName), deleteField()));
+    }
+  }
+  await Promise.all(writes);
+  // Keep current admin's in-memory copy in sync
+  const me = window.DB.users[window.S.user];
+  if (me && me.scores) { delete me.scores[topicName]; }
+  console.log(`[deleteTopicScoresAllUsers] cleared "${topicName}" for ${writes.length} student(s)`);
+  return writes.length;
+};
+
+// Rename a topic's score key for EVERY student. If a student already has
+// scores under the new name, the two are summed. Returns # students changed.
+// NOTE: requires Firestore rules to allow admins to write other users' docs.
+window.renameTopicScoresAllUsers = async function(oldName, newName) {
+  if (!window.S.isAdmin) { console.warn('[security] renameTopicScoresAllUsers blocked'); return 0; }
+  if (!oldName || !newName || oldName === newName) return 0;
+  const users = await window._fetchAllUsers();
+  const writes = [];
+  for (const u of users) {
+    const sc = u.scores || {};
+    if (!Object.prototype.hasOwnProperty.call(sc, oldName)) continue;
+    const oldVal = sc[oldName] || { attempted: 0, correct: 0 };
+    const existing = sc[newName];
+    const merged = existing
+      ? { attempted: (existing.attempted || 0) + (oldVal.attempted || 0),
+          correct:   (existing.correct   || 0) + (oldVal.correct   || 0) }
+      : oldVal;
+    writes.push(updateDoc(doc(db, 'users', u.uid),
+      new FieldPath('scores', newName), merged,
+      new FieldPath('scores', oldName), deleteField()));
+  }
+  await Promise.all(writes);
+  // Keep current admin's in-memory copy in sync
+  const me = window.DB.users[window.S.user];
+  if (me && me.scores && Object.prototype.hasOwnProperty.call(me.scores, oldName)) {
+    const ov = me.scores[oldName];
+    const ex = me.scores[newName];
+    me.scores[newName] = ex
+      ? { attempted:(ex.attempted||0)+(ov.attempted||0), correct:(ex.correct||0)+(ov.correct||0) }
+      : ov;
+    delete me.scores[oldName];
+  }
+  console.log(`[renameTopicScoresAllUsers] "${oldName}" → "${newName}" for ${writes.length} student(s)`);
+  return writes.length;
 };
 
 // Generic setDoc helper used by calendar.js

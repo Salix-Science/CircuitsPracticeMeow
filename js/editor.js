@@ -920,7 +920,8 @@ window.renderTopicManager = function renderTopicManager(){
     const count=window.DB.problems.filter(p=>p.topic===t.name).length;
     row.innerHTML=`<span class="topic-label-chip">${t.name}</span>
       <span style="font-size:10px;color:var(--text4);font-family:var(--mono)">${count} problem${count!==1?'s':''}</span>
-      <button class="pm-icon-btn del" onclick="deleteTopic('${t.id}')"><i class="ti ti-trash"></i></button>`;
+      <button class="pm-icon-btn" onclick="editTopic('${t.id}')" title="Rename label"><i class="ti ti-pencil"></i></button>
+      <button class="pm-icon-btn del" onclick="deleteTopic('${t.id}')" title="Delete label"><i class="ti ti-trash"></i></button>`;
     list.appendChild(row);
   });
   rebuildTopicDropdown();
@@ -956,13 +957,51 @@ window.addTopic = async function addTopic(){
 window.deleteTopic = async function deleteTopic(id){
   if(!window.S.isAdmin){console.warn("[security] deleteTopic blocked");return;}
   const t=(window.DB.topics||[]).find(t=>t.id===id);if(!t)return;
-  const count=window.DB.problems.filter(p=>p.topic===t.name).length;
-  const msg=count>0
-    ?`Delete label "${t.name}"? It's used by ${count} problem${count!==1?'s':''}.`
-    :`Delete label "${t.name}"?`;
+  const oldName=t.name;
+  const count=window.DB.problems.filter(p=>p.topic===oldName).length;
+  const msg=`Delete label "${oldName}"?\n\nThis will:\n`+
+    (count>0?`• Affect ${count} problem${count!==1?'s':''} that use this label\n`:'')+
+    `• Permanently delete EVERY student's practice scores for this topic\n\nThis cannot be undone.`;
   if(!confirm(msg))return;
-  logAdminAction('delete_topic_label', { id, name: t?.name });
+  logAdminAction('delete_topic_label', { id, name: oldName });
   await deleteFromDB('topics',id);
   window.DB.topics=window.DB.topics.filter(t=>t.id!==id);
+  // Wipe associated student scores across all accounts
+  try{
+    const n=await window.deleteTopicScoresAllUsers(oldName);
+    if(n>0) console.log(`[deleteTopic] removed "${oldName}" scores from ${n} student(s)`);
+  }catch(e){
+    console.error('[deleteTopic] failed to remove student scores:',e);
+    alert(`Label deleted, but removing student scores failed:\n${e.message}\n\nThis usually means your Firestore rules don't allow admins to write other users' documents.`);
+  }
+  renderTopicManager();rebuildTopicDropdown();
+}
+
+window.editTopic = async function editTopic(id){
+  if(!window.S.isAdmin){console.warn("[security] editTopic blocked");return;}
+  const t=(window.DB.topics||[]).find(t=>t.id===id);if(!t)return;
+  const oldName=t.name;
+  const newName=(prompt(`Rename label "${oldName}" to:`, oldName)||'').trim();
+  if(!newName||newName===oldName)return;
+  if((window.DB.topics||[]).find(x=>x.id!==id && x.name.toLowerCase()===newName.toLowerCase())){
+    alert(`"${newName}" already exists.`);return;
+  }
+  const probCount=window.DB.problems.filter(p=>p.topic===oldName).length;
+  if(!confirm(`Rename "${oldName}" → "${newName}"?\n\nThis updates ${probCount} problem${probCount!==1?'s':''} and migrates every student's scores for this topic.`))return;
+
+  // 1. Topic label + 2. all problems using it
+  t.name=newName;
+  window.DB.problems.forEach(p=>{ if(p.topic===oldName) p.topic=newName; });
+  await saveDB(); // persists topics + problems
+
+  // 3. Migrate student scores across all accounts
+  let n=0;
+  try{
+    n=await window.renameTopicScoresAllUsers(oldName,newName);
+  }catch(e){
+    console.error('[editTopic] failed to migrate student scores:',e);
+    alert(`Label and problems renamed, but migrating student scores failed:\n${e.message}\n\nThis usually means your Firestore rules don't allow admins to write other users' documents.`);
+  }
+  logAdminAction('rename_topic_label', { id, oldName, newName, problems:probCount, studentsUpdated:n });
   renderTopicManager();rebuildTopicDropdown();
 }
