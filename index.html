@@ -331,6 +331,13 @@
                 </div>
                 <div class="field">
                   <label>Problems — all selectable regardless of enabled state</label>
+                  <div class="assign-prob-picker-tools">
+                    <input type="text" id="apc-search" placeholder="Search problems…"
+                      oninput="filterAssignProbPicker()" autocomplete="off"/>
+                    <select id="apc-tag-filter" onchange="filterAssignProbPicker()">
+                      <option value="">All topics</option>
+                    </select>
+                  </div>
                   <div class="assign-prob-picker" id="assign-prob-picker"></div>
                 </div>
                 <button class="btn btn-accent" onclick="saveAssignment()"><i class="ti ti-device-floppy"></i> Save assignment</button>
