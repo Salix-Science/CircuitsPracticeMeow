@@ -606,9 +606,13 @@
         </div>
         <div class="section-card" style="max-width:480px">
           <h4><i class="ti ti-user-plus"></i> Create account manually</h4>
+          <div class="field" style="margin:0 0 8px"><label>Email</label><input type="email" id="mu-email" autocomplete="off" placeholder="student@uconn.edu"/></div>
           <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px">
-            <div class="field" style="margin:0"><label>Username</label><input type="text" id="mu-user"/></div>
-            <div class="field" style="margin:0"><label>Password</label><input type="password" id="mu-pass"/></div>
+            <div class="field" style="margin:0"><label>Username</label><input type="text" id="mu-user" autocomplete="off" placeholder="login name"/></div>
+            <div class="field" style="margin:0"><label>Password</label><input type="password" id="mu-pass" autocomplete="new-password" placeholder="6+ characters"/></div>
+          </div>
+          <div style="font-size:10px;color:var(--text4);margin-bottom:8px;line-height:1.6">
+            The username is used to sign in. The email is saved for notifications and is subscribed by default — students can opt out under Profile.
           </div>
           <div style="display:flex;align-items:center;gap:10px">
             <label style="display:flex;align-items:center;gap:6px;text-transform:none;letter-spacing:0;font-size:12px;cursor:pointer">
