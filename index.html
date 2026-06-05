@@ -518,13 +518,33 @@
       <div class="admin-subtab active" id="atab-analytics">
         <div class="dash-grid" id="dash-metrics"></div>
         <div class="dash-section">
-          <div class="dash-head"><span><i class="ti ti-users"></i> Students</span></div>
-          <table class="dash-table"><thead><tr><th>Username</th><th>Attempted</th><th>Correct</th><th>Wrong</th><th>Accuracy</th><th>Streak</th><th>Role</th></tr></thead>
+          <div class="dash-head">
+            <span><i class="ti ti-users"></i> Students</span>
+            <select id="analytics-section-filter" class="analytics-filter-select" onchange="renderAnalyticsStudents()">
+              <option value="">All sections</option>
+            </select>
+          </div>
+          <table class="dash-table"><thead><tr>
+            <th class="th-sort" onclick="sortAnalytics('name')">Username<span class="sort-ind" data-k="name"></span></th>
+            <th class="th-sort" onclick="sortAnalytics('section')">Section<span class="sort-ind" data-k="section"></span></th>
+            <th class="th-sort" onclick="sortAnalytics('attempted')">Attempted<span class="sort-ind" data-k="attempted"></span></th>
+            <th class="th-sort" onclick="sortAnalytics('correct')">Correct<span class="sort-ind" data-k="correct"></span></th>
+            <th class="th-sort" onclick="sortAnalytics('wrong')">Wrong<span class="sort-ind" data-k="wrong"></span></th>
+            <th class="th-sort" onclick="sortAnalytics('accuracy')">Accuracy<span class="sort-ind" data-k="accuracy"></span></th>
+            <th class="th-sort" onclick="sortAnalytics('streak')">Streak<span class="sort-ind" data-k="streak"></span></th>
+            <th>Role</th>
+          </tr></thead>
           <tbody id="dt-students"></tbody></table>
         </div>
         <div class="dash-section">
           <div class="dash-head"><span><i class="ti ti-chart-bar"></i> Topic accuracy</span></div>
-          <table class="dash-table"><thead><tr><th>Topic</th><th>Attempted</th><th>Correct</th><th>Wrong</th><th>Accuracy</th></tr></thead>
+          <table class="dash-table"><thead><tr>
+            <th class="th-sort" onclick="sortAnalyticsTopics('topic')">Topic<span class="sort-ind" data-k="topic"></span></th>
+            <th class="th-sort" onclick="sortAnalyticsTopics('attempted')">Attempted<span class="sort-ind" data-k="attempted"></span></th>
+            <th class="th-sort" onclick="sortAnalyticsTopics('correct')">Correct<span class="sort-ind" data-k="correct"></span></th>
+            <th class="th-sort" onclick="sortAnalyticsTopics('wrong')">Wrong<span class="sort-ind" data-k="wrong"></span></th>
+            <th class="th-sort" onclick="sortAnalyticsTopics('accuracy')">Accuracy<span class="sort-ind" data-k="accuracy"></span></th>
+          </tr></thead>
           <tbody id="dt-topics"></tbody></table>
         </div>
       </div>
