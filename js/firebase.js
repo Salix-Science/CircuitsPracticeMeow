@@ -379,7 +379,10 @@ window.saveUserOnly = async function() {
                              assignments:   !!u.notifPrefs.assignments,
                            }
                          : {},
-    attemptLog:        Array.isArray(u.attemptLog) ? u.attemptLog : [],
+    // NOTE: attemptLog is intentionally absent here. It is written exclusively
+    // via logAttempt → arrayUnion, which appends atomically. Writing it here
+    // would overwrite the Firestore array with a stale in-memory snapshot and
+    // erase entries that logAttempt queued but hasn't flushed yet.
     assignAttempts:    (u.assignAttempts && typeof u.assignAttempts === 'object')
                          ? u.assignAttempts : {},
   };
@@ -400,7 +403,11 @@ let   _attemptFlushTimer = null;
 
 window.logAttempt = function(entry) {
   _attemptQueue.push(entry);
-  // Flush immediately on first entry, then debounce subsequent ones
+  // Mirror into the in-memory user so in-session reads (and the next saveUserOnly
+  // call, if attemptLog were included) see the latest data. We keep this separate
+  // from the Firestore write (arrayUnion) so there's no overwrite conflict.
+  const _lUser = window.DB?.users?.[window.S?.user];
+  if (_lUser) { if (!Array.isArray(_lUser.attemptLog)) _lUser.attemptLog = []; _lUser.attemptLog.push(entry); }
   if (!_attemptFlushTimer) {
     _attemptFlushTimer = setTimeout(_flushAttemptLog, 60000); // 60 second batch window
   }
@@ -649,8 +656,10 @@ window.submitEmailMigration = async function() {
 
   if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) { showErr('Enter a valid email address.'); return; }
 
-  // 1. Always save the contact email to the profile (notifications + record),
-  //    even if the Auth migration needs a verification click.
+  // Save the contact email to the profile for notifications.
+  // Login continues to use the username — we do NOT change the Firebase Auth
+  // identity here, which would break username-based login. For password reset,
+  // ask your instructor to set a new password via the Firebase console.
   try {
     const u = window.DB.users[window.S.user];
     if (u) {
@@ -663,39 +672,12 @@ window.submitEmailMigration = async function() {
       };
       await saveUserOnly();
     }
-  } catch(e) { console.error('migration: saving contact email failed:', e); }
-
-  // 2. Migrate the Firebase Auth email so password reset reaches them.
-  try {
-    const authMod = await import("https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js");
-    try {
-      await authMod.updateEmail(auth.currentUser, email);
-      window.S.authEmail = email;
-      logAdminAction('email_migrated', { username: window.S.user });
-      showOk('Saved! Sign in and reset your password with this email from now on.');
-      setTimeout(closeEmailMigrate, 2200);
-    } catch(e1) {
-      if (e1.code === 'auth/requires-recent-login') {
-        showErr('For security, please sign out and sign back in, then set your email again.');
-      } else if (e1.code === 'auth/email-already-in-use') {
-        showErr('That email is already used by another account.');
-      } else if (e1.code === 'auth/operation-not-allowed' || e1.code === 'auth/unverified-email') {
-        // Project requires verifying the new address first — send the link.
-        try {
-          await authMod.verifyBeforeUpdateEmail(auth.currentUser, email);
-          showOk('Check your inbox and click the link to confirm. Until then, keep signing in with your username.');
-        } catch(e2) {
-          console.error('verifyBeforeUpdateEmail failed:', e2.code, e2.message);
-          showErr(e2.message);
-        }
-      } else {
-        console.error('updateEmail failed:', e1.code, e1.message);
-        showErr(e1.message);
-      }
-    }
+    logAdminAction('set_contact_email', { username: window.S.user });
+    showOk('Saved! Your email is on file for notifications.');
+    setTimeout(closeEmailMigrate, 2000);
   } catch(e) {
-    console.error('migration: auth module import failed:', e);
-    showErr('Could not update your email right now — your contact email was still saved.');
+    console.error('submitEmailMigration failed:', e);
+    showErr('Could not save — see console for details.');
   }
 };
 
