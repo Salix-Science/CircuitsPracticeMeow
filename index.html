@@ -887,6 +887,24 @@
     </div>
   </div>
 
+  <!-- One-time email migration prompt (legacy accounts) -->
+  <div id="email-migrate-modal" class="hidden" style="position:fixed;inset:0;z-index:1000;background:rgba(0,0,0,.55);display:flex;align-items:center;justify-content:center;padding:1rem">
+    <div style="background:var(--bg2);border:0.5px solid var(--border);border-radius:var(--r2);max-width:420px;width:100%;padding:22px">
+      <div style="font-family:var(--font-display);font-size:16px;color:var(--accent2);margin-bottom:8px"><i class="ti ti-mail"></i> Set your email</div>
+      <p style="font-size:12px;color:var(--text3);line-height:1.7;margin-bottom:14px">
+        Add your email so you can reset your password if you ever forget it — and receive class notifications.
+        From now on you'll sign in with this email.
+      </p>
+      <div class="field" style="margin-bottom:12px"><label>Email</label><input type="email" id="em-email" autocomplete="email" placeholder="you@uconn.edu"/></div>
+      <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+        <button class="btn btn-sm btn-accent" onclick="submitEmailMigration()"><i class="ti ti-check"></i> Save email</button>
+        <button class="btn btn-sm" onclick="skipEmailMigrate()">Skip for now</button>
+      </div>
+      <div class="ok-msg hidden" id="em-ok" style="margin-top:10px"></div>
+      <div class="err-msg hidden" id="em-err" style="margin-top:10px"><i class="ti ti-alert-circle"></i><span></span></div>
+    </div>
+  </div>
+
 </div><!-- /screen-app -->
 
 <!-- ════════════════════════════════════════════
