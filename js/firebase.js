@@ -411,7 +411,10 @@ window._fetchAllUsers = async function() {
     return [];
   }
   const snap = await getDocs(collection(db, 'users'));
-  return snap.docs.map(d => sanitizeUser({ uid: d.id, ...d.data() }));
+  // IMPORTANT: uid must come from the document ID (d.id), and must win over
+  // any stored `uid` field — otherwise an empty/stale stored uid produces an
+  // invalid document reference when we write back.
+  return snap.docs.map(d => sanitizeUser({ ...d.data(), uid: d.id }));
 };
 
 // Remove a topic's practice scores from EVERY student's profile.
@@ -423,6 +426,7 @@ window.deleteTopicScoresAllUsers = async function(topicName) {
   const users = await window._fetchAllUsers();
   const writes = [];
   for (const u of users) {
+    if (!u.uid) { console.warn('[deleteTopicScoresAllUsers] skipping user with no uid', u.username); continue; }
     if (u.scores && Object.prototype.hasOwnProperty.call(u.scores, topicName)) {
       writes.push(updateDoc(doc(db, 'users', u.uid),
         new FieldPath('scores', topicName), deleteField()));
@@ -445,6 +449,7 @@ window.renameTopicScoresAllUsers = async function(oldName, newName) {
   const users = await window._fetchAllUsers();
   const writes = [];
   for (const u of users) {
+    if (!u.uid) { console.warn('[renameTopicScoresAllUsers] skipping user with no uid', u.username); continue; }
     const sc = u.scores || {};
     if (!Object.prototype.hasOwnProperty.call(sc, oldName)) continue;
     const oldVal = sc[oldName] || { attempted: 0, correct: 0 };
