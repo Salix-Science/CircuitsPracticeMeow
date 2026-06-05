@@ -518,6 +518,21 @@ label {
 .dash-table td:first-child { color: var(--text); font-family: var(--mono); }
 .acc-bar-outer { width: 55px; height: 3px; background: var(--bg3); border-radius: 99px; overflow: hidden; display: inline-block; vertical-align: middle; margin-right: 5px; }
 .acc-bar-inner { height: 100%; border-radius: 99px; }
+.dash-table th.th-sort { cursor: pointer; user-select: none; transition: color .15s; }
+.dash-table th.th-sort:hover { color: var(--accent2); }
+.sort-ind { color: var(--accent2); font-size: 9px; }
+.analytics-filter-select {
+  font-size: 11px;
+  text-transform: none;
+  letter-spacing: 0;
+  font-weight: 500;
+  padding: 4px 8px;
+  background: var(--bg3);
+  border: 0.5px solid var(--border);
+  border-radius: var(--r);
+  color: var(--text2);
+  cursor: pointer;
+}
 .admin-tabs { display: flex; gap: 2px; margin-bottom: 1.25rem; border-bottom: 0.5px solid var(--border); }
 .admin-tab {
   padding: 7px 16px; border-radius: var(--r) var(--r) 0 0;
