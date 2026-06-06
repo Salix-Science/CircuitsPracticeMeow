@@ -522,12 +522,24 @@
         <div class="dash-grid" id="dash-metrics"></div>
         <div class="dash-section">
           <div class="dash-head"><span><i class="ti ti-users"></i> Students</span></div>
-          <table class="dash-table"><thead><tr><th>Username</th><th>Attempted</th><th>Accuracy</th><th>Streak</th><th>Role</th></tr></thead>
+       <div style="margin-bottom:10px;display:flex;align-items:center;gap:8px">
+            <label style="font-size:11px;color:var(--text3);text-transform:uppercase;letter-spacing:.08em">Section</label>
+            <select id="analytics-section-filter" onchange="onAnalyticsSection(this.value)" style="padding:6px 10px;font-size:12px;width:auto"></select>
+          </div>
+          <table class="dash-table"><thead><tr>
+            <th style="cursor:pointer" onclick="analyticsSort('name')">Username<span id="an-arrow-name"></span></th>
+            <th style="cursor:pointer" onclick="analyticsSort('section')">Section<span id="an-arrow-section"></span></th>
+            <th style="cursor:pointer" onclick="analyticsSort('attempted')">Attempted<span id="an-arrow-attempted"></span></th>
+            <th style="cursor:pointer" onclick="analyticsSort('correct')">Correct<span id="an-arrow-correct"></span></th>
+            <th style="cursor:pointer" onclick="analyticsSort('wrong')">Wrong<span id="an-arrow-wrong"></span></th>
+            <th style="cursor:pointer" onclick="analyticsSort('accuracy')">Accuracy<span id="an-arrow-accuracy"></span></th>
+            <th style="cursor:pointer" onclick="analyticsSort('streak')">Streak<span id="an-arrow-streak"></span></th>
+            <th>Role</th></tr></thead>
           <tbody id="dt-students"></tbody></table>
         </div>
         <div class="dash-section">
           <div class="dash-head"><span><i class="ti ti-chart-bar"></i> Topic accuracy</span></div>
-          <table class="dash-table"><thead><tr><th>Topic</th><th>Attempts</th><th>Accuracy</th></tr></thead>
+         <table class="dash-table"><thead><tr><th>Topic</th><th>Attempts</th><th>Correct</th><th>Wrong</th><th>Accuracy</th></tr></thead>
           <tbody id="dt-topics"></tbody></table>
         </div>
       </div>
