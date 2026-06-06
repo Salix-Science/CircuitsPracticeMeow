@@ -55,6 +55,8 @@ window.showAdminTab = function(t, el) {
   if(t==='notifications') renderAdminNotifPanel?.();
   if(t==='sections') renderSections?.();
   if(t==='account') renderNotificationSettings?.();
+  if(t==='sitegrades') renderCourseGrades?.();
+  if(t==='problems') renderProblemAnalysis?.();
 };
 
 window.showEdTab = function(t, el) {
