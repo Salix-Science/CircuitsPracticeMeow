@@ -53,10 +53,10 @@ window.showAdminTab = function(t, el) {
   document.querySelectorAll('.admin-subtab').forEach(d=>d.classList.remove('active'));
   document.getElementById(`atab-${t}`)?.classList.add('active');
   if(t==='notifications') renderAdminNotifPanel?.();
+  if(t==='problem-analysis') renderProblemAnalysis?.();
+  if(t==='coursegrades') renderCourseGrades?.();
   if(t==='sections') renderSections?.();
   if(t==='account') renderNotificationSettings?.();
-  if(t==='sitegrades') renderCourseGrades?.();
-  if(t==='problems') renderProblemAnalysis?.();
 };
 
 window.showEdTab = function(t, el) {
