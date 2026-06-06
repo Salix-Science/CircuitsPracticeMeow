@@ -845,7 +845,6 @@ window.deleteUser = async function(uid, username) {
 };
 
 window.adminCreateUser = async function() {
-  // Double-check: this should only ever be callable by a verified admin
   if (!window.S.isAdmin) {
     console.warn('[security] adminCreateUser blocked — caller is not admin');
     return;
@@ -859,11 +858,45 @@ window.adminCreateUser = async function() {
   err.classList.add('hidden'); ok.classList.add('hidden');
   const showErr = m => { err.querySelector('span').textContent = m; err.classList.remove('hidden'); };
 
-  if (!email)                                       { showErr('Enter an email address.');        return; }
-  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email))     { showErr('Enter a valid email address.');    return; }
-  if (!username)                                    { showErr('Enter a username.');               return; }
-  if (pass.length < 6)                              { showErr('Password needs 6+ characters.');   return; }
+  if (!email)                                   { showErr('Enter an email address.');      return; }
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) { showErr('Enter a valid email address.'); return; }
+  if (!username)                                { showErr('Enter a username.');            return; }
+  if (pass.length < 6)                          { showErr('Password needs 6+ characters.');return; }
 
+  // Username is unique (it's the login identity + the display name in analytics)
+  try {
+    const existing = await window._fetchAllUsers();
+    if (existing.some(u => (u.username || '').toLowerCase() === username.toLowerCase())) {
+      showErr('That username is already in use — pick another.'); return;
+    }
+  } catch(e) { console.warn('username uniqueness check skipped:', e); }
+
+  // Username is the login identity (username@circuitspractice.app, spaces -> dots).
+  // Email is the contact address for notifications. Password resets are done by
+  // the instructor in the Firebase console (set a new password directly).
+  const loginEmail = username.replace(/\s+/g, '.').replace(/[^a-zA-Z0-9._%+\-]/g, '') + '@circuitspractice.app';
+  try {
+    const cred = await createUserWithEmailAndPassword(auth, loginEmail, pass);
+    await setDoc(doc(db, 'users', cred.user.uid), {
+      username, isAdmin, scores:{}, probScores:{}, streak:0, assignSubmissions:{},
+      notifPrefs: { email, posts:true, announcements:true, assignments:true },
+    });
+    logAdminAction('create_account', { uid: cred.user.uid, username, isAdmin, hasEmail: true });
+    track('admin_create_account', { is_admin: isAdmin });
+    ok.textContent = `"${username}" created. They sign in with the username "${username}". You may need to sign back in.`;
+    ok.classList.remove('hidden');
+    ['mu-email','mu-user','mu-pass'].forEach(id => document.getElementById(id).value = '');
+    document.getElementById('mu-admin').checked = false;
+    renderUserMgmt();
+  } catch(e) {
+    if (e.code === 'auth/email-already-in-use') {
+      showErr('That username is already taken.');
+    } else {
+      console.error('adminCreateUser failed:', e.code, e.message);
+      showErr(e.message);
+    }
+  }
+};
   // Username is the student's display name (shown in grade tables, analytics),
   // so keep it unique even though it's no longer the login identity.
   try {
