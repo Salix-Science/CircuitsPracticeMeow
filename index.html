@@ -22,25 +22,26 @@
   <div class="wordmark">Circuits Practice</div>
   <div class="auth-card">
     <div class="auth-tabs">
-      <button class="auth-tab active">Sign in</button>
+      <button class="auth-tab active" onclick="setAuthTab('login',this)">Sign in</button>
+      <button class="auth-tab" onclick="setAuthTab('register',this)">Register</button>
     </div>
 
     <!-- Login -->
     <div id="auth-login">
-      <div class="field"><label>Username or email</label><input type="text" id="l-user" autocomplete="username" placeholder="username or email"/></div>
+      <div class="field"><label>Username</label><input type="text" id="l-user" autocomplete="username" placeholder="username"/></div>
       <div class="field"><label>Password</label><input type="password" id="l-pass" autocomplete="current-password" placeholder="••••••••"/></div>
       <button class="btn btn-accent" style="width:100%;justify-content:center" onclick="doLogin()"><i class="ti ti-login"></i> Enter</button>
       <div class="err-msg hidden" id="l-err"><i class="ti ti-alert-circle"></i><span></span></div>
-      <button type="button" onclick="toggleResetForm()" style="margin-top:12px;background:none;border:0;color:var(--accent2);font-size:12px;cursor:pointer;padding:0">Forgot password?</button>
-      <div id="auth-reset" class="hidden" style="margin-top:10px;padding-top:10px;border-top:0.5px solid var(--border)">
-        <div class="field"><label>Account email</label><input type="email" id="l-reset-email" autocomplete="email" placeholder="you@example.com"/></div>
-        <button class="btn btn-sm" style="width:100%;justify-content:center" onclick="sendPasswordReset()"><i class="ti ti-mail"></i> Send reset link</button>
-        <div class="ok-msg hidden" id="l-reset-ok"></div>
-        <div class="err-msg hidden" id="l-reset-err"><i class="ti ti-alert-circle"></i><span></span></div>
-      </div>
-      <div style="margin-top:14px;font-size:11px;color:var(--text4);text-align:center;line-height:1.6">
-        Accounts are created by your instructor.
-      </div>
+    </div>
+
+    <!-- Register -->
+    <div id="auth-register" class="hidden">
+      <div class="field"><label>Username</label><input type="text" id="r-user" autocomplete="username" placeholder="choose a username"/></div>
+      <div class="field"><label>Password</label><input type="password" id="r-pass" autocomplete="new-password" placeholder="at least 6 characters"/></div>
+      <div class="field"><label>Confirm password</label><input type="password" id="r-pass2" autocomplete="new-password" placeholder="repeat password"/></div>
+      <button class="btn btn-accent" style="width:100%;justify-content:center" onclick="doRegister()"><i class="ti ti-user-plus"></i> Create account</button>
+      <div class="err-msg hidden" id="r-err"><i class="ti ti-alert-circle"></i><span></span></div>
+      <div class="ok-msg hidden" id="r-ok"></div>
     </div>
   </div>
 </div>
@@ -94,15 +95,6 @@
           <div class="blog-hero-title">From the Instructor</div>
           <div class="blog-hero-sub">Tutorials · Updates · Announcements · Resources</div>
         </div>
-        <div class="blog-controls">
-          <div class="blog-search">
-            <i class="ti ti-search"></i>
-            <input type="text" id="blog-search-input" placeholder="Search posts…" autocomplete="off"
-                   oninput="onBlogSearch(this.value)"/>
-            <button class="blog-search-clear hidden" id="blog-search-clear" title="Clear" onclick="clearBlogSearch()"><i class="ti ti-x"></i></button>
-          </div>
-          <select id="blog-author-filter" onchange="onBlogAuthor(this.value)" title="Filter by author"></select>
-        </div>
         <div class="blog-filter-bar" id="blog-filter-bar"></div>
         <div class="blog-grid" id="blog-grid"></div>
         <div class="blog-empty hidden" id="blog-empty">
@@ -139,7 +131,6 @@
         <button class="editor-top-tab"         onclick="showEdTab('blog',this)">Blog</button>
         <button class="editor-top-tab"         onclick="showEdTab('labels',this)">Topic Labels</button>
         <button class="editor-top-tab"         onclick="showEdTab('homepage',this)">Homepage</button>
-        <button class="editor-top-tab"         onclick="showEdTab('categories',this)">Categories</button>
       </div>
 
       <!-- Problems tab -->
@@ -476,28 +467,6 @@
         </div>
       </div>
 
-      <!-- Category editor tab -->
-      <div class="editor-view" id="etab-categories">
-        <div style="padding:1.25rem;overflow-y:auto;flex:1;max-width:640px">
-          <div style="font-size:11px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.08em;margin-bottom:8px">Blog categories</div>
-          <p style="font-size:12px;color:var(--text3);margin-bottom:16px;line-height:1.7">
-            Edit category names and colours. These pills appear on the blog page and the home page — the colours stay consistent across both.
-            Renaming a category updates every post that uses it.
-          </p>
-          <div id="cat-editor-list" style="display:flex;flex-direction:column;gap:8px;margin-bottom:14px"></div>
-          <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
-            <button class="btn btn-sm" onclick="addCategoryRow()"><i class="ti ti-plus"></i> Add category</button>
-            <button class="btn btn-sm btn-accent" onclick="saveCategoryEditor()"><i class="ti ti-device-floppy"></i> Save categories</button>
-            <div class="ok-msg hidden" id="cat-editor-ok">Saved!</div>
-            <div class="err-msg hidden" id="cat-editor-err"><i class="ti ti-alert-circle"></i><span></span></div>
-          </div>
-          <div style="margin-top:18px">
-            <div style="font-size:10px;color:var(--text4);text-transform:uppercase;letter-spacing:.08em;margin-bottom:8px">Live preview</div>
-            <div id="cat-editor-preview" style="display:flex;gap:6px;flex-wrap:wrap"></div>
-          </div>
-        </div>
-      </div>
-
     </div><!-- /editor-shell -->
   </div><!-- /view-editor -->
 
@@ -507,12 +476,10 @@
       <div style="font-family:var(--font-display);font-size:16px;letter-spacing:.08em;color:var(--accent2);margin-bottom:1rem">Admin Panel</div>
       <div class="admin-tabs">
         <button class="admin-tab active" onclick="showAdminTab('analytics',this)">Analytics</button>
-        <button class="admin-tab"        onclick="showAdminTab('analysis',this);window.renderProblemAnalysis&&renderProblemAnalysis()"><i class="ti ti-microscope" style="font-size:11px"></i> Problem analysis</button>
         <button class="admin-tab"        onclick="showAdminTab('grades',this)">Assignment grades</button>
         <button class="admin-tab"        onclick="showAdminTab('users',this)">User management</button>
         <button class="admin-tab"        onclick="showAdminTab('sections',this)"><i class="ti ti-users-group" style="font-size:11px"></i> Sections</button>
         <button class="admin-tab"        onclick="showAdminTab('account',this);showAccountTab()">My account</button>
-        <button class="admin-tab"        onclick="showAdminTab('coursegrades',this);window.renderCourseGrades&&renderCourseGrades()"><i class="ti ti-school" style="font-size:11px"></i> Course grades</button>
         <button class="admin-tab"        onclick="showAdminTab('gradebook',this)"><i class="ti ti-calculator" style="font-size:11px"></i> Gradebook</button>
         <button class="admin-tab"        onclick="showAdminTab('notifications',this)"><i class="ti ti-bell" style="font-size:11px"></i> Notifications</button>
       </div>
@@ -521,35 +488,31 @@
       <div class="admin-subtab active" id="atab-analytics">
         <div class="dash-grid" id="dash-metrics"></div>
         <div class="dash-section">
-          <div class="dash-head"><span><i class="ti ti-users"></i> Students</span></div>
-       <div style="margin-bottom:10px;display:flex;align-items:center;gap:8px">
-            <label style="font-size:11px;color:var(--text3);text-transform:uppercase;letter-spacing:.08em">Section</label>
-            <select id="analytics-section-filter" onchange="onAnalyticsSection(this.value)" style="padding:6px 10px;font-size:12px;width:auto"></select>
+          <div class="dash-head" style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px">
+            <span><i class="ti ti-users"></i> Students</span>
+            <div style="display:flex;align-items:center;gap:8px">
+              <label style="font-size:11px;color:var(--text3);text-transform:uppercase;letter-spacing:.08em;margin:0">Section:</label>
+              <select id="analytics-section-filter" style="padding:4px 8px;font-size:12px;width:auto" onchange="onAnalyticsSection(this.value)">
+                <option value="">All sections</option>
+              </select>
+            </div>
           </div>
-          <table class="dash-table"><thead><tr>
-            <th style="cursor:pointer" onclick="analyticsSort('name')">Username<span id="an-arrow-name"></span></th>
-            <th style="cursor:pointer" onclick="analyticsSort('section')">Section<span id="an-arrow-section"></span></th>
-            <th style="cursor:pointer" onclick="analyticsSort('attempted')">Attempted<span id="an-arrow-attempted"></span></th>
-            <th style="cursor:pointer" onclick="analyticsSort('correct')">Correct<span id="an-arrow-correct"></span></th>
-            <th style="cursor:pointer" onclick="analyticsSort('wrong')">Wrong<span id="an-arrow-wrong"></span></th>
-            <th style="cursor:pointer" onclick="analyticsSort('accuracy')">Accuracy<span id="an-arrow-accuracy"></span></th>
-            <th style="cursor:pointer" onclick="analyticsSort('streak')">Streak<span id="an-arrow-streak"></span></th>
-            <th>Role</th></tr></thead>
+          <table class="dash-table"><thead id="dt-students-head"><tr>
+            <th onclick="analyticsSort('name')"     style="cursor:pointer">Username<span id="an-arrow-name"></span></th>
+            <th onclick="analyticsSort('section')"  style="cursor:pointer">Section<span id="an-arrow-section"></span></th>
+            <th onclick="analyticsSort('attempted')" style="cursor:pointer">Attempted<span id="an-arrow-attempted"></span></th>
+            <th onclick="analyticsSort('correct')"  style="cursor:pointer;color:var(--green)">Correct<span id="an-arrow-correct"></span></th>
+            <th onclick="analyticsSort('wrong')"    style="cursor:pointer;color:var(--red)">Wrong<span id="an-arrow-wrong"></span></th>
+            <th onclick="analyticsSort('accuracy')" style="cursor:pointer">Accuracy<span id="an-arrow-accuracy"></span></th>
+            <th onclick="analyticsSort('streak')"   style="cursor:pointer">Streak<span id="an-arrow-streak"></span></th>
+            <th>Role</th>
+          </tr></thead>
           <tbody id="dt-students"></tbody></table>
         </div>
         <div class="dash-section">
           <div class="dash-head"><span><i class="ti ti-chart-bar"></i> Topic accuracy</span></div>
-         <table class="dash-table"><thead><tr><th>Topic</th><th>Attempts</th><th>Correct</th><th>Wrong</th><th>Accuracy</th></tr></thead>
+          <table class="dash-table"><thead><tr><th>Topic</th><th>Attempts</th><th style="color:var(--green)">Correct</th><th style="color:var(--red)">Wrong</th><th>Accuracy</th></tr></thead>
           <tbody id="dt-topics"></tbody></table>
-        </div>
-      </div>
-
-      <!-- Problem analysis -->
-      <div class="admin-subtab" id="atab-analysis">
-        <div class="dash-grid" id="pa-metrics"></div>
-        <div class="dash-section">
-          <div class="dash-head"><span><i class="ti ti-microscope"></i> Per-problem analysis</span></div>
-          <div id="pa-wrap" style="overflow-x:auto"></div>
         </div>
       </div>
 
@@ -625,13 +588,9 @@
         </div>
         <div class="section-card" style="max-width:480px">
           <h4><i class="ti ti-user-plus"></i> Create account manually</h4>
-          <div class="field" style="margin:0 0 8px"><label>Email</label><input type="email" id="mu-email" autocomplete="off" placeholder="student@uconn.edu"/></div>
           <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px">
-            <div class="field" style="margin:0"><label>Username</label><input type="text" id="mu-user" autocomplete="off" placeholder="login name"/></div>
-            <div class="field" style="margin:0"><label>Password</label><input type="password" id="mu-pass" autocomplete="new-password" placeholder="6+ characters"/></div>
-          </div>
-          <div style="font-size:10px;color:var(--text4);margin-bottom:8px;line-height:1.6">
-            The username is used to sign in. The email is saved for notifications and is subscribed by default — students can opt out under Profile.
+            <div class="field" style="margin:0"><label>Username</label><input type="text" id="mu-user"/></div>
+            <div class="field" style="margin:0"><label>Password</label><input type="password" id="mu-pass"/></div>
           </div>
           <div style="display:flex;align-items:center;gap:10px">
             <label style="display:flex;align-items:center;gap:6px;text-transform:none;letter-spacing:0;font-size:12px;cursor:pointer">
@@ -647,11 +606,6 @@
       <!-- Account -->
       <div class="admin-subtab" id="atab-account">
         <div id="notif-settings-wrap"></div>
-        <div class="section-card" style="max-width:400px;margin-top:16px">
-          <h4><i class="ti ti-mail"></i> Email address</h4>
-          <p style="font-size:12px;color:var(--text3);line-height:1.7;margin-bottom:10px">Set or update the email used for password reset and notifications.</p>
-          <button class="btn btn-sm btn-accent" onclick="openEmailMigrate()"><i class="ti ti-mail"></i> Set / update email</button>
-        </div>
         <div class="section-card" style="max-width:400px;margin-top:16px">
           <h4><i class="ti ti-key"></i> Change password</h4>
           <div class="field"><label>New password</label><input type="password" id="cp-new"/></div>
@@ -672,20 +626,6 @@
           </p>
           <div id="admin-notif-wrap"></div>
         </div>
-      </div>
-
-      <!-- Course grades subtab (website data) -->
-      <div class="admin-subtab" id="atab-coursegrades">
-        <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:14px">
-          <label style="font-size:11px;color:var(--text3);text-transform:uppercase;letter-spacing:.08em;margin:0">Section</label>
-          <select id="cg-section-filter" onchange="onCourseGradeSection()" style="padding:6px 10px;font-size:12px;width:auto"></select>
-          <div style="margin-left:auto;display:flex;gap:8px;flex-wrap:wrap">
-            <button class="btn btn-sm" onclick="refreshCourseGrades()"><i class="ti ti-refresh"></i> Refresh</button>
-            <button class="btn btn-sm" onclick="exportCourseGradesCSV()"><i class="ti ti-file-spreadsheet"></i> Export CSV</button>
-            <button class="btn btn-sm btn-accent" onclick="exportCourseGradesPDF()"><i class="ti ti-file-type-pdf"></i> Export PDF</button>
-          </div>
-        </div>
-        <div id="cg-content"></div>
       </div>
 
       <!-- Gradebook subtab -->
@@ -881,21 +821,6 @@
         </div>
       </div>
 
-      <!-- Set / update email for password reset -->
-      <div style="background:var(--bg2);border:0.5px solid var(--border);border-radius:var(--r2);overflow:hidden">
-        <div style="padding:10px 16px;border-bottom:0.5px solid var(--border);background:var(--bg3);font-size:11px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.08em;display:flex;align-items:center;gap:6px">
-          <i class="ti ti-mail" style="font-size:13px"></i> Notification email
-        </div>
-        <div style="padding:16px">
-          <p style="font-size:12px;color:var(--text3);margin-bottom:12px;line-height:1.7">
-            Set the email address where you receive notifications. Your login username is unchanged.
-          </p>
-          <button class="btn btn-sm btn-accent" onclick="openEmailMigrate()">
-            <i class="ti ti-mail"></i> Set / update email
-          </button>
-        </div>
-      </div>
-
       <!-- Change password -->
       <div style="background:var(--bg2);border:0.5px solid var(--border);border-radius:var(--r2);overflow:hidden">
         <div style="padding:10px 16px;border-bottom:0.5px solid var(--border);background:var(--bg3);font-size:11px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.08em;display:flex;align-items:center;gap:6px">
@@ -916,24 +841,6 @@
       <button class="btn btn-red" onclick="doLogout()" style="justify-content:center">
         <i class="ti ti-logout"></i> Sign out
       </button>
-    </div>
-  </div>
-
-  <!-- One-time email migration prompt (legacy accounts) -->
-  <div id="email-migrate-modal" class="hidden" style="position:fixed;inset:0;z-index:1000;background:rgba(0,0,0,.55);display:flex;align-items:center;justify-content:center;padding:1rem">
-    <div style="background:var(--bg2);border:0.5px solid var(--border);border-radius:var(--r2);max-width:420px;width:100%;padding:22px">
-      <div style="font-family:var(--font-display);font-size:16px;color:var(--accent2);margin-bottom:8px"><i class="ti ti-mail"></i> Add your email</div>
-      <p style="font-size:12px;color:var(--text3);line-height:1.7;margin-bottom:14px">
-        Add your email address so you can receive class notifications (new assignments, announcements, and posts).
-        You'll keep signing in with your username as usual.
-      </p>
-      <div class="field" style="margin-bottom:12px"><label>Email</label><input type="email" id="em-email" autocomplete="email" placeholder="you@uconn.edu"/></div>
-      <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
-        <button class="btn btn-sm btn-accent" onclick="submitEmailMigration()"><i class="ti ti-check"></i> Save email</button>
-        <button class="btn btn-sm" onclick="skipEmailMigrate()">Skip for now</button>
-      </div>
-      <div class="ok-msg hidden" id="em-ok" style="margin-top:10px"></div>
-      <div class="err-msg hidden" id="em-err" style="margin-top:10px"><i class="ti ti-alert-circle"></i><span></span></div>
     </div>
   </div>
 
