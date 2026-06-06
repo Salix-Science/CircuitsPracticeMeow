@@ -543,25 +543,39 @@ window.doLogin = async function() {
   const pass  = document.getElementById('l-pass').value;
   if (!idRaw || !pass) { showAuthErr('l-err', 'Enter your username/email and password.'); return; }
 
-  // Accept either a real email (contains @) or a username. For legacy accounts
-  // the username maps to username@circuitspractice.app. Spaces in the username
-  // are encoded as dots so Firebase sees a valid email address.
-  // New accounts (created with a real email) always log in by email.
-  let email;
+  // If input contains '@', treat it as a real email directly.
   if (idRaw.includes('@')) {
-    email = idRaw;
-  } else {
-    const safePart = idRaw.replace(/\s+/g, '.').replace(/[^a-zA-Z0-9._%+\-]/g, '');
-    email = safePart + '@circuitspractice.app';
+    try {
+      await signInWithEmailAndPassword(auth, idRaw.toLowerCase(), pass);
+      return; // onAuthStateChanged handles the rest
+    } catch(e) {
+      if (e.code === 'auth/user-not-found' || e.code === 'auth/invalid-credential' ||
+          e.code === 'auth/wrong-password'  || e.code === 'auth/invalid-email') {
+        showAuthErr('l-err', 'Email or password incorrect.');
+      } else {
+        console.error('[doLogin] email path failed:', e.code, e.message);
+        showAuthErr('l-err', e.message);
+      }
+      return;
+    }
   }
+
+  // No '@' — treat as username. Spaces become dots so Firebase sees a valid address.
+  // e.g. "Jane Smith" → "Jane.Smith@circuitspractice.app"
+  const safePart   = idRaw.replace(/\s+/g, '.').replace(/[^a-zA-Z0-9._%+\-]/g, '');
+  const loginEmail = safePart + '@circuitspractice.app';
+  console.info('[doLogin] username path →', loginEmail);
   try {
-    await signInWithEmailAndPassword(auth, email, pass);
+    await signInWithEmailAndPassword(auth, loginEmail, pass);
     // onAuthStateChanged handles the rest
   } catch(e) {
     if (e.code === 'auth/user-not-found' || e.code === 'auth/invalid-credential' ||
         e.code === 'auth/wrong-password'  || e.code === 'auth/invalid-email') {
-      showAuthErr('l-err', 'Username/email or password incorrect.');
+      // If username login failed, the account may have been created with a real
+      // email instead (older creation path). Tell the student to try their email.
+      showAuthErr('l-err', 'Username not recognised — try signing in with your email address instead.');
     } else {
+      console.error('[doLogin] username path failed:', e.code, e.message);
       showAuthErr('l-err', e.message);
     }
   }
@@ -897,6 +911,8 @@ window.adminCreateUser = async function() {
     }
   }
 };
+
+
 window.changePassword = async function() {
   const newP  = document.getElementById('cp-new').value;
   const newP2 = document.getElementById('cp-new2').value;
