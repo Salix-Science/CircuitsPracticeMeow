@@ -900,10 +900,15 @@ window.adminCreateUser = async function() {
   err.classList.add('hidden'); ok.classList.add('hidden');
   const showErr = m => { err.querySelector('span').textContent = m; err.classList.remove('hidden'); };
 
+  const adminPass = (document.getElementById('mu-admin-pass')?.value || '').trim();
+
   if (!email)                                   { showErr('Enter an email address.');      return; }
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) { showErr('Enter a valid email address.'); return; }
   if (!username)                                { showErr('Enter a username.');            return; }
   if (pass.length < 6)                          { showErr('Password needs 6+ characters.');return; }
+  if (!adminPass)                               { showErr('Enter your admin password so you stay signed in after.');return; }
+
+  const adminEmail = window.S.authEmail;
 
   // Username uniqueness check — username is the display name in analytics/grades
   try {
@@ -913,40 +918,39 @@ window.adminCreateUser = async function() {
     }
   } catch(e) { console.warn('username uniqueness check skipped:', e); }
 
-  // Email is the Firebase Auth identity — students sign in with their real email.
-  // Username is their display name only (shown in analytics, grade tables, etc.).
-  // Suppress the auth observer during creation to prevent the race condition where
-  // onAuthStateChanged fires before the Firestore profile write completes.
+  // Suppress observer during creation — Firebase signs us in as the new user
+  // the moment createUserWithEmailAndPassword resolves. We write the profile
+  // as that user, then immediately re-sign in as admin before releasing.
   window._suppressAuthObserver = true;
   try {
     const cred = await createUserWithEmailAndPassword(auth, email, pass);
-    // Write Firestore profile before releasing the observer
+    // Write profile while authenticated as the new user (allowed by Firestore rules)
     await setDoc(doc(db, 'users', cred.user.uid), {
       username, isAdmin, scores:{}, probScores:{}, streak:0, assignSubmissions:{},
       notifPrefs: { email, posts:true, announcements:true, assignments:true },
     });
-    track('admin_create_account', { is_admin: isAdmin });
+    const createdUid = cred.user.uid;
+    // Re-sign in as admin BEFORE releasing the observer — stays on admin panel
+    await signInWithEmailAndPassword(auth, adminEmail, adminPass);
+    window._suppressAuthObserver = false;
+    logAdminAction('create_account', { uid: createdUid, username, isAdmin, hasEmail: true }).catch(() => {});
     ok.textContent = `"${username}" created. They sign in with ${email}.`;
     ok.classList.remove('hidden');
     ['mu-email','mu-user','mu-pass'].forEach(id => document.getElementById(id).value = '');
     document.getElementById('mu-admin').checked = false;
-    const createdUid = cred.user.uid;
-    // Sign out before releasing the observer so onAuthStateChanged sees null
-    await signOut(auth);
-    window._suppressAuthObserver = false;
-    // Log after signing out — by this point we're no longer the new user,
-    // so the audit write won't be blocked by Firestore rules
-    logAdminAction('create_account', { uid: createdUid, username, isAdmin, hasEmail: true }).catch(() => {});
     renderUserMgmt();
   } catch(e) {
+    window._suppressAuthObserver = false;
     if (e.code === 'auth/email-already-in-use') {
       showErr('An account with that email already exists.');
+    } else if (e.code === 'auth/wrong-password' || e.code === 'auth/invalid-credential') {
+      showErr('Account created but could not re-sign you in — admin password was wrong. Please sign in again.');
+      await signOut(auth);
     } else {
       console.error('adminCreateUser failed:', e.code, e.message);
       showErr(e.message);
+      await signOut(auth);
     }
-    await signOut(auth);
-    window._suppressAuthObserver = false;
   }
 };
 
