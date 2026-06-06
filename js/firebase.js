@@ -8,6 +8,7 @@ import {
   createUserWithEmailAndPassword,
   signInWithEmailAndPassword,
   sendPasswordResetEmail,
+  updateEmail,
   signOut,
   onAuthStateChanged
 } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
@@ -670,10 +671,30 @@ window.submitEmailMigration = async function() {
 
   if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) { showErr('Enter a valid email address.'); return; }
 
-  // Save the contact email to the profile for notifications.
-  // Login continues to use the username — we do NOT change the Firebase Auth
-  // identity here, which would break username-based login. For password reset,
-  // ask your instructor to set a new password via the Firebase console.
+  // Step 1 — Update the Firebase Auth identity so self-serve password reset works.
+  // updateEmail() requires a recent login; if the session is too old Firebase throws
+  // auth/requires-recent-login and we tell the student to sign out and back in first.
+  try {
+    await updateEmail(auth.currentUser, email);
+    console.info('[email-migration] Firebase Auth email updated to', email);
+    // Reflect the new auth email in session state so the migration prompt never
+    // fires again this session (maybePromptEmailMigration checks window.S.authEmail).
+    window.S.authEmail = email;
+  } catch(e) {
+    if (e.code === 'auth/requires-recent-login') {
+      showErr('Your session has expired. Please sign out and sign back in, then try again.');
+    } else if (e.code === 'auth/email-already-in-use') {
+      showErr('That email is already linked to another account.');
+    } else if (e.code === 'auth/invalid-email') {
+      showErr("That doesn't look like a valid email address.");
+    } else {
+      console.error('[email-migration] updateEmail failed:', e.code, e.message);
+      showErr('Could not update login email — see console for details.');
+    }
+    return; // Don't save to Firestore if Auth update failed
+  }
+
+  // Step 2 — Save the email to notifPrefs so the notification system can reach them.
   try {
     const u = window.DB.users[window.S.user];
     if (u) {
@@ -687,11 +708,13 @@ window.submitEmailMigration = async function() {
       await saveUserOnly();
     }
     logAdminAction('set_contact_email', { username: window.S.user });
-    showOk('Saved! Your email is on file for notifications.');
-    setTimeout(closeEmailMigrate, 2000);
+    showOk('Done! You can now reset your password by email.');
+    setTimeout(closeEmailMigrate, 2500);
   } catch(e) {
-    console.error('submitEmailMigration failed:', e);
-    showErr('Could not save — see console for details.');
+    // Auth email was already updated — partial success. Let them know.
+    console.error('[email-migration] Firestore save failed:', e);
+    showOk('Login email updated! (Profile save failed — try again from Profile.)');
+    setTimeout(closeEmailMigrate, 3500);
   }
 };
 
