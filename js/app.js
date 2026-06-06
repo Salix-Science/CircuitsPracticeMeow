@@ -56,7 +56,7 @@ window.showAdminTab = function(t, el) {
   if(t==='problem-analysis') renderProblemAnalysis?.();
   if(t==='coursegrades') renderCourseGrades?.();
   if(t==='sections') renderSections?.();
-  if(t==='account') renderNotificationSettings?.();
+  if(t==='account') window.renderNotificationSettings?.();
 };
 
 window.showEdTab = function(t, el) {

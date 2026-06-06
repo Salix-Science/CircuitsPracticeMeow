@@ -940,15 +940,11 @@ window.adminCreateUser = async function() {
       showErr(e.message);
     }
   } finally {
-    // Always release the observer and sign back in as the admin
+    // Sign out BEFORE releasing the observer so that when the observer fires
+    // it sees a null user (logged-out state) and shows the login screen cleanly.
+    // The admin simply signs back in — no broken intermediate state.
+    await signOut(auth);
     window._suppressAuthObserver = false;
-    const adminEmail = window.S.authEmail;
-    if (adminEmail) {
-      const passEl = document.getElementById('mu-pass');
-      // We don't have the admin's password here — sign them out cleanly
-      // so they see the login screen rather than being in a broken state.
-      await signOut(auth);
-    }
   }
 };
 
