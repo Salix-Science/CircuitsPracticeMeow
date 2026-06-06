@@ -543,50 +543,51 @@ window.doLogin = async function() {
   const pass  = document.getElementById('l-pass').value;
   if (!idRaw || !pass) { showAuthErr('l-err', 'Enter your email and password.'); return; }
 
-  // Primary attempt: use whatever was typed.
-  // - Real email (contains @) → try directly.
-  // - Plain username (no @) → map to username@circuitspractice.app (legacy fallback).
-  let primaryEmail;
-  if (idRaw.includes('@')) {
-    primaryEmail = idRaw.toLowerCase();
-  } else {
+  // Determine the Firebase Auth email to sign in with.
+  // New accounts: real email is the Auth identity — use it directly.
+  // Legacy accounts: Auth identity is username@circuitspractice.app.
+  //   - If they type their username (no @): map it directly.
+  //   - If they type their real email (@): look it up in Firestore first
+  //     so we never make a failed sign-in attempt with the wrong address
+  //     (a failed attempt can trigger Firebase rate-limiting).
+  let loginEmail;
+
+  if (!idRaw.includes('@')) {
+    // Plain username — map to legacy auth address
     const safePart = idRaw.replace(/\s+/g, '.').replace(/[^a-zA-Z0-9._%+\-]/g, '');
-    primaryEmail = safePart + '@circuitspractice.app';
+    loginEmail = safePart + '@circuitspractice.app';
+  } else {
+    // Real email typed — check if it belongs to a legacy account first
+    const typedEmail = idRaw.toLowerCase();
+    try {
+      const snap = await getDocs(collection(db, 'users'));
+      const match = snap.docs.map(d => d.data())
+        .find(u => (u.notifPrefs?.email || '').toLowerCase() === typedEmail);
+      if (match && match.username) {
+        // Legacy account: sign in with their @circuitspractice.app address
+        const safePart = match.username.replace(/\s+/g, '.').replace(/[^a-zA-Z0-9._%+\-]/g, '');
+        loginEmail = safePart + '@circuitspractice.app';
+      } else {
+        // New account: real email is the Auth identity
+        loginEmail = typedEmail;
+      }
+    } catch(e) {
+      // Firestore lookup failed — fall back to trying the email directly
+      console.warn('doLogin: Firestore lookup failed, trying email directly', e);
+      loginEmail = typedEmail;
+    }
   }
 
   try {
-    await signInWithEmailAndPassword(auth, primaryEmail, pass);
-    return; // onAuthStateChanged handles the rest
+    await signInWithEmailAndPassword(auth, loginEmail, pass);
+    // onAuthStateChanged handles the rest
   } catch(e) {
-    const notFound = e.code === 'auth/user-not-found' || e.code === 'auth/invalid-credential' ||
-                     e.code === 'auth/wrong-password'  || e.code === 'auth/invalid-email';
-    if (!notFound) { showAuthErr('l-err', e.message); return; }
-
-    // Secondary attempt: the student typed their real contact email but their
-    // Firebase Auth identity is still username@circuitspractice.app (legacy account
-    // that has stored a real email in notifPrefs but hasn't migrated Auth yet).
-    // Look up who owns that contact email and retry with their auth address.
-    if (idRaw.includes('@')) {
-      try {
-        const snap = await getDocs(collection(db, 'users'));
-        const match = snap.docs.map(d => d.data())
-          .find(u => (u.notifPrefs?.email || '').toLowerCase() === primaryEmail);
-        if (match && match.username) {
-          const safePart = match.username.replace(/\s+/g, '.').replace(/[^a-zA-Z0-9._%+\-]/g, '');
-          const legacyEmail = safePart + '@circuitspractice.app';
-          await signInWithEmailAndPassword(auth, legacyEmail, pass);
-          return; // success — onAuthStateChanged handles the rest
-        }
-      } catch(e2) {
-        // If the legacy retry also fails, fall through to the generic error
-        if (e2.code !== 'auth/user-not-found' && e2.code !== 'auth/invalid-credential' &&
-            e2.code !== 'auth/wrong-password') {
-          showAuthErr('l-err', e2.message); return;
-        }
-      }
+    if (e.code === 'auth/user-not-found' || e.code === 'auth/invalid-credential' ||
+        e.code === 'auth/wrong-password'  || e.code === 'auth/invalid-email') {
+      showAuthErr('l-err', 'Email or password incorrect.');
+    } else {
+      showAuthErr('l-err', e.message);
     }
-
-    showAuthErr('l-err', 'Email or password incorrect.');
   }
 };
 
