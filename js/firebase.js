@@ -8,6 +8,7 @@ import {
   createUserWithEmailAndPassword,
   signInWithEmailAndPassword,
   sendPasswordResetEmail,
+  updateEmail,
   signOut,
   onAuthStateChanged
 } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
@@ -656,11 +657,17 @@ window.submitEmailMigration = async function() {
 
   if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) { showErr('Enter a valid email address.'); return; }
 
-  // Save the contact email to the profile for notifications.
-  // Login continues to use the username — we do NOT change the Firebase Auth
-  // identity here, which would break username-based login. For password reset,
-  // ask your instructor to set a new password via the Firebase console.
   try {
+    // Step 1: Update Firebase Auth identity so the student can sign in
+    // with their real email from now on (replaces username@circuitspractice.app).
+    // updateEmail requires a recent sign-in, which is always true here since
+    // this modal appears immediately after login.
+    if (auth.currentUser) {
+      await updateEmail(auth.currentUser, email);
+      window.S.authEmail = email; // update in-session state so modal never re-shows
+    }
+
+    // Step 2: Save the email to the Firestore profile for notifications.
     const u = window.DB.users[window.S.user];
     if (u) {
       const prev = u.notifPrefs || {};
@@ -672,12 +679,20 @@ window.submitEmailMigration = async function() {
       };
       await saveUserOnly();
     }
-    logAdminAction('set_contact_email', { username: window.S.user });
-    showOk('Saved! Your email is on file for notifications.');
-    setTimeout(closeEmailMigrate, 2000);
+    logAdminAction('set_login_email', { username: window.S.user });
+    showOk('Done! You can now sign in with ' + email + '.');
+    setTimeout(closeEmailMigrate, 2500);
   } catch(e) {
     console.error('submitEmailMigration failed:', e);
-    showErr('Could not save — see console for details.');
+    if (e.code === 'auth/requires-recent-login') {
+      showErr('Session expired — please sign out and sign back in, then try again.');
+    } else if (e.code === 'auth/email-already-in-use') {
+      showErr('That email is already linked to another account.');
+    } else if (e.code === 'auth/invalid-email') {
+      showErr('That doesn\'t look like a valid email address.');
+    } else {
+      showErr('Could not update — see console for details.');
+    }
   }
 };
 
