@@ -480,6 +480,8 @@
         <button class="admin-tab"        onclick="showAdminTab('users',this)">User management</button>
         <button class="admin-tab"        onclick="showAdminTab('sections',this)"><i class="ti ti-users-group" style="font-size:11px"></i> Sections</button>
         <button class="admin-tab"        onclick="showAdminTab('account',this);showAccountTab()">My account</button>
+        <button class="admin-tab"        onclick="showAdminTab('sitegrades',this)"><i class="ti ti-report-analytics" style="font-size:11px"></i> Course Grades</button>
+        <button class="admin-tab"        onclick="showAdminTab('problems',this)"><i class="ti ti-microscope" style="font-size:11px"></i> Problem Analysis</button>
         <button class="admin-tab"        onclick="showAdminTab('gradebook',this)"><i class="ti ti-calculator" style="font-size:11px"></i> Gradebook</button>
         <button class="admin-tab"        onclick="showAdminTab('notifications',this)"><i class="ti ti-bell" style="font-size:11px"></i> Notifications</button>
       </div>
@@ -492,26 +494,17 @@
             <span><i class="ti ti-users"></i> Students</span>
             <div style="display:flex;align-items:center;gap:8px">
               <label style="font-size:11px;color:var(--text3);text-transform:uppercase;letter-spacing:.08em;margin:0">Section:</label>
-              <select id="analytics-section-filter" style="padding:4px 8px;font-size:12px;width:auto" onchange="onAnalyticsSection(this.value)">
+              <select id="analytics-section-filter" style="padding:4px 8px;font-size:12px;width:auto" onchange="_analyticsFilterSection()">
                 <option value="">All sections</option>
               </select>
             </div>
           </div>
-          <table class="dash-table"><thead id="dt-students-head"><tr>
-            <th onclick="analyticsSort('name')"     style="cursor:pointer">Username<span id="an-arrow-name"></span></th>
-            <th onclick="analyticsSort('section')"  style="cursor:pointer">Section<span id="an-arrow-section"></span></th>
-            <th onclick="analyticsSort('attempted')" style="cursor:pointer">Attempted<span id="an-arrow-attempted"></span></th>
-            <th onclick="analyticsSort('correct')"  style="cursor:pointer;color:var(--green)">Correct<span id="an-arrow-correct"></span></th>
-            <th onclick="analyticsSort('wrong')"    style="cursor:pointer;color:var(--red)">Wrong<span id="an-arrow-wrong"></span></th>
-            <th onclick="analyticsSort('accuracy')" style="cursor:pointer">Accuracy<span id="an-arrow-accuracy"></span></th>
-            <th onclick="analyticsSort('streak')"   style="cursor:pointer">Streak<span id="an-arrow-streak"></span></th>
-            <th>Role</th>
-          </tr></thead>
+          <table class="dash-table"><thead id="dt-students-head"><tr><th>Username</th><th>Section</th><th>Attempted</th><th>Accuracy</th><th>Streak</th><th>Role</th></tr></thead>
           <tbody id="dt-students"></tbody></table>
         </div>
         <div class="dash-section">
           <div class="dash-head"><span><i class="ti ti-chart-bar"></i> Topic accuracy</span></div>
-          <table class="dash-table"><thead><tr><th>Topic</th><th>Attempts</th><th style="color:var(--green)">Correct</th><th style="color:var(--red)">Wrong</th><th>Accuracy</th></tr></thead>
+          <table class="dash-table"><thead><tr><th>Topic</th><th>Attempts</th><th>Accuracy</th></tr></thead>
           <tbody id="dt-topics"></tbody></table>
         </div>
       </div>
@@ -626,6 +619,31 @@
           </p>
           <div id="admin-notif-wrap"></div>
         </div>
+      </div>
+
+      <!-- Course Grades (built from site data) -->
+      <div class="admin-subtab" id="atab-sitegrades">
+        <div style="display:flex;align-items:center;gap:12px;margin-bottom:14px;flex-wrap:wrap">
+          <div style="font-size:11px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.08em">
+            <i class="ti ti-report-analytics" style="font-size:12px"></i> Course Grades
+          </div>
+          <div style="display:flex;align-items:center;gap:8px;margin-left:auto;flex-wrap:wrap">
+            <label style="font-size:11px;color:var(--text3);text-transform:uppercase;letter-spacing:.08em;margin:0">Section:</label>
+            <select id="cg-section-filter" style="font-size:12px;padding:5px 8px;width:auto" onchange="onCourseGradeSection()">
+              <option value="">All students</option>
+            </select>
+            <button class="btn btn-sm" onclick="refreshCourseGrades()"><i class="ti ti-refresh"></i> Refresh</button>
+            <button class="btn btn-sm" onclick="exportCourseGradesCSV()"><i class="ti ti-download"></i> CSV</button>
+            <button class="btn btn-sm" onclick="exportCourseGradesPDF()"><i class="ti ti-printer"></i> PDF</button>
+          </div>
+        </div>
+        <div id="cg-content"></div>
+      </div>
+
+      <!-- Problem Analysis -->
+      <div class="admin-subtab" id="atab-problems">
+        <div class="dash-grid" id="pa-metrics" style="margin-bottom:14px"></div>
+        <div id="pa-wrap"></div>
       </div>
 
       <!-- Gradebook subtab -->
