@@ -49,51 +49,113 @@ window.assignScoreForUser = function assignScoreForUser(assign, user){
 
 // ── Analytics panel ───────────────────────────
 window.renderAnalytics = async function renderAnalytics(){
-  // Fetch all users fresh from Firestore — window.DB.users only contains the current user
   let allUsers = [];
-  try {
-    allUsers = await window._fetchAllUsers();
-  } catch(e) {
-    console.error('renderAnalytics: failed to fetch users', e);
-    return;
-  }
-  const users = allUsers.map(u => [u.username || u.uid, u]);
-  const allAtt=users.reduce((s,[,u])=>s+Object.values(u.scores||{}).reduce((a,v)=>a+v.attempted,0),0);
-  const allCor=users.reduce((s,[,u])=>s+Object.values(u.scores||{}).reduce((a,v)=>a+v.correct,0),0);
-  const acc=allAtt?Math.round(allCor/allAtt*100):0;
-  const enabledProbs=window.DB.problems.filter(p=>p.enabled!==false).length;
-  const pubPosts=window.DB.posts.filter(p=>p.status==='published').length;
+  try { allUsers = await window._fetchAllUsers(); }
+  catch(e) { console.error('renderAnalytics: failed to fetch users', e); return; }
+
+  // uid -> section name (sections store studentUids)
+  const uidToSection = {};
+  (window.DB.sections || []).forEach(sec => {
+    (sec.studentUids || []).forEach(uid => { uidToSection[uid] = sec.name; });
+  });
+
+  // One row per user with correct / wrong / accuracy / section
+  window._analyticsRows = allUsers.map(u => {
+    const tot = Object.values(u.scores||{}).reduce((s,v)=>s+(v.attempted||0),0);
+    const cor = Object.values(u.scores||{}).reduce((s,v)=>s+(v.correct||0),0);
+    return {
+      name: u.username || u.uid, uid: u.uid,
+      section: uidToSection[u.uid] || '—',
+      attempted: tot, correct: cor, wrong: tot - cor,
+      accuracy: tot ? Math.round(cor/tot*100) : 0,
+      streak: u.streak || 0, isAdmin: !!u.isAdmin,
+    };
+  });
+
+  const allAtt = window._analyticsRows.reduce((s,r)=>s+r.attempted,0);
+  const allCor = window._analyticsRows.reduce((s,r)=>s+r.correct,0);
+  const acc = allAtt ? Math.round(allCor/allAtt*100) : 0;
+  const enabledProbs = window.DB.problems.filter(p=>p.enabled!==false).length;
+  const pubPosts = window.DB.posts.filter(p=>p.status==='published').length;
   document.getElementById('dash-metrics').innerHTML=`
-    <div class="metric-card"><div class="metric-label">Students</div><div class="metric-value">${users.filter(([,u])=>!u.isAdmin).length}</div><div class="metric-sub">registered</div></div>
-    <div class="metric-card"><div class="metric-label">Total attempts</div><div class="metric-value">${allAtt}</div></div>
+    <div class="metric-card"><div class="metric-label">Students</div><div class="metric-value">${window._analyticsRows.filter(r=>!r.isAdmin).length}</div><div class="metric-sub">registered</div></div>
+    <div class="metric-card"><div class="metric-label">Total attempts</div><div class="metric-value">${allAtt}</div><div class="metric-sub">${allCor} right / ${allAtt-allCor} wrong</div></div>
     <div class="metric-card"><div class="metric-label">Class accuracy</div><div class="metric-value" style="color:${acc>=70?'var(--green)':acc>=50?'var(--warn)':'var(--red)'}">${acc}%</div></div>
     <div class="metric-card"><div class="metric-label">Problems</div><div class="metric-value">${enabledProbs}<span style="font-size:14px;color:var(--text4)">/${window.DB.problems.length}</span></div><div class="metric-sub">enabled / total</div></div>
     <div class="metric-card"><div class="metric-label">Blog posts</div><div class="metric-value">${pubPosts}<span style="font-size:14px;color:var(--text4)">/${window.DB.posts.length}</span></div><div class="metric-sub">published / total</div></div>`;
-  const stb=document.getElementById('dt-students');stb.innerHTML='';
-  if(!users.length){stb.innerHTML='<tr><td colspan="5" style="color:var(--text4)">No users yet.</td></tr>';}
-  users.sort((a,b)=>Object.values(b[1].scores||{}).reduce((s,v)=>s+v.attempted,0)-Object.values(a[1].scores||{}).reduce((s,v)=>s+v.attempted,0))
-  .forEach(([name,u])=>{
-    const tot=Object.values(u.scores||{}).reduce((s,v)=>s+v.attempted,0);
-    const cor=Object.values(u.scores||{}).reduce((s,v)=>s+v.correct,0);
-    const pct=tot?Math.round(cor/tot*100):0,col=pct>=70?'var(--green)':pct>=50?'var(--warn)':'var(--red)';
-    stb.innerHTML+=`<tr><td>${escHtml(name)}</td><td>${tot}</td>
-      <td><div class="acc-bar-outer"><div class="acc-bar-inner" style="width:${pct}%;background:${col}"></div></div>${pct}%</td>
-      <td>🔥${escHtml(String(u.streak||0))}</td><td>${u.isAdmin?'<span class="pill pill-admin">admin</span>':'student'}</td></tr>`;
-  });
+
+  const secSel = document.getElementById('analytics-section-filter');
+  if (secSel) {
+    const current = window._analyticsSectionFilter || '';
+    secSel.innerHTML = '<option value="">All sections</option>' +
+      (window.DB.sections||[]).map(s=>`<option value="${escHtml(s.name)}">${escHtml(s.name)} (${(s.studentUids||[]).length})</option>`).join('');
+    secSel.value = current;
+  }
+
+  window._analyticsSort = window._analyticsSort || { key:'attempted', dir:-1 };
+  renderAnalyticsTable();
+
+  // Topic table — now with Correct / Wrong
   const topicMap={};
-  users.forEach(([,u])=>Object.entries(u.scores||{}).forEach(([k,sc])=>{
+  allUsers.forEach(u=>Object.entries(u.scores||{}).forEach(([k,sc])=>{
     if(!topicMap[k])topicMap[k]={correct:0,attempted:0};
-    topicMap[k].correct+=sc.correct;topicMap[k].attempted+=sc.attempted;
+    topicMap[k].correct+=(sc.correct||0); topicMap[k].attempted+=(sc.attempted||0);
   }));
   const tb=document.getElementById('dt-topics');tb.innerHTML='';
   Object.entries(topicMap).sort((a,b)=>b[1].attempted-a[1].attempted).forEach(([k,sc])=>{
     const pct=sc.attempted?Math.round(sc.correct/sc.attempted*100):0,col=pct>=70?'var(--green)':pct>=50?'var(--warn)':'var(--red)';
     tb.innerHTML+=`<tr><td>${escHtml(k)}</td><td>${sc.attempted}</td>
+      <td style="color:var(--green);font-family:var(--mono)">${sc.correct}</td>
+      <td style="color:var(--red);font-family:var(--mono)">${sc.attempted-sc.correct}</td>
       <td><div class="acc-bar-outer"><div class="acc-bar-inner" style="width:${pct}%;background:${col}"></div></div>${pct}%</td></tr>`;
   });
-  if(!Object.keys(topicMap).length)tb.innerHTML='<tr><td colspan="3" style="color:var(--text4)">No practice data yet.</td></tr>';
-}
+  if(!Object.keys(topicMap).length)tb.innerHTML='<tr><td colspan="5" style="color:var(--text4)">No practice data yet.</td></tr>';
+};
 
+window.renderAnalyticsTable = function renderAnalyticsTable(){
+  const stb = document.getElementById('dt-students'); if(!stb) return;
+  const rows = (window._analyticsRows||[]).slice();
+  const sectionFilter = window._analyticsSectionFilter || '';
+  const filtered = sectionFilter ? rows.filter(r=>r.section===sectionFilter) : rows;
+  const { key, dir } = window._analyticsSort || { key:'attempted', dir:-1 };
+  filtered.sort((a,b)=>{
+    let av=a[key], bv=b[key];
+    if(typeof av==='string') return av.localeCompare(bv)*dir;
+    return ((av||0)-(bv||0))*dir;
+  });
+  ['name','section','attempted','correct','wrong','accuracy','streak'].forEach(k=>{
+    const el=document.getElementById('an-arrow-'+k);
+    if(el) el.textContent = (key===k) ? (dir>0?' ▲':' ▼') : '';
+  });
+  if(!filtered.length){
+    stb.innerHTML='<tr><td colspan="8" style="color:var(--text4)">No students'+(sectionFilter?' in this section':'')+' yet.</td></tr>';
+    return;
+  }
+  stb.innerHTML = filtered.map(r=>{
+    const col=r.accuracy>=70?'var(--green)':r.accuracy>=50?'var(--warn)':'var(--red)';
+    return `<tr>
+      <td>${escHtml(r.name)}</td>
+      <td style="color:var(--text3)">${escHtml(r.section)}</td>
+      <td>${r.attempted}</td>
+      <td style="color:var(--green);font-family:var(--mono)">${r.correct}</td>
+      <td style="color:var(--red);font-family:var(--mono)">${r.wrong}</td>
+      <td><div class="acc-bar-outer"><div class="acc-bar-inner" style="width:${r.accuracy}%;background:${col}"></div></div>${r.accuracy}%</td>
+      <td>🔥${escHtml(String(r.streak))}</td>
+      <td>${r.isAdmin?'<span class="pill pill-admin">admin</span>':'student'}</td>
+    </tr>`;
+  }).join('');
+};
+
+window.analyticsSort = function analyticsSort(key){
+  const s = window._analyticsSort || (window._analyticsSort = { key:'attempted', dir:-1 });
+  if(s.key===key){ s.dir=-s.dir; } else { s.key=key; s.dir=(key==='name'||key==='section')?1:-1; }
+  renderAnalyticsTable();
+};
+
+window.onAnalyticsSection = function onAnalyticsSection(val){
+  window._analyticsSectionFilter = val;
+  renderAnalyticsTable();
+};
 // ── Assignment selector buttons ───────────────
 window.renderGradeBtns = function renderGradeBtns(){
   const wrap=document.getElementById('grade-assign-btns');
