@@ -517,6 +517,8 @@
         <button class="admin-tab"        onclick="showAdminTab('account',this);showAccountTab()">My account</button>
         <button class="admin-tab"        onclick="showAdminTab('gradebook',this)"><i class="ti ti-calculator" style="font-size:11px"></i> Gradebook</button>
         <button class="admin-tab"        onclick="showAdminTab('notifications',this)"><i class="ti ti-bell" style="font-size:11px"></i> Notifications</button>
+        <button class="admin-tab"        onclick="showAdminTab('problem-analysis',this)"><i class="ti ti-chart-dots" style="font-size:11px"></i> Problem Analysis</button>
+        <button class="admin-tab"        onclick="showAdminTab('coursegrades',this)"><i class="ti ti-school" style="font-size:11px"></i> Course Grades</button>
       </div>
 
       <!-- Analytics -->
@@ -733,6 +735,37 @@
           </div>
         </div>
       </div>
+      <!-- Problem Analysis subtab -->
+      <div class="admin-subtab" id="atab-problem-analysis">
+        <div style="padding:1.25rem;overflow-y:auto;flex:1">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;flex-wrap:wrap;gap:8px">
+            <div style="font-size:11px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.08em">Problem Analysis</div>
+            <button class="btn btn-sm" onclick="renderProblemAnalysis()"><i class="ti ti-refresh"></i> Refresh</button>
+          </div>
+          <div class="dash-grid" id="pa-metrics" style="margin-bottom:16px"></div>
+          <div id="pa-wrap"></div>
+        </div>
+      </div>
+
+      <!-- Course Grades subtab -->
+      <div class="admin-subtab" id="atab-coursegrades">
+        <div style="padding:1.25rem;overflow-y:auto;flex:1">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;flex-wrap:wrap;gap:8px">
+            <div style="font-size:11px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.08em">Course Grades</div>
+            <div style="display:flex;align-items:center;gap:8px">
+              <label style="font-size:11px;color:var(--text3);text-transform:uppercase;letter-spacing:.08em;margin:0">Section:</label>
+              <select id="cg-section-filter" style="padding:4px 8px;font-size:12px;width:auto" onchange="onCourseGradeSection()">
+                <option value="">All students</option>
+              </select>
+              <button class="btn btn-sm" onclick="refreshCourseGrades()"><i class="ti ti-refresh"></i> Refresh</button>
+              <button class="btn btn-sm" onclick="exportCourseGradesCSV()"><i class="ti ti-table-export"></i> CSV</button>
+              <button class="btn btn-sm" onclick="exportCourseGradesPDF()"><i class="ti ti-file-text"></i> PDF</button>
+            </div>
+          </div>
+          <div id="cg-content"></div>
+        </div>
+      </div>
+
     </div>
   </div><!-- /view-admin -->
 
