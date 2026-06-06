@@ -576,12 +576,13 @@ window.doLogin = async function() {
   } catch(e) {
     if (e.code === 'auth/user-not-found' || e.code === 'auth/invalid-credential' ||
         e.code === 'auth/wrong-password'  || e.code === 'auth/invalid-email') {
-      // If no cached mapping exists and direct email failed, hint at username
-      if (idRaw.includes('@') && !localStorage.getItem('cp_legacy_' + idRaw.toLowerCase())) {
-        showAuthErr('l-err', 'Email or password incorrect.');
-      } else {
-        showAuthErr('l-err', 'Email or password incorrect.');
+      // If we used a cached legacy mapping and it failed, the mapping is stale
+      // (e.g. the old @circuitspractice.app account was deleted). Clear it so
+      // the next attempt tries the email directly and self-heals.
+      if (idRaw.includes('@')) {
+        localStorage.removeItem('cp_legacy_' + idRaw.toLowerCase());
       }
+      showAuthErr('l-err', 'Email or password incorrect.');
     } else {
       showAuthErr('l-err', e.message);
     }
