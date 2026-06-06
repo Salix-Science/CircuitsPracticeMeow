@@ -8,7 +8,6 @@ import {
   createUserWithEmailAndPassword,
   signInWithEmailAndPassword,
   sendPasswordResetEmail,
-  updateEmail,
   signOut,
   onAuthStateChanged
 } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
@@ -498,6 +497,35 @@ window.recordStreak = async function(correct) {
   } catch(e) { console.warn('recordStreak failed:', e); }
 };
 
+// Atomically increment the attempted count for a topic.
+// Called on the FIRST submission for any problem, right or wrong.
+window.recordAttempt = async function(topicKey) {
+  const uid = window.S.uid;
+  if (!uid) return;
+  try {
+    await updateDoc(doc(db, 'users', uid), {
+      [`scores.${topicKey}.attempted`]: increment(1),
+    });
+  } catch(e) {
+    // Field doesn't exist yet — create it
+    await setDoc(doc(db, 'users', uid), {
+      scores: { [topicKey]: { attempted: 1, correct: 0 } },
+    }, { merge: true });
+  }
+};
+
+// Atomically increment the correct count for a topic.
+// Called only the first time a student solves a problem.
+window.recordCorrect = async function(topicKey) {
+  const uid = window.S.uid;
+  if (!uid) return;
+  try {
+    await updateDoc(doc(db, 'users', uid), {
+      [`scores.${topicKey}.correct`]: increment(1),
+    });
+  } catch(e) { console.warn('recordCorrect failed:', e); }
+};
+
 
 window._fetchAllUsers = async function() {
   if (!window.S.isAdmin) {
@@ -544,39 +572,25 @@ window.doLogin = async function() {
   const pass  = document.getElementById('l-pass').value;
   if (!idRaw || !pass) { showAuthErr('l-err', 'Enter your username/email and password.'); return; }
 
-  // If input contains '@', treat it as a real email directly.
+  // Accept either a real email (contains @) or a username. For legacy accounts
+  // the username maps to username@circuitspractice.app. Spaces in the username
+  // are encoded as dots so Firebase sees a valid email address.
+  // New accounts (created with a real email) always log in by email.
+  let email;
   if (idRaw.includes('@')) {
-    try {
-      await signInWithEmailAndPassword(auth, idRaw.toLowerCase(), pass);
-      return; // onAuthStateChanged handles the rest
-    } catch(e) {
-      if (e.code === 'auth/user-not-found' || e.code === 'auth/invalid-credential' ||
-          e.code === 'auth/wrong-password'  || e.code === 'auth/invalid-email') {
-        showAuthErr('l-err', 'Email or password incorrect.');
-      } else {
-        console.error('[doLogin] email path failed:', e.code, e.message);
-        showAuthErr('l-err', e.message);
-      }
-      return;
-    }
+    email = idRaw;
+  } else {
+    const safePart = idRaw.replace(/\s+/g, '.').replace(/[^a-zA-Z0-9._%+\-]/g, '');
+    email = safePart + '@circuitspractice.app';
   }
-
-  // No '@' — treat as username. Spaces become dots so Firebase sees a valid address.
-  // e.g. "Jane Smith" → "Jane.Smith@circuitspractice.app"
-  const safePart   = idRaw.replace(/\s+/g, '.').replace(/[^a-zA-Z0-9._%+\-]/g, '');
-  const loginEmail = safePart + '@circuitspractice.app';
-  console.info('[doLogin] username path →', loginEmail);
   try {
-    await signInWithEmailAndPassword(auth, loginEmail, pass);
+    await signInWithEmailAndPassword(auth, email, pass);
     // onAuthStateChanged handles the rest
   } catch(e) {
     if (e.code === 'auth/user-not-found' || e.code === 'auth/invalid-credential' ||
         e.code === 'auth/wrong-password'  || e.code === 'auth/invalid-email') {
-      // If username login failed, the account may have been created with a real
-      // email instead (older creation path). Tell the student to try their email.
-      showAuthErr('l-err', 'Username not recognised — try signing in with your email address instead.');
+      showAuthErr('l-err', 'Username/email or password incorrect.');
     } else {
-      console.error('[doLogin] username path failed:', e.code, e.message);
       showAuthErr('l-err', e.message);
     }
   }
@@ -671,30 +685,10 @@ window.submitEmailMigration = async function() {
 
   if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) { showErr('Enter a valid email address.'); return; }
 
-  // Step 1 — Update the Firebase Auth identity so self-serve password reset works.
-  // updateEmail() requires a recent login; if the session is too old Firebase throws
-  // auth/requires-recent-login and we tell the student to sign out and back in first.
-  try {
-    await updateEmail(auth.currentUser, email);
-    console.info('[email-migration] Firebase Auth email updated to', email);
-    // Reflect the new auth email in session state so the migration prompt never
-    // fires again this session (maybePromptEmailMigration checks window.S.authEmail).
-    window.S.authEmail = email;
-  } catch(e) {
-    if (e.code === 'auth/requires-recent-login') {
-      showErr('Your session has expired. Please sign out and sign back in, then try again.');
-    } else if (e.code === 'auth/email-already-in-use') {
-      showErr('That email is already linked to another account.');
-    } else if (e.code === 'auth/invalid-email') {
-      showErr("That doesn't look like a valid email address.");
-    } else {
-      console.error('[email-migration] updateEmail failed:', e.code, e.message);
-      showErr('Could not update login email — see console for details.');
-    }
-    return; // Don't save to Firestore if Auth update failed
-  }
-
-  // Step 2 — Save the email to notifPrefs so the notification system can reach them.
+  // Save the contact email to the profile for notifications.
+  // Login continues to use the username — we do NOT change the Firebase Auth
+  // identity here, which would break username-based login. For password reset,
+  // ask your instructor to set a new password via the Firebase console.
   try {
     const u = window.DB.users[window.S.user];
     if (u) {
@@ -708,13 +702,11 @@ window.submitEmailMigration = async function() {
       await saveUserOnly();
     }
     logAdminAction('set_contact_email', { username: window.S.user });
-    showOk('Done! You can now reset your password by email.');
-    setTimeout(closeEmailMigrate, 2500);
+    showOk('Saved! Your email is on file for notifications.');
+    setTimeout(closeEmailMigrate, 2000);
   } catch(e) {
-    // Auth email was already updated — partial success. Let them know.
-    console.error('[email-migration] Firestore save failed:', e);
-    showOk('Login email updated! (Profile save failed — try again from Profile.)');
-    setTimeout(closeEmailMigrate, 3500);
+    console.error('submitEmailMigration failed:', e);
+    showErr('Could not save — see console for details.');
   }
 };
 
@@ -934,7 +926,42 @@ window.adminCreateUser = async function() {
     }
   }
 };
+  // Username is the student's display name (shown in grade tables, analytics),
+  // so keep it unique even though it's no longer the login identity.
+  try {
+    const existing = await window._fetchAllUsers();
+    if (existing.some(u => (u.username || '').toLowerCase() === username.toLowerCase())) {
+      showErr('That username is already in use — pick another.'); return;
+    }
+  } catch(e) { console.warn('username uniqueness check skipped:', e); }
 
+  // The REAL email is the Firebase Auth identity. This is what makes native
+  // password reset work (Firebase sends reset mail to the Auth email), and the
+  // student signs in with their email. Username is stored as their display name.
+  try {
+    const cred = await createUserWithEmailAndPassword(auth, email, pass);
+    await setDoc(doc(db, 'users', cred.user.uid), {
+      username, isAdmin, scores:{}, probScores:{}, streak:0, assignSubmissions:{},
+      notifPrefs: { email, posts:true, announcements:true, assignments:true },
+    });
+    logAdminAction('create_account', { uid: cred.user.uid, username, isAdmin, hasEmail: true });
+    track('admin_create_account', { is_admin: isAdmin });
+    // NOTE: creating a user signs the admin into the new account (Firebase client
+    // SDK limitation without the Admin SDK). Hence the "sign back in" reminder.
+    ok.textContent = `"${username}" created. They sign in with ${email}. You may need to sign back in.`;
+    ok.classList.remove('hidden');
+    ['mu-email','mu-user','mu-pass'].forEach(id => document.getElementById(id).value = '');
+    document.getElementById('mu-admin').checked = false;
+    renderUserMgmt();
+  } catch(e) {
+    if (e.code === 'auth/email-already-in-use') {
+      showErr('An account with that email already exists.');
+    } else {
+      console.error('adminCreateUser failed:', e.code, e.message);
+      showErr(e.message);
+    }
+  }
+};
 
 window.changePassword = async function() {
   const newP  = document.getElementById('cp-new').value;
