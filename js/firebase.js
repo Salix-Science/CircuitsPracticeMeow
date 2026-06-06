@@ -497,35 +497,6 @@ window.recordStreak = async function(correct) {
   } catch(e) { console.warn('recordStreak failed:', e); }
 };
 
-// Atomically increment the attempted count for a topic.
-// Called on the FIRST submission for any problem, right or wrong.
-window.recordAttempt = async function(topicKey) {
-  const uid = window.S.uid;
-  if (!uid) return;
-  try {
-    await updateDoc(doc(db, 'users', uid), {
-      [`scores.${topicKey}.attempted`]: increment(1),
-    });
-  } catch(e) {
-    // Field doesn't exist yet — create it
-    await setDoc(doc(db, 'users', uid), {
-      scores: { [topicKey]: { attempted: 1, correct: 0 } },
-    }, { merge: true });
-  }
-};
-
-// Atomically increment the correct count for a topic.
-// Called only the first time a student solves a problem.
-window.recordCorrect = async function(topicKey) {
-  const uid = window.S.uid;
-  if (!uid) return;
-  try {
-    await updateDoc(doc(db, 'users', uid), {
-      [`scores.${topicKey}.correct`]: increment(1),
-    });
-  } catch(e) { console.warn('recordCorrect failed:', e); }
-};
-
 
 window._fetchAllUsers = async function() {
   if (!window.S.isAdmin) {
@@ -926,6 +897,42 @@ window.adminCreateUser = async function() {
     }
   }
 };
+  // Username is the student's display name (shown in grade tables, analytics),
+  // so keep it unique even though it's no longer the login identity.
+  try {
+    const existing = await window._fetchAllUsers();
+    if (existing.some(u => (u.username || '').toLowerCase() === username.toLowerCase())) {
+      showErr('That username is already in use — pick another.'); return;
+    }
+  } catch(e) { console.warn('username uniqueness check skipped:', e); }
+
+  // The REAL email is the Firebase Auth identity. This is what makes native
+  // password reset work (Firebase sends reset mail to the Auth email), and the
+  // student signs in with their email. Username is stored as their display name.
+  try {
+    const cred = await createUserWithEmailAndPassword(auth, email, pass);
+    await setDoc(doc(db, 'users', cred.user.uid), {
+      username, isAdmin, scores:{}, probScores:{}, streak:0, assignSubmissions:{},
+      notifPrefs: { email, posts:true, announcements:true, assignments:true },
+    });
+    logAdminAction('create_account', { uid: cred.user.uid, username, isAdmin, hasEmail: true });
+    track('admin_create_account', { is_admin: isAdmin });
+    // NOTE: creating a user signs the admin into the new account (Firebase client
+    // SDK limitation without the Admin SDK). Hence the "sign back in" reminder.
+    ok.textContent = `"${username}" created. They sign in with ${email}. You may need to sign back in.`;
+    ok.classList.remove('hidden');
+    ['mu-email','mu-user','mu-pass'].forEach(id => document.getElementById(id).value = '');
+    document.getElementById('mu-admin').checked = false;
+    renderUserMgmt();
+  } catch(e) {
+    if (e.code === 'auth/email-already-in-use') {
+      showErr('An account with that email already exists.');
+    } else {
+      console.error('adminCreateUser failed:', e.code, e.message);
+      showErr(e.message);
+    }
+  }
+};
 
 window.changePassword = async function() {
   const newP  = document.getElementById('cp-new').value;
@@ -947,6 +954,259 @@ window.changePassword = async function() {
       : e.message;
     err.classList.remove('hidden');
   }
+};
+
+
+// ── Batch account creation ────────────────────
+// Parses a CSV with columns: name, email (header row optional).
+// Creates one Firebase Auth account per row using the real email as the
+// login identity, generates a random password, and writes the Firestore
+// profile. Runs sequentially — the Firebase client SDK signs in as each
+// newly created user, so we re-authenticate as admin after every account.
+// Results (including generated passwords) are shown in the UI so the
+// instructor can distribute credentials.
+
+function _batchGenPassword() {
+  const chars = 'abcdefghjkmnpqrstuvwxyzABCDEFGHJKMNPQRSTUVWXYZ23456789!@#';
+  let p = '';
+  for (let i = 0; i < 12; i++) p += chars[Math.floor(Math.random() * chars.length)];
+  return p;
+}
+
+function _batchParseCSV(raw) {
+  // Split into non-empty lines
+  const lines = raw.split(/\r?\n/).map(l => l.trim()).filter(Boolean);
+  if (!lines.length) return { rows: [], error: 'CSV is empty.' };
+
+  // Detect delimiter: comma or tab
+  const delim = lines[0].includes('\t') ? '\t' : ',';
+
+  // Parse each line: strip surrounding quotes from each cell
+  const parsed = lines.map(l =>
+    l.split(delim).map(c => c.trim().replace(/^["']|["']$/g, '').trim())
+  );
+
+  // Skip header row if first row contains no @ sign in either cell
+  const firstRow = parsed[0];
+  const hasHeader = firstRow.length >= 2 &&
+    !firstRow[0].includes('@') && !firstRow[1].includes('@');
+  const dataRows = hasHeader ? parsed.slice(1) : parsed;
+
+  if (!dataRows.length) return { rows: [], error: 'No data rows found after header.' };
+
+  // Determine which column is name vs email
+  // Try to auto-detect: the column that contains @ is email
+  let nameCol = 0, emailCol = 1;
+  const sample = dataRows.find(r => r.length >= 2);
+  if (sample && sample[0].includes('@') && !sample[1].includes('@')) {
+    nameCol = 1; emailCol = 0;
+  }
+
+  const rows = [];
+  const emailSeen = new Set();
+  dataRows.forEach((cols, i) => {
+    if (cols.length < 2) return; // skip malformed rows
+    const name  = cols[nameCol]  || '';
+    const email = (cols[emailCol] || '').toLowerCase();
+    if (!name || !email) return;
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return; // skip invalid emails
+    if (emailSeen.has(email)) return; // deduplicate
+    emailSeen.add(email);
+    rows.push({ name, email });
+  });
+
+  if (!rows.length) return { rows: [], error: 'No valid name/email rows found. Check that columns are name and email.' };
+  return { rows, error: null };
+}
+
+window.batchPreviewCSV = function batchPreviewCSV() {
+  const raw = document.getElementById('batch-csv')?.value || '';
+  const preview = document.getElementById('batch-preview');
+  if (!preview) return;
+
+  const { rows, error } = _batchParseCSV(raw);
+  if (error) {
+    preview.innerHTML = `<div style="color:var(--red);font-size:12px;margin-top:8px"><i class="ti ti-alert-circle"></i> ${escHtml(error)}</div>`;
+    return;
+  }
+  preview.innerHTML = `
+    <div style="font-size:12px;color:var(--text3);margin-top:10px;margin-bottom:6px">
+      <i class="ti ti-check" style="color:var(--green)"></i>
+      Found <strong style="color:var(--text)">${rows.length}</strong> student${rows.length !== 1 ? 's' : ''} — review before creating:
+    </div>
+    <div style="overflow-x:auto;max-height:180px;overflow-y:auto;border:0.5px solid var(--border);border-radius:var(--r2)">
+      <table class="dash-table" style="font-size:11px">
+        <thead><tr><th>#</th><th>Name</th><th>Email</th></tr></thead>
+        <tbody>
+          ${rows.map((r, i) => `<tr><td style="color:var(--text4)">${i + 1}</td><td>${escHtml(r.name)}</td><td style="font-family:var(--mono)">${escHtml(r.email)}</td></tr>`).join('')}
+        </tbody>
+      </table>
+    </div>
+    <button class="btn btn-accent" style="margin-top:10px" onclick="batchCreateAccounts()">
+      <i class="ti ti-user-plus"></i> Create ${rows.length} account${rows.length !== 1 ? 's' : ''}
+    </button>`;
+};
+
+window.batchCreateAccounts = async function batchCreateAccounts() {
+  if (!window.S.isAdmin) { console.warn('[security] batchCreateAccounts blocked'); return; }
+
+  const raw = document.getElementById('batch-csv')?.value || '';
+  const { rows, error } = _batchParseCSV(raw);
+  if (error || !rows.length) return;
+
+  // Save admin credentials before we start (creating users signs us out)
+  const adminEmail    = window.S.authEmail;
+  const adminPassEl   = document.getElementById('batch-admin-pass');
+  const adminPass     = adminPassEl?.value || '';
+  if (!adminPass) {
+    const errEl = document.getElementById('batch-err');
+    if (errEl) { errEl.querySelector('span').textContent = 'Enter your admin password so we can re-sign you in after each account is created.'; errEl.classList.remove('hidden'); }
+    return;
+  }
+  document.getElementById('batch-err')?.classList.add('hidden');
+
+  const log     = document.getElementById('batch-log');
+  const results = document.getElementById('batch-results');
+  if (log)     { log.innerHTML = ''; log.style.display = 'block'; }
+  if (results) results.innerHTML = '';
+
+  // Disable the create button to prevent double-clicks
+  const btn = document.querySelector('[onclick="batchCreateAccounts()"]');
+  if (btn) btn.setAttribute('disabled', '');
+
+  const created = [];
+  const skipped = [];
+  const failed  = [];
+
+  function addLog(msg, color = 'var(--text3)') {
+    if (!log) return;
+    const line = document.createElement('div');
+    line.style.cssText = `font-size:11px;font-family:var(--mono);color:${color};margin-bottom:2px`;
+    line.textContent = msg;
+    log.appendChild(line);
+    log.scrollTop = log.scrollHeight;
+  }
+
+  addLog(`Starting batch creation for ${rows.length} students…`);
+
+  // Fetch existing users once for duplicate checking
+  let existingEmails = new Set();
+  try {
+    const existing = await window._fetchAllUsers();
+    existing.forEach(u => {
+      if (u.notifPrefs?.email) existingEmails.add(u.notifPrefs.email.toLowerCase());
+    });
+  } catch(e) { addLog('Warning: could not check for existing accounts — duplicates may occur.', 'var(--warn)'); }
+
+  for (let i = 0; i < rows.length; i++) {
+    const { name, email } = rows[i];
+    addLog(`[${i + 1}/${rows.length}] ${name} (${email})…`);
+
+    if (existingEmails.has(email)) {
+      addLog(`  → Skipped — account with this email already exists.`, 'var(--warn)');
+      skipped.push({ name, email, reason: 'Email already in use' });
+      continue;
+    }
+
+    const pass = _batchGenPassword();
+    try {
+      const cred = await createUserWithEmailAndPassword(auth, email, pass);
+      await setDoc(doc(db, 'users', cred.user.uid), {
+        username: name,
+        isAdmin:  false,
+        scores: {}, probScores: {}, streak: 0, assignSubmissions: {},
+        notifPrefs: { email, posts: true, announcements: true, assignments: true },
+      });
+      logAdminAction('batch_create_account', { uid: cred.user.uid, username: name, email });
+      created.push({ name, email, pass });
+      existingEmails.add(email);
+      addLog(`  → Created.`, 'var(--green)');
+    } catch(e) {
+      const reason = e.code === 'auth/email-already-in-use'
+        ? 'Email already in use'
+        : (e.message || String(e));
+      addLog(`  → Failed: ${reason}`, 'var(--red)');
+      failed.push({ name, email, reason });
+    }
+
+    // Re-authenticate as admin after each creation
+    // (Firebase client SDK signs in as the newly created user)
+    try {
+      await signInWithEmailAndPassword(auth, adminEmail, adminPass);
+    } catch(e) {
+      addLog(`FATAL: Could not re-authenticate as admin — stopping. (${e.message})`, 'var(--red)');
+      break;
+    }
+  }
+
+  addLog(`Done. ${created.length} created, ${skipped.length} skipped, ${failed.length} failed.`,
+    failed.length ? 'var(--warn)' : 'var(--green)');
+
+  // ── Results table ──
+  if (!results) return;
+  let html = '';
+
+  if (created.length) {
+    html += `
+      <div style="margin-top:14px">
+        <div style="font-size:11px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.08em;margin-bottom:6px">
+          <i class="ti ti-check" style="color:var(--green)"></i> Created (${created.length}) — save these passwords now
+        </div>
+        <div style="overflow-x:auto;border:0.5px solid var(--border);border-radius:var(--r2)">
+          <table class="dash-table" style="font-size:11px">
+            <thead><tr><th>Name</th><th>Email</th><th>Temp password</th></tr></thead>
+            <tbody>
+              ${created.map(r => `<tr>
+                <td>${escHtml(r.name)}</td>
+                <td style="font-family:var(--mono)">${escHtml(r.email)}</td>
+                <td style="font-family:var(--mono);color:var(--accent2)">${escHtml(r.pass)}</td>
+              </tr>`).join('')}
+            </tbody>
+          </table>
+        </div>
+        <button class="btn btn-sm" style="margin-top:8px" onclick="batchExportCSV()">
+          <i class="ti ti-table-export"></i> Download credentials CSV
+        </button>
+      </div>`;
+  }
+
+  if (skipped.length) {
+    html += `
+      <div style="margin-top:12px;font-size:11px;color:var(--warn)">
+        <i class="ti ti-alert-triangle"></i> Skipped (${skipped.length}):
+        ${skipped.map(r => `${escHtml(r.name)} (${escHtml(r.email)})`).join(', ')}
+      </div>`;
+  }
+
+  if (failed.length) {
+    html += `
+      <div style="margin-top:8px;font-size:11px;color:var(--red)">
+        <i class="ti ti-x"></i> Failed (${failed.length}):
+        ${failed.map(r => `${escHtml(r.name)}: ${escHtml(r.reason)}`).join(', ')}
+      </div>`;
+  }
+
+  results.innerHTML = html;
+  window._batchCreated = created; // store for CSV export
+  renderUserMgmt();
+};
+
+window.batchExportCSV = function batchExportCSV() {
+  const rows = window._batchCreated;
+  if (!rows || !rows.length) return;
+  const lines = ['Name,Email,Temporary Password',
+    ...rows.map(r => [r.name, r.email, r.pass].map(v => {
+      const s = String(v ?? '');
+      return /[",\n]/.test(s) ? `"${s.replace(/"/g,'""')}"` : s;
+    }).join(','))
+  ];
+  const blob = new Blob([lines.join('\r\n')], { type: 'text/csv;charset=utf-8;' });
+  const url  = URL.createObjectURL(blob);
+  const a    = document.createElement('a');
+  a.href = url; a.download = `circuitspractice_credentials_${new Date().toISOString().slice(0,10)}.csv`;
+  document.body.appendChild(a); a.click();
+  document.body.removeChild(a);
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
 };
 
 // (Script loading order is handled by main.js)
