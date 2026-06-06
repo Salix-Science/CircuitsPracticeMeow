@@ -733,7 +733,12 @@ window.doLogout = async function() {
 };
 
 // ── Auth state observer ───────────────────────
+// Set to true during adminCreateUser to suppress the observer while the
+// Firestore profile is being written — prevents a race-condition signOut.
+window._suppressAuthObserver = false;
+
 onAuthStateChanged(auth, async (firebaseUser) => {
+  if (window._suppressAuthObserver) return;
   if (firebaseUser) {
     // Load profile immediately regardless of app ready state
     const profile = await loadUserProfile(firebaseUser.uid);
@@ -910,15 +915,19 @@ window.adminCreateUser = async function() {
 
   // Email is the Firebase Auth identity — students sign in with their real email.
   // Username is their display name only (shown in analytics, grade tables, etc.).
+  // Suppress the auth observer during creation to prevent the race condition where
+  // onAuthStateChanged fires before the Firestore profile write completes.
+  window._suppressAuthObserver = true;
   try {
     const cred = await createUserWithEmailAndPassword(auth, email, pass);
+    // Write Firestore profile before releasing the observer
     await setDoc(doc(db, 'users', cred.user.uid), {
       username, isAdmin, scores:{}, probScores:{}, streak:0, assignSubmissions:{},
       notifPrefs: { email, posts:true, announcements:true, assignments:true },
     });
     logAdminAction('create_account', { uid: cred.user.uid, username, isAdmin, hasEmail: true });
     track('admin_create_account', { is_admin: isAdmin });
-    ok.textContent = `"${username}" created. They sign in with ${email}. You may need to sign back in.`;
+    ok.textContent = `"${username}" created. They sign in with ${email}.`;
     ok.classList.remove('hidden');
     ['mu-email','mu-user','mu-pass'].forEach(id => document.getElementById(id).value = '');
     document.getElementById('mu-admin').checked = false;
@@ -929,6 +938,16 @@ window.adminCreateUser = async function() {
     } else {
       console.error('adminCreateUser failed:', e.code, e.message);
       showErr(e.message);
+    }
+  } finally {
+    // Always release the observer and sign back in as the admin
+    window._suppressAuthObserver = false;
+    const adminEmail = window.S.authEmail;
+    if (adminEmail) {
+      const passEl = document.getElementById('mu-pass');
+      // We don't have the admin's password here — sign them out cleanly
+      // so they see the login screen rather than being in a broken state.
+      await signOut(auth);
     }
   }
 };
@@ -1097,6 +1116,7 @@ window.batchCreateAccounts = async function batchCreateAccounts() {
     });
   } catch(e) { addLog('Warning: could not check for existing accounts — duplicates may occur.', 'var(--warn)'); }
 
+  window._suppressAuthObserver = true;
   for (let i = 0; i < rows.length; i++) {
     const { name, email } = rows[i];
     addLog(`[${i + 1}/${rows.length}] ${name} (${email})…`);
@@ -1110,6 +1130,7 @@ window.batchCreateAccounts = async function batchCreateAccounts() {
     const pass = _batchGenPassword();
     try {
       const cred = await createUserWithEmailAndPassword(auth, email, pass);
+      // Write profile before re-authing so the document exists if the observer fires
       await setDoc(doc(db, 'users', cred.user.uid), {
         username: name,
         isAdmin:  false,
@@ -1129,7 +1150,6 @@ window.batchCreateAccounts = async function batchCreateAccounts() {
     }
 
     // Re-authenticate as admin after each creation
-    // (Firebase client SDK signs in as the newly created user)
     try {
       await signInWithEmailAndPassword(auth, adminEmail, adminPass);
     } catch(e) {
@@ -1137,6 +1157,7 @@ window.batchCreateAccounts = async function batchCreateAccounts() {
       break;
     }
   }
+  window._suppressAuthObserver = false;
 
   addLog(`Done. ${created.length} created, ${skipped.length} skipped, ${failed.length} failed.`,
     failed.length ? 'var(--warn)' : 'var(--green)');
