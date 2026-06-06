@@ -893,7 +893,7 @@ window.adminCreateUser = async function() {
   }
   const email    = document.getElementById('mu-email').value.trim().toLowerCase();
   const username = document.getElementById('mu-user').value.trim();
-  const pass     = document.getElementById('mu-pass').value;
+  const pass     = document.getElementById('mu-pass').value.trim();
   const isAdmin  = document.getElementById('mu-admin').checked;
   const err = document.getElementById('mu-err');
   const ok  = document.getElementById('mu-ok');
@@ -934,7 +934,7 @@ window.adminCreateUser = async function() {
     await signInWithEmailAndPassword(auth, adminEmail, adminPass);
     window._suppressAuthObserver = false;
     logAdminAction('create_account', { uid: createdUid, username, isAdmin, hasEmail: true }).catch(() => {});
-    ok.textContent = `"${username}" created. They sign in with ${email}.`;
+    ok.textContent = `"${username}" created. Email: ${email} — Password: ${pass}`;
     ok.classList.remove('hidden');
     ['mu-email','mu-user','mu-pass'].forEach(id => document.getElementById(id).value = '');
     document.getElementById('mu-admin').checked = false;
