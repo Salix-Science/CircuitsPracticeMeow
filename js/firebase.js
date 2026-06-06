@@ -926,42 +926,6 @@ window.adminCreateUser = async function() {
     }
   }
 };
-  // Username is the student's display name (shown in grade tables, analytics),
-  // so keep it unique even though it's no longer the login identity.
-  try {
-    const existing = await window._fetchAllUsers();
-    if (existing.some(u => (u.username || '').toLowerCase() === username.toLowerCase())) {
-      showErr('That username is already in use — pick another.'); return;
-    }
-  } catch(e) { console.warn('username uniqueness check skipped:', e); }
-
-  // The REAL email is the Firebase Auth identity. This is what makes native
-  // password reset work (Firebase sends reset mail to the Auth email), and the
-  // student signs in with their email. Username is stored as their display name.
-  try {
-    const cred = await createUserWithEmailAndPassword(auth, email, pass);
-    await setDoc(doc(db, 'users', cred.user.uid), {
-      username, isAdmin, scores:{}, probScores:{}, streak:0, assignSubmissions:{},
-      notifPrefs: { email, posts:true, announcements:true, assignments:true },
-    });
-    logAdminAction('create_account', { uid: cred.user.uid, username, isAdmin, hasEmail: true });
-    track('admin_create_account', { is_admin: isAdmin });
-    // NOTE: creating a user signs the admin into the new account (Firebase client
-    // SDK limitation without the Admin SDK). Hence the "sign back in" reminder.
-    ok.textContent = `"${username}" created. They sign in with ${email}. You may need to sign back in.`;
-    ok.classList.remove('hidden');
-    ['mu-email','mu-user','mu-pass'].forEach(id => document.getElementById(id).value = '');
-    document.getElementById('mu-admin').checked = false;
-    renderUserMgmt();
-  } catch(e) {
-    if (e.code === 'auth/email-already-in-use') {
-      showErr('An account with that email already exists.');
-    } else {
-      console.error('adminCreateUser failed:', e.code, e.message);
-      showErr(e.message);
-    }
-  }
-};
 
 window.changePassword = async function() {
   const newP  = document.getElementById('cp-new').value;
