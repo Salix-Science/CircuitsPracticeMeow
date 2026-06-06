@@ -578,7 +578,7 @@ window.doLogin = async function() {
         e.code === 'auth/wrong-password'  || e.code === 'auth/invalid-email') {
       // If no cached mapping exists and direct email failed, hint at username
       if (idRaw.includes('@') && !localStorage.getItem('cp_legacy_' + idRaw.toLowerCase())) {
-        showAuthErr('l-err', 'Email not recognised. If you have a legacy account, sign in with your username once to link it.');
+        showAuthErr('l-err', 'Email or password incorrect.');
       } else {
         showAuthErr('l-err', 'Email or password incorrect.');
       }
@@ -872,8 +872,8 @@ window.deleteUser = async function(uid, username) {
     `Delete "${username}"?\n\n` +
     `This removes their profile and data from the database.\n\n` +
     `IMPORTANT: You must also delete their login account manually:\n` +
-    `Firebase Console → Authentication → Users → find ${username}@circuitspractice.app → Delete.\n\n` +
-    `If you skip that step, the username will appear taken on re-registration.`
+    `Firebase Console → Authentication → Users → find their email → Delete.\n\n` +
+    `If you skip that step they will still be able to sign in.`
   )) return;
   await deleteDoc(doc(db, 'users', uid));
   logAdminAction('delete_account', { uid, username });
@@ -900,7 +900,7 @@ window.adminCreateUser = async function() {
   if (!username)                                { showErr('Enter a username.');            return; }
   if (pass.length < 6)                          { showErr('Password needs 6+ characters.');return; }
 
-  // Username is unique (it's the login identity + the display name in analytics)
+  // Username uniqueness check — username is the display name in analytics/grades
   try {
     const existing = await window._fetchAllUsers();
     if (existing.some(u => (u.username || '').toLowerCase() === username.toLowerCase())) {
@@ -908,26 +908,24 @@ window.adminCreateUser = async function() {
     }
   } catch(e) { console.warn('username uniqueness check skipped:', e); }
 
-  // Username is the login identity (username@circuitspractice.app, spaces -> dots).
-  // Email is the contact address for notifications. Password resets are done by
-  // the instructor in the Firebase console (set a new password directly).
-  const loginEmail = username.replace(/\s+/g, '.').replace(/[^a-zA-Z0-9._%+\-]/g, '') + '@circuitspractice.app';
+  // Email is the Firebase Auth identity — students sign in with their real email.
+  // Username is their display name only (shown in analytics, grade tables, etc.).
   try {
-    const cred = await createUserWithEmailAndPassword(auth, loginEmail, pass);
+    const cred = await createUserWithEmailAndPassword(auth, email, pass);
     await setDoc(doc(db, 'users', cred.user.uid), {
       username, isAdmin, scores:{}, probScores:{}, streak:0, assignSubmissions:{},
       notifPrefs: { email, posts:true, announcements:true, assignments:true },
     });
     logAdminAction('create_account', { uid: cred.user.uid, username, isAdmin, hasEmail: true });
     track('admin_create_account', { is_admin: isAdmin });
-    ok.textContent = `"${username}" created. They sign in with the username "${username}". You may need to sign back in.`;
+    ok.textContent = `"${username}" created. They sign in with ${email}. You may need to sign back in.`;
     ok.classList.remove('hidden');
     ['mu-email','mu-user','mu-pass'].forEach(id => document.getElementById(id).value = '');
     document.getElementById('mu-admin').checked = false;
     renderUserMgmt();
   } catch(e) {
     if (e.code === 'auth/email-already-in-use') {
-      showErr('That username is already taken.');
+      showErr('An account with that email already exists.');
     } else {
       console.error('adminCreateUser failed:', e.code, e.message);
       showErr(e.message);
