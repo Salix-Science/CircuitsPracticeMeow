@@ -28,10 +28,20 @@
 
     <!-- Login -->
     <div id="auth-login">
-      <div class="field"><label>Username</label><input type="text" id="l-user" autocomplete="username" placeholder="username"/></div>
+      <div class="field"><label>Username or email</label><input type="text" id="l-user" autocomplete="username" placeholder="username or email"/></div>
       <div class="field"><label>Password</label><input type="password" id="l-pass" autocomplete="current-password" placeholder="••••••••"/></div>
       <button class="btn btn-accent" style="width:100%;justify-content:center" onclick="doLogin()"><i class="ti ti-login"></i> Enter</button>
       <div class="err-msg hidden" id="l-err"><i class="ti ti-alert-circle"></i><span></span></div>
+      <div style="text-align:center;margin-top:10px">
+        <button class="btn btn-sm" style="background:none;border:none;color:var(--text3);font-size:11px;padding:0;cursor:pointer" onclick="toggleResetForm()">Forgot password?</button>
+      </div>
+      <div id="auth-reset" class="hidden" style="margin-top:12px;padding:12px;background:var(--bg3);border:0.5px solid var(--border);border-radius:var(--r2)">
+        <div style="font-size:11px;color:var(--text3);margin-bottom:8px;line-height:1.5">Enter the email address on your account and we'll send a reset link.</div>
+        <div class="field" style="margin-bottom:8px"><input type="email" id="l-reset-email" placeholder="your@email.com" autocomplete="email"/></div>
+        <button class="btn btn-sm btn-accent" style="width:100%;justify-content:center" onclick="sendPasswordReset()"><i class="ti ti-send"></i> Send reset link</button>
+        <div class="err-msg hidden" id="l-reset-err" style="margin-top:8px"><i class="ti ti-alert-circle"></i><span></span></div>
+        <div class="ok-msg hidden"  id="l-reset-ok"  style="margin-top:8px"></div>
+      </div>
     </div>
 
     <!-- Register -->
@@ -477,6 +487,8 @@
       <div class="admin-tabs">
         <button class="admin-tab active" onclick="showAdminTab('analytics',this)">Analytics</button>
         <button class="admin-tab"        onclick="showAdminTab('grades',this)">Assignment grades</button>
+        <button class="admin-tab"        onclick="showAdminTab('analysis',this);window.renderProblemAnalysis&&renderProblemAnalysis()"><i class="ti ti-microscope" style="font-size:11px"></i> Problem analysis</button>
+        <button class="admin-tab"        onclick="showAdminTab('coursegrades',this);window.renderCourseGrades&&renderCourseGrades()"><i class="ti ti-school" style="font-size:11px"></i> Course grades</button>
         <button class="admin-tab"        onclick="showAdminTab('users',this)">User management</button>
         <button class="admin-tab"        onclick="showAdminTab('sections',this)"><i class="ti ti-users-group" style="font-size:11px"></i> Sections</button>
         <button class="admin-tab"        onclick="showAdminTab('account',this);showAccountTab()">My account</button>
@@ -579,8 +591,9 @@
         </div>
         <div class="section-card" style="max-width:480px">
           <h4><i class="ti ti-user-plus"></i> Create account manually</h4>
+          <div class="field" style="margin-bottom:8px"><label>Email address</label><input type="email" id="mu-email" placeholder="student@uconn.edu"/></div>
           <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px">
-            <div class="field" style="margin:0"><label>Username</label><input type="text" id="mu-user"/></div>
+            <div class="field" style="margin:0"><label>Username</label><input type="text" id="mu-user" placeholder="First Last"/></div>
             <div class="field" style="margin:0"><label>Password</label><input type="password" id="mu-pass"/></div>
           </div>
           <div style="display:flex;align-items:center;gap:10px">
@@ -617,6 +630,25 @@
           </p>
           <div id="admin-notif-wrap"></div>
         </div>
+      </div>
+
+      <!-- Problem Analysis subtab -->
+      <div class="admin-subtab" id="atab-analysis">
+        <div id="pa-wrap"></div>
+      </div>
+
+      <!-- Course Grades subtab -->
+      <div class="admin-subtab" id="atab-coursegrades">
+        <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:14px">
+          <label style="font-size:11px;color:var(--text3);text-transform:uppercase;letter-spacing:.08em;margin:0">Section</label>
+          <select id="cg-section-filter" onchange="onCourseGradeSection()" style="padding:6px 10px;font-size:12px;width:auto"></select>
+          <div style="margin-left:auto;display:flex;gap:8px;flex-wrap:wrap">
+            <button class="btn btn-sm" onclick="refreshCourseGrades()"><i class="ti ti-refresh"></i> Refresh</button>
+            <button class="btn btn-sm" onclick="exportCourseGradesCSV()"><i class="ti ti-file-spreadsheet"></i> Export CSV</button>
+            <button class="btn btn-sm btn-accent" onclick="exportCourseGradesPDF()"><i class="ti ti-file-type-pdf"></i> Export PDF</button>
+          </div>
+        </div>
+        <div id="cg-content"></div>
       </div>
 
       <!-- Gradebook subtab -->
