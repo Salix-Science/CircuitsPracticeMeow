@@ -925,12 +925,18 @@ window.adminCreateUser = async function() {
       username, isAdmin, scores:{}, probScores:{}, streak:0, assignSubmissions:{},
       notifPrefs: { email, posts:true, announcements:true, assignments:true },
     });
-    logAdminAction('create_account', { uid: cred.user.uid, username, isAdmin, hasEmail: true });
     track('admin_create_account', { is_admin: isAdmin });
     ok.textContent = `"${username}" created. They sign in with ${email}.`;
     ok.classList.remove('hidden');
     ['mu-email','mu-user','mu-pass'].forEach(id => document.getElementById(id).value = '');
     document.getElementById('mu-admin').checked = false;
+    const createdUid = cred.user.uid;
+    // Sign out before releasing the observer so onAuthStateChanged sees null
+    await signOut(auth);
+    window._suppressAuthObserver = false;
+    // Log after signing out — by this point we're no longer the new user,
+    // so the audit write won't be blocked by Firestore rules
+    logAdminAction('create_account', { uid: createdUid, username, isAdmin, hasEmail: true }).catch(() => {});
     renderUserMgmt();
   } catch(e) {
     if (e.code === 'auth/email-already-in-use') {
@@ -939,10 +945,6 @@ window.adminCreateUser = async function() {
       console.error('adminCreateUser failed:', e.code, e.message);
       showErr(e.message);
     }
-  } finally {
-    // Sign out BEFORE releasing the observer so that when the observer fires
-    // it sees a null user (logged-out state) and shows the login screen cleanly.
-    // The admin simply signs back in — no broken intermediate state.
     await signOut(auth);
     window._suppressAuthObserver = false;
   }
