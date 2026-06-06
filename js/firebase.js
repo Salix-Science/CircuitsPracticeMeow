@@ -8,7 +8,6 @@ import {
   createUserWithEmailAndPassword,
   signInWithEmailAndPassword,
   sendPasswordResetEmail,
-  updateEmail,
   signOut,
   onAuthStateChanged
 } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
@@ -542,29 +541,52 @@ window.doLogin = async function() {
   hideAuthErr('l-err');
   const idRaw = document.getElementById('l-user').value.trim();
   const pass  = document.getElementById('l-pass').value;
-  if (!idRaw || !pass) { showAuthErr('l-err', 'Enter your username/email and password.'); return; }
+  if (!idRaw || !pass) { showAuthErr('l-err', 'Enter your email and password.'); return; }
 
-  // Accept either a real email (contains @) or a username. For legacy accounts
-  // the username maps to username@circuitspractice.app. Spaces in the username
-  // are encoded as dots so Firebase sees a valid email address.
-  // New accounts (created with a real email) always log in by email.
-  let email;
+  // Primary attempt: use whatever was typed.
+  // - Real email (contains @) → try directly.
+  // - Plain username (no @) → map to username@circuitspractice.app (legacy fallback).
+  let primaryEmail;
   if (idRaw.includes('@')) {
-    email = idRaw;
+    primaryEmail = idRaw.toLowerCase();
   } else {
     const safePart = idRaw.replace(/\s+/g, '.').replace(/[^a-zA-Z0-9._%+\-]/g, '');
-    email = safePart + '@circuitspractice.app';
+    primaryEmail = safePart + '@circuitspractice.app';
   }
+
   try {
-    await signInWithEmailAndPassword(auth, email, pass);
-    // onAuthStateChanged handles the rest
+    await signInWithEmailAndPassword(auth, primaryEmail, pass);
+    return; // onAuthStateChanged handles the rest
   } catch(e) {
-    if (e.code === 'auth/user-not-found' || e.code === 'auth/invalid-credential' ||
-        e.code === 'auth/wrong-password'  || e.code === 'auth/invalid-email') {
-      showAuthErr('l-err', 'Username/email or password incorrect.');
-    } else {
-      showAuthErr('l-err', e.message);
+    const notFound = e.code === 'auth/user-not-found' || e.code === 'auth/invalid-credential' ||
+                     e.code === 'auth/wrong-password'  || e.code === 'auth/invalid-email';
+    if (!notFound) { showAuthErr('l-err', e.message); return; }
+
+    // Secondary attempt: the student typed their real contact email but their
+    // Firebase Auth identity is still username@circuitspractice.app (legacy account
+    // that has stored a real email in notifPrefs but hasn't migrated Auth yet).
+    // Look up who owns that contact email and retry with their auth address.
+    if (idRaw.includes('@')) {
+      try {
+        const snap = await getDocs(collection(db, 'users'));
+        const match = snap.docs.map(d => d.data())
+          .find(u => (u.notifPrefs?.email || '').toLowerCase() === primaryEmail);
+        if (match && match.username) {
+          const safePart = match.username.replace(/\s+/g, '.').replace(/[^a-zA-Z0-9._%+\-]/g, '');
+          const legacyEmail = safePart + '@circuitspractice.app';
+          await signInWithEmailAndPassword(auth, legacyEmail, pass);
+          return; // success — onAuthStateChanged handles the rest
+        }
+      } catch(e2) {
+        // If the legacy retry also fails, fall through to the generic error
+        if (e2.code !== 'auth/user-not-found' && e2.code !== 'auth/invalid-credential' &&
+            e2.code !== 'auth/wrong-password') {
+          showAuthErr('l-err', e2.message); return;
+        }
+      }
     }
+
+    showAuthErr('l-err', 'Email or password incorrect.');
   }
 };
 
@@ -619,13 +641,15 @@ window.maybePromptEmailMigration = function() {
   try {
     if (window._emailMigrateSkipped) return;
     const legacy = (window.S.authEmail || '').toLowerCase().endsWith('@circuitspractice.app');
-    console.info('[email-migration] authEmail:', window.S.authEmail, '| legacy:', legacy);
     if (!legacy) return;
+    // Also suppress if they already saved a real contact email in a prior session
+    const u = window.DB.users[window.S.user];
+    const savedEmail = (u && u.notifPrefs && u.notifPrefs.email) || '';
+    if (savedEmail && !savedEmail.endsWith('@circuitspractice.app')) return;
     const modal = document.getElementById('email-migrate-modal');
     if (!modal) { console.error('[email-migration] modal element not found'); return; }
-    const u   = window.DB.users[window.S.user];
     const inp = document.getElementById('em-email');
-    if (inp) inp.value = (u && u.notifPrefs && u.notifPrefs.email) || '';
+    if (inp) inp.value = savedEmail;
     document.getElementById('em-ok')?.classList.add('hidden');
     document.getElementById('em-err')?.classList.add('hidden');
     modal.classList.remove('hidden');
@@ -657,17 +681,11 @@ window.submitEmailMigration = async function() {
 
   if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) { showErr('Enter a valid email address.'); return; }
 
+  // Save the real email to the Firestore profile. doLogin will use this to
+  // look up legacy accounts by contact email, so the student can sign in
+  // with this address even though Firebase Auth still holds the
+  // username@circuitspractice.app identity internally.
   try {
-    // Step 1: Update Firebase Auth identity so the student can sign in
-    // with their real email from now on (replaces username@circuitspractice.app).
-    // updateEmail requires a recent sign-in, which is always true here since
-    // this modal appears immediately after login.
-    if (auth.currentUser) {
-      await updateEmail(auth.currentUser, email);
-      window.S.authEmail = email; // update in-session state so modal never re-shows
-    }
-
-    // Step 2: Save the email to the Firestore profile for notifications.
     const u = window.DB.users[window.S.user];
     if (u) {
       const prev = u.notifPrefs || {};
@@ -679,20 +697,14 @@ window.submitEmailMigration = async function() {
       };
       await saveUserOnly();
     }
+    // Mark as migrated so the modal suppresses on future logins
+    window.S.authEmail = email;
     logAdminAction('set_login_email', { username: window.S.user });
     showOk('Done! You can now sign in with ' + email + '.');
     setTimeout(closeEmailMigrate, 2500);
   } catch(e) {
     console.error('submitEmailMigration failed:', e);
-    if (e.code === 'auth/requires-recent-login') {
-      showErr('Session expired — please sign out and sign back in, then try again.');
-    } else if (e.code === 'auth/email-already-in-use') {
-      showErr('That email is already linked to another account.');
-    } else if (e.code === 'auth/invalid-email') {
-      showErr('That doesn\'t look like a valid email address.');
-    } else {
-      showErr('Could not update — see console for details.');
-    }
+    showErr('Could not save — see console for details.');
   }
 };
 
