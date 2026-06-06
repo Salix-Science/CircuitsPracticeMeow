@@ -21,11 +21,6 @@
 <div id="screen-auth">
   <div class="wordmark">Circuits Practice</div>
   <div class="auth-card">
-    <div class="auth-tabs">
-      <button class="auth-tab active" onclick="setAuthTab('login',this)">Sign in</button>
-      <button class="auth-tab" onclick="setAuthTab('register',this)">Register</button>
-    </div>
-
     <!-- Login -->
     <div id="auth-login">
       <div class="field"><label>Username</label><input type="text" id="l-user" autocomplete="username" placeholder="username"/></div>
@@ -43,15 +38,6 @@
       </div>
     </div>
 
-    <!-- Register -->
-    <div id="auth-register" class="hidden">
-      <div class="field"><label>Username</label><input type="text" id="r-user" autocomplete="username" placeholder="choose a username"/></div>
-      <div class="field"><label>Password</label><input type="password" id="r-pass" autocomplete="new-password" placeholder="at least 6 characters"/></div>
-      <div class="field"><label>Confirm password</label><input type="password" id="r-pass2" autocomplete="new-password" placeholder="repeat password"/></div>
-      <button class="btn btn-accent" style="width:100%;justify-content:center" onclick="doRegister()"><i class="ti ti-user-plus"></i> Create account</button>
-      <div class="err-msg hidden" id="r-err"><i class="ti ti-alert-circle"></i><span></span></div>
-      <div class="ok-msg hidden" id="r-ok"></div>
-    </div>
   </div>
 </div>
 
