@@ -544,12 +544,12 @@ window.doLogin = async function() {
   if (!idRaw || !pass) { showAuthErr('l-err', 'Enter your email and password.'); return; }
 
   // Determine the Firebase Auth email to sign in with.
-  // New accounts: real email is the Auth identity — use it directly.
+  // New accounts: real email is the Auth identity — use directly.
   // Legacy accounts: Auth identity is username@circuitspractice.app.
-  //   - If they type their username (no @): map it directly.
-  //   - If they type their real email (@): look it up in Firestore first
-  //     so we never make a failed sign-in attempt with the wrong address
-  //     (a failed attempt can trigger Firebase rate-limiting).
+  //   - Username typed (no @): map directly.
+  //   - Real email typed (@): check localStorage for a cached mapping written
+  //     after a previous successful login or after the migration modal was saved.
+  //     This avoids any unauthenticated Firestore read (rules block it).
   let loginEmail;
 
   if (!idRaw.includes('@')) {
@@ -557,23 +557,15 @@ window.doLogin = async function() {
     const safePart = idRaw.replace(/\s+/g, '.').replace(/[^a-zA-Z0-9._%+\-]/g, '');
     loginEmail = safePart + '@circuitspractice.app';
   } else {
-    // Real email typed — check if it belongs to a legacy account first
     const typedEmail = idRaw.toLowerCase();
-    try {
-      const snap = await getDocs(collection(db, 'users'));
-      const match = snap.docs.map(d => d.data())
-        .find(u => (u.notifPrefs?.email || '').toLowerCase() === typedEmail);
-      if (match && match.username) {
-        // Legacy account: sign in with their @circuitspractice.app address
-        const safePart = match.username.replace(/\s+/g, '.').replace(/[^a-zA-Z0-9._%+\-]/g, '');
-        loginEmail = safePart + '@circuitspractice.app';
-      } else {
-        // New account: real email is the Auth identity
-        loginEmail = typedEmail;
-      }
-    } catch(e) {
-      // Firestore lookup failed — fall back to trying the email directly
-      console.warn('doLogin: Firestore lookup failed, trying email directly', e);
+    // Check localStorage for a previously cached legacy mapping
+    const cached = localStorage.getItem('cp_legacy_' + typedEmail);
+    if (cached) {
+      loginEmail = cached;
+    } else {
+      // No mapping known — try the email directly (works for new accounts).
+      // Legacy users who haven't logged in since migration should use their
+      // username once more; after that the mapping is cached automatically.
       loginEmail = typedEmail;
     }
   }
@@ -584,7 +576,12 @@ window.doLogin = async function() {
   } catch(e) {
     if (e.code === 'auth/user-not-found' || e.code === 'auth/invalid-credential' ||
         e.code === 'auth/wrong-password'  || e.code === 'auth/invalid-email') {
-      showAuthErr('l-err', 'Email or password incorrect.');
+      // If no cached mapping exists and direct email failed, hint at username
+      if (idRaw.includes('@') && !localStorage.getItem('cp_legacy_' + idRaw.toLowerCase())) {
+        showAuthErr('l-err', 'Email not recognised. If you have a legacy account, sign in with your username once to link it.');
+      } else {
+        showAuthErr('l-err', 'Email or password incorrect.');
+      }
     } else {
       showAuthErr('l-err', e.message);
     }
@@ -698,6 +695,10 @@ window.submitEmailMigration = async function() {
       };
       await saveUserOnly();
     }
+    // Cache the email → legacy auth address mapping in localStorage so
+    // doLogin can resolve it without an unauthenticated Firestore read.
+    const _safePart = (window.S.user || '').replace(/\s+/g, '.').replace(/[^a-zA-Z0-9._%+\-]/g, '');
+    localStorage.setItem('cp_legacy_' + email, _safePart + '@circuitspractice.app');
     // Mark as migrated so the modal suppresses on future logins
     window.S.authEmail = email;
     logAdminAction('set_login_email', { username: window.S.user });
@@ -745,6 +746,14 @@ onAuthStateChanged(auth, async (firebaseUser) => {
     window.S.user    = profile.username;
     window.S.isAdmin = !!profile.isAdmin;
     window.S.authEmail = firebaseUser.email || '';
+
+    // Cache email → Firebase Auth address mapping for future logins.
+    // Covers both: legacy users (contact email → @circuitspractice.app)
+    // and new users (email IS the auth address, mapping is a no-op but harmless).
+    const _contactEmail = profile.notifPrefs?.email || '';
+    if (_contactEmail && _contactEmail !== firebaseUser.email) {
+      localStorage.setItem('cp_legacy_' + _contactEmail.toLowerCase(), firebaseUser.email);
+    }
 
     if (analytics) {
       setUserId(analytics, firebaseUser.uid);
