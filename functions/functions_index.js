@@ -112,7 +112,7 @@ function genSeededVariant(prob, seedKey) {
  *   'not-found'         — assignment or problem doesn't exist
  *   'failed-precondition' — deadline passed with allowLate:false, or out of attempts
  */
-exports.submitAssignment = onCall({ enforceAppCheck: false }, async (request) => {
+exports.submitAssignment = onCall({ enforceAppCheck: false, cors: true }, async (request) => {
   // ── Auth check ──
   if (!request.auth) {
     throw new HttpsError('unauthenticated', 'You must be signed in to submit.');
