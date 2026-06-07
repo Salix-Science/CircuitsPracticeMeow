@@ -1,11 +1,11 @@
 /* home.js — Homepage render (student view) + homepage editor (admin) */
 
-// Category pills are rendered by window.catPill (defined in firebase.js, which
+// Category pills are rendered by window.categoryPill (defined in firebase.js, which
 // loads before this file). Using it here keeps home-page pill colours identical
 // to the blog page and respects the admin's Category editor settings.
 function _homeCatPill(cat) {
-  return (typeof window.catPill === 'function')
-    ? window.catPill(cat)
+  return (typeof window.categoryPill === 'function')
+    ? window.categoryPill(cat)
     : `<span class="pill" style="background:rgba(157,125,232,.08);color:var(--text3);border:0.5px solid var(--border)">${escHtml(cat)}</span>`;
 }
 
