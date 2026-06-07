@@ -21,7 +21,7 @@ window.resetForm = function resetForm(){
   window.S.editorAnswers=[{id:`ans-${Date.now()}`,label:'Answer',formula:'',unit:'V',tol:'2'}];
   window.S.editorAnswerMode='boxes';
   window.S.editorTable={corner:'',tol:'2',rows:[{label:'Row 1',unit:'V',cells:['']}],cols:[{label:'Col 1'}]};
-  setAnswerMode('boxes');
+  setAnswerMode('boxes'); // resets both panels
   ['e-title','e-topic','e-question','e-hint'].forEach(id=>{
     const el=document.getElementById(id); if(el) el.value='';
   });
@@ -125,11 +125,12 @@ if(!window.S.editorTable) window.S.editorTable = {
 
 window.setAnswerMode = function setAnswerMode(mode) {
   window.S.editorAnswerMode = mode;
-  document.getElementById('answer-mode-boxes').style.display = mode==='boxes' ? '' : 'none';
-  document.getElementById('answer-mode-table').style.display = mode==='table' ? '' : 'none';
+  document.getElementById('answer-mode-boxes').style.display = (mode==='boxes'||mode==='both') ? '' : 'none';
+  document.getElementById('answer-mode-table').style.display = (mode==='table'||mode==='both') ? '' : 'none';
   document.getElementById('amt-boxes').classList.toggle('active', mode==='boxes');
   document.getElementById('amt-table').classList.toggle('active', mode==='table');
-  if (mode==='table') renderTableEditor();
+  document.getElementById('amt-both')?.classList.toggle('active', mode==='both');
+  if (mode==='table'||mode==='both') renderTableEditor();
 }
 
 window.renderTableEditor = function renderTableEditor() {
@@ -331,52 +332,17 @@ window.removeAnswerBox = function removeAnswerBox(i){
 }
 
 window.previewAllFormulas = function previewAllFormulas(){
-  const vars = window.S.editorVars;
-  const mkVals = (pos) => {
-    const v = {};
-    vars.forEach(va => {
-      const lo = parseFloat(va.min), hi = parseFloat(va.max);
-      v[va.name] = pos === 'min' ? lo : pos === 'max' ? hi : (lo + hi) / 2;
-    });
-    return v;
-  };
-  const midVals = mkVals('mid');
-  const minVals = mkVals('min');
-  const maxVals = mkVals('max');
-  const varStr  = vars.map(va=>`${va.name}=${midVals[va.name]} ${va.unit||''}`).join(', ') || 'no vars';
-
+  const vals={};
+  window.S.editorVars.forEach(v=>{vals[v.name]=(parseFloat(v.min)+parseFloat(v.max))/2;});
   window.S.editorAnswers.forEach((ans,i)=>{
     const prev=document.getElementById(`formula-preview-${i}`);if(!prev)return;
-    if(!ans.formula.trim()){
-      prev.textContent='Formula preview';
-      prev.style.color='';
-      prev.title='';
-      return;
-    }
+    if(!ans.formula.trim()){prev.textContent='Formula preview';return;}
     try{
-      const fn     = new Function(...Object.keys(midVals),`return (${ans.formula})`);
-      const resMid = fn(...Object.values(midVals));
-
-      // Range-check at extremes
-      let rangeWarn = '';
-      try {
-        const fnLo  = new Function(...Object.keys(minVals),`return (${ans.formula})`);
-        const fnHi  = new Function(...Object.keys(maxVals),`return (${ans.formula})`);
-        const resLo = fnLo(...Object.values(minVals));
-        const resHi = fnHi(...Object.values(maxVals));
-        if(!isFinite(resLo) || !isFinite(resHi)) rangeWarn = ' ⚠ range';
-        else if(Math.sign(resLo) !== Math.sign(resHi) && resLo !== 0 && resHi !== 0)
-          rangeWarn = ' ⚠ sign flip';
-      } catch(_){ rangeWarn = ' ⚠ range err'; }
-
-      prev.textContent = `Preview: ${varStr} → ${rnd(resMid,4)} ${ans.unit}${rangeWarn}`;
-      prev.style.color = rangeWarn ? 'var(--warn)' : '';
-      prev.title       = rangeWarn ? 'Checked at min/max variable values — see warning' : '';
-    }catch(e){
-      prev.textContent=`⚠ ${e.message}`;
-      prev.style.color='var(--red)';
-      prev.title=e.message;
-    }
+      const fn=new Function(...Object.keys(vals),`return (${ans.formula})`);
+      const res=fn(...Object.values(vals));
+      const varStr=window.S.editorVars.map(v=>`${v.name}=${vals[v.name]} ${v.unit||''}`).join(', ')||'no vars';
+      prev.textContent=`Preview: ${varStr} → ${rnd(res,4)} ${ans.unit}`;
+    }catch(e){prev.textContent=`⚠ ${e.message}`;}
   });
 }
 
@@ -403,14 +369,19 @@ window.saveProblem = async function saveProblem(){
   const question=document.getElementById('e-question').value.trim();
   if(!title||!question){alert('Title and Question are required.');return;}
 
-  const isTableMode = window.S.editorAnswerMode === 'table';
-  const answers=window.S.editorAnswers;
+  const editorMode = window.S.editorAnswerMode; // 'boxes' | 'table' | 'both'
+  const hasTable   = editorMode === 'table' || editorMode === 'both';
+  const hasBoxes   = editorMode === 'boxes' || editorMode === 'both';
+  const answers    = window.S.editorAnswers;
 
-  if(!isTableMode){
+  // Validate boxes
+  if(hasBoxes){
     if(!answers.length||!answers[0].formula.trim()){alert('At least one answer formula is required.');return;}
     const badFormulas=answers.filter(a=>!a.formula.trim());
     if(badFormulas.length){alert(`Answer box "${badFormulas[0].label}" has no formula.`);return;}
-  } else {
+  }
+  // Validate table
+  if(hasTable){
     const t = window.S.editorTable;
     if(!t.rows.length || !t.cols.length){alert('Table needs at least one row and one column.');return;}
     const missingCell = t.rows.some(row=>t.cols.some((_,c)=>!(row.cells&&row.cells[c]&&row.cells[c].trim())));
@@ -423,18 +394,18 @@ window.saveProblem = async function saveProblem(){
     title,
     topic:document.getElementById('e-topic').value.trim(),
     question,
-    answerMode: isTableMode ? 'table' : 'boxes',
-    answers: isTableMode ? [] : answers.map(a=>({...a})),
-    table: isTableMode ? {
+    answerMode: editorMode,
+    answers: hasBoxes ? answers.map(a=>({...a})) : [],
+    table: hasTable ? {
       corner: window.S.editorTable.corner||'',
       tol:    window.S.editorTable.tol||'2',
       rows:   window.S.editorTable.rows.map(r=>({...r, cells:[...r.cells]})),
       cols:   window.S.editorTable.cols.map(c=>({...c})),
     } : null,
     // Legacy single-answer fields kept for compatibility
-    formula: isTableMode ? '' : answers[0].formula,
-    unit:    isTableMode ? '' : answers[0].unit,
-    tol:     isTableMode ? (window.S.editorTable.tol||'2') : answers[0].tol,
+    formula: hasBoxes ? answers[0].formula : '',
+    unit:    hasBoxes ? answers[0].unit    : '',
+    tol:     hasBoxes ? answers[0].tol     : (window.S.editorTable.tol||'2'),
     vars:window.S.editorVars.map(v=>({...v})),
     defaultPts:parseInt(document.getElementById('e-pts').value)||10,
     maxAttempts,
@@ -449,7 +420,9 @@ window.saveProblem = async function saveProblem(){
   document.getElementById('form-mode-label').textContent='Saving…';
   await saveDB();
   document.getElementById('form-mode-label').textContent=`Editing: ${prob.title}`;
-  logAdminAction(isNew ? 'create_problem' : 'edit_problem', { id: prob.id, title: prob.title, topic: prob.topic, enabled: prob.enabled, answerMode: prob.answerMode, answerCount: isTableMode ? (prob.table.rows.length*prob.table.cols.length) : (prob.answers||[]).length });
+  const _tblCount = (hasTable && prob.table) ? prob.table.rows.length*prob.table.cols.length : 0;
+  const _boxCount = (prob.answers||[]).length;
+  logAdminAction(isNew ? 'create_problem' : 'edit_problem', { id: prob.id, title: prob.title, topic: prob.topic, enabled: prob.enabled, answerMode: prob.answerMode, answerCount: _tblCount + _boxCount });
   buildPracticeSidebar();renderPmList();renderFolderList();
 
   // Preview
@@ -465,7 +438,7 @@ window.saveProblem = async function saveProblem(){
     <div style="display:flex;align-items:center;gap:6px;margin-bottom:6px">
       <span style="font-family:var(--font-display);font-size:12px;color:var(--accent2)">${prob.title}</span>
       ${!prob.enabled?'<span class="pill pill-disabled">hidden</span>':'<span class="pill pill-green">visible</span>'}
-      ${isTableMode?'<span class="pill pill-purple" style="font-size:9px">table</span>':''}
+      ${editorMode==='table'?'<span class="pill pill-purple" style="font-size:9px">table</span>':editorMode==='both'?'<span class="pill pill-purple" style="font-size:9px">table + boxes</span>':''}
     </div>
     ${prob.imgDataUrl?`<img src="${prob.imgDataUrl}" style="max-width:100%;max-height:80px;border-radius:4px;margin-bottom:6px;display:block"/>`:''}
     <p style="color:var(--text);line-height:1.6;margin-bottom:6px">${v.question}</p>
@@ -483,8 +456,8 @@ window.loadProbToForm = function loadProbToForm(prob){
   window.S.formEnabled=prob.enabled!==false;
 
   // Restore answer mode
-  const mode = prob.answerMode === 'table' ? 'table' : 'boxes';
-  if (mode === 'table' && prob.table) {
+  const mode = (prob.answerMode === 'table' || prob.answerMode === 'both') ? prob.answerMode : 'boxes';
+  if ((mode === 'table' || mode === 'both') && prob.table) {
     window.S.editorTable = {
       corner: prob.table.corner || '',
       tol:    prob.table.tol    || '2',

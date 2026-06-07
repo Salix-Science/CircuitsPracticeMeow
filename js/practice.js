@@ -23,11 +23,18 @@ window.toggleEl = function toggleEl(id) {
 // rendering. Grading code stays identical for boxes and tables because
 // it just iterates the flat list by index.
 window.expandProblemAnswers = function expandProblemAnswers(prob) {
-  if (prob.answerMode === 'table' && prob.table &&
-      (prob.table.rows||[]).length && (prob.table.cols||[]).length) {
+  const hasTable = (prob.answerMode === 'table' || prob.answerMode === 'both') &&
+                   prob.table && (prob.table.rows||[]).length && (prob.table.cols||[]).length;
+  const hasBoxes = (prob.answerMode === 'boxes' || prob.answerMode === 'both' || !prob.answerMode) &&
+                   (prob.answers && prob.answers.length);
+
+  const answerDefs = [];
+  const cellIndex  = [];
+  let table = null;
+
+  // Table cells go first (row-major)
+  if (hasTable) {
     const t = prob.table;
-    const answerDefs = [];
-    const cellIndex  = [];                 // cellIndex[r][c] = flat answer index
     t.rows.forEach((row, r) => {
       cellIndex[r] = [];
       t.cols.forEach((col, c) => {
@@ -41,19 +48,25 @@ window.expandProblemAnswers = function expandProblemAnswers(prob) {
         });
       });
     });
-    const table = {
-      corner: t.corner || '',
-      cols:   t.cols.map(c => ({ label: c.label || '' })),
-      rows:   t.rows.map(r => ({ label: r.label || '', unit: r.unit || '' })),
+    table = {
+      corner:    t.corner || '',
+      cols:      t.cols.map(c => ({ label: c.label || '' })),
+      rows:      t.rows.map(r => ({ label: r.label || '', unit: r.unit || '' })),
       cellIndex,
+      // offset = index of first table answer in the flat answerDefs array (always 0 here)
+      offset: 0,
     };
-    return { answerDefs, table };
   }
-  // boxes / legacy single-answer
-  const answerDefs = (prob.answers && prob.answers.length)
-    ? prob.answers
-    : [{ id:'ans0', label:'Answer', formula: prob.formula, unit: prob.unit, tol: prob.tol }];
-  return { answerDefs, table: null };
+
+  // Box answers appended after table cells
+  if (hasBoxes) {
+    prob.answers.forEach(a => answerDefs.push({ ...a }));
+  } else if (!hasTable) {
+    // Legacy single-answer fallback
+    answerDefs.push({ id:'ans0', label:'Answer', formula: prob.formula, unit: prob.unit, tol: prob.tol });
+  }
+
+  return { answerDefs, table };
 }
 
 // ── Sidebar ───────────────────────────────────
@@ -281,26 +294,48 @@ window.buildProbCardEl = function buildProbCardEl(p, isFolder) {
        </span>`
     : '';
 
-  // Build answer inputs — table grid OR stacked boxes
-  const answerInputsHTML = p.table
+  // Build answer inputs — table, boxes, or both
+  // answerDefs is the flat list; table cells have ids tbl-R-C, box answers have sequential ids
+  // The flat index of the first box answer = number of table cells
+  const _tblCells = p.table ? p.table.rows.length * p.table.cols.length : 0;
+  const _boxAnswers = p.answers && p.answers.length ? p.answers : [];
+
+  const _tableHTML = p.table
     ? window.buildAnswerTableHTML(p.table, ai => `main-ans-${ai}`, ai => `main-ans-icon-${ai}`)
-    : (p.answers || [{id:'ans0',label:'Answer',answer:p.answer,unit:p.unit,tol:p.tol}]).map((a,ai) =>
-    `<div class="multi-ans-row">
-      ${p.answers && p.answers.length > 1 ? `<div class="multi-ans-label">${a.label}</div>` : ''}
+    : '';
+
+  const _boxesHTML = _boxAnswers.map((a, bi) => {
+    const ai = _tblCells + bi; // flat index after table cells
+    return `<div class="multi-ans-row">
+      ${(_boxAnswers.length > 1 || p.table) ? `<div class="multi-ans-label">${escHtml(a.label)}</div>` : ''}
       <div class="answer-row" style="margin-bottom:6px;align-items:center">
         <div style="position:relative;display:inline-flex;align-items:center">
           <input class="mono" type="number" step="any" placeholder="0.000"
             id="main-ans-${ai}" style="width:140px"/>
           <span id="main-ans-icon-${ai}" style="position:absolute;right:-22px;font-size:14px;display:none"></span>
         </div>
-        <span style="font-size:13px;color:var(--text2);font-weight:500;margin-left:28px">${a.unit}</span>
+        <span style="font-size:13px;color:var(--text2);font-weight:500;margin-left:28px">${escHtml(a.unit)}</span>
       </div>
-    </div>`
-  ).join('');
+    </div>`;
+  }).join('');
 
-  const revealedHTML = (p.answers || [{answer:p.answer,unit:p.unit,label:'Answer'}]).map(a =>
-    `<div>${(p.answers && p.answers.length > 1) || p.table ? `<strong>${a.label}:</strong> ` : ''}${a.answer} ${a.unit}</div>`
-  ).join('');
+  const answerInputsHTML = _tableHTML + _boxesHTML ||
+    `<div class="multi-ans-row"><div class="answer-row" style="margin-bottom:6px;align-items:center">
+      <div style="position:relative;display:inline-flex;align-items:center">
+        <input class="mono" type="number" step="any" placeholder="0.000" id="main-ans-0" style="width:140px"/>
+        <span id="main-ans-icon-0" style="position:absolute;right:-22px;font-size:14px;display:none"></span>
+      </div>
+      <span style="font-size:13px;color:var(--text2);font-weight:500;margin-left:28px">${escHtml(p.unit||'')}</span>
+    </div></div>`;
+
+  // Revealed answers: table cells first (from answerDefs), then boxes
+  const revealedHTML = p.answers_revealed
+    ? p.answers_revealed.map(a =>
+        `<div><strong>${escHtml(a.label)}:</strong> ${a.answer} ${escHtml(a.unit)}</div>`
+      ).join('')
+    : (p.answers||[{answer:p.answer,unit:p.unit,label:'Answer'}]).map(a =>
+        `<div>${(p.answers&&p.answers.length>1)||p.table?`<strong>${escHtml(a.label)}:</strong> `:''}${a.answer} ${escHtml(a.unit)}</div>`
+      ).join('');
 
   card.innerHTML = `
     <div class="prob-head">
