@@ -481,7 +481,7 @@ label {
 /* ── Assignments editor ── */
 .assign-editor     { padding: 1.25rem; overflow-y: auto; flex: 1; }
 .assign-editor-two { display: grid; grid-template-columns: 1fr 280px; gap: 14px; }
-.assign-prob-picker { background: var(--bg3); border: 0.5px solid var(--border); border-radius: var(--r2); padding: 10px; max-height: 420px; overflow-y: auto; }
+.assign-prob-picker { background: var(--bg3); border: 0.5px solid var(--border); border-radius: var(--r2); padding: 10px; max-height: 260px; overflow-y: auto; }
 .assign-prob-picker-row { display: flex; align-items: center; gap: 8px; padding: 6px 4px; border-bottom: 0.5px solid var(--border); font-size: 12px; }
 .assign-prob-picker-row:last-child { border-bottom: none; }
 .assign-prob-picker-row label { text-transform: none; letter-spacing: 0; font-size: 12px; color: var(--text2); cursor: pointer; display: flex; align-items: center; gap: 8px; flex: 1; margin: 0; }
@@ -719,6 +719,88 @@ label {
   letter-spacing: .07em;
   margin-bottom: 4px;
 }
+
+
+/* ── Answer mode toggle tabs ─────────────────── */
+.answer-mode-tabs { display: flex; gap: 4px; }
+.answer-mode-tab {
+  padding: 4px 10px; font-size: 11px; border-radius: var(--r2);
+  background: var(--bg3); border: 0.5px solid var(--border);
+  color: var(--text3); cursor: pointer; transition: all .15s;
+  display: flex; align-items: center; gap: 5px;
+}
+.answer-mode-tab.active {
+  background: var(--accent); color: #fff; border-color: var(--accent);
+}
+
+/* ── Table editor (admin editor) ─────────────── */
+.tbl-ed-scroll { overflow-x: auto; }
+.tbl-ed {
+  border-collapse: collapse; font-size: 12px;
+  min-width: 100%;
+}
+.tbl-ed th, .tbl-ed td {
+  padding: 4px 5px; border: 0.5px solid var(--border);
+  vertical-align: top;
+}
+.tbl-ed thead th { background: var(--bg4); text-align: center; }
+.tbl-ed .tbl-ed-corner {
+  background: var(--bg4); font-size: 10px; color: var(--text4);
+  font-weight: 600; letter-spacing: .05em;
+}
+.tbl-ed .tbl-ed-unit-h { background: var(--bg4); font-size: 10px; color: var(--text4); }
+.tbl-ed tbody th { background: var(--bg3); }
+.tbl-ed-col-label, .tbl-ed-row-label {
+  width: 100%; padding: 4px 6px; font-size: 11px; font-weight: 600;
+  color: var(--accent2); background: var(--bg4); border: 0.5px solid var(--border2);
+  border-radius: var(--r2); box-sizing: border-box; display: block;
+}
+.tbl-ed-formula {
+  width: 100%; padding: 4px 6px; font-size: 11px;
+  background: var(--bg3); border: 0.5px solid var(--border);
+  border-radius: var(--r2); box-sizing: border-box; display: block;
+}
+.tbl-ed-unit {
+  width: 52px; padding: 4px 6px; font-size: 11px;
+  background: var(--bg3); border: 0.5px solid var(--border);
+  border-radius: var(--r2); box-sizing: border-box;
+}
+.tbl-ed-preview {
+  display: block; font-size: 10px; color: var(--accent2);
+  font-family: var(--mono); margin-top: 2px; min-height: 14px;
+}
+.tbl-ed-del {
+  background: none; border: none; padding: 0 2px; cursor: pointer;
+  color: var(--text4); font-size: 11px; vertical-align: middle;
+  margin-left: 4px; line-height: 1;
+}
+.tbl-ed-del:hover { color: var(--red); }
+
+/* ── Student-facing answer table ─────────────── */
+.answer-table-wrap { overflow-x: auto; margin: 8px 0; }
+.answer-table {
+  border-collapse: collapse; font-size: 13px; min-width: 100%;
+}
+.answer-table th, .answer-table td {
+  padding: 6px 10px; border: 0.5px solid var(--border);
+}
+.answer-table thead th {
+  background: var(--bg3); color: var(--text3);
+  font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .06em;
+}
+.answer-table .at-corner { color: var(--text4); background: var(--bg4); }
+.answer-table .at-unit-h { color: var(--text4); font-size: 10px; background: var(--bg4); }
+.answer-table .at-rowlabel {
+  background: var(--bg3); font-size: 11px; font-weight: 700;
+  color: var(--text3); text-align: left;
+}
+.answer-table .at-unit {
+  font-size: 12px; color: var(--text3); font-weight: 500;
+  background: var(--bg3); text-align: center;
+}
+.at-cell { display: flex; align-items: center; gap: 6px; }
+.at-cell input { width: 110px; }
+.at-icon { font-size: 14px; flex-shrink: 0; }
 
 /* ── Sidebar drag-over state ─────────────────── */
 .sb-drag-over > .sb-folder-head {
