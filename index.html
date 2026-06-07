@@ -11,7 +11,7 @@
 <!-- Icons -->
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@latest/tabler-icons.min.css"/>
 <!-- Styles -->
-<link rel="stylesheet" href="css/styles.css"/>
+<link rel="stylesheet" href="styles.css"/>
 </head>
 <body>
 
@@ -1031,7 +1031,16 @@ window.MathJax = {
 };
 </script>
 <script async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-chtml.js"></script>
-
+<script>
+// Thin shims so inline onclick="" handlers work even if the module
+// hasn't finished loading yet. The real implementations are set on
+// window.* by firebase.js / app.js once the module resolves.
+function doLogin()    { window.doLogin?.()    ?? console.warn('doLogin not ready'); }
+function doLogout()   { window.doLogout?.()   ?? console.warn('doLogout not ready'); }
+function setAuthTab(t,el){ window.setAuthTab?.(t,el); }
+function toggleResetForm(){ window.toggleResetForm?.(); }
+function sendPasswordReset(){ window.sendPasswordReset?.(); }
+</script>
 <!-- Single entry point. main.js imports firebase.js then loads all other scripts in order. -->
 <script type="module" src="js/main.js"></script>
 
