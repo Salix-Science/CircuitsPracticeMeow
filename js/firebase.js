@@ -211,6 +211,9 @@ window.categoryPill = function(cat, categories) {
   return `<span class="pill" style="${style}">${window.escHtml(cat)}</span>`;
 };
 
+// Alias for backwards compatibility with any references to the old name
+window.catPill = window.categoryPill;
+
 // Persist the category list (admin only). Firestore rules also enforce admin.
 window.saveCategories = async function() {
   if (!window.S.isAdmin) { console.warn('[security] saveCategories blocked'); return; }
