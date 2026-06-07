@@ -118,7 +118,8 @@ exports.submitAssignment = onCall({ enforceAppCheck: false, cors: true }, async 
     throw new HttpsError('unauthenticated', 'You must be signed in to submit.');
   }
   const uid      = request.auth.uid;
-  const username = request.auth.token?.email?.replace('@circuitspractice.app', '') || uid;
+  const userSnap0 = await db.collection('users').doc(uid).get();
+const username = userSnap0.exists ? userSnap0.data().username : uid;
 
   // ── Input validation ──
   const { assignId, probId, inputs } = request.data || {};
