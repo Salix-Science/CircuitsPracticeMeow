@@ -463,6 +463,22 @@ window.logAdminAction = async function(action, details = {}) {
   }
 };
 
+// Write a document to the `mail` collection so the Firebase "Trigger Email"
+// extension picks it up and sends it via your SMTP credentials.
+// Plain scripts (notifications.js) call this since they can't import addDoc.
+window._addMailDoc = async function(to, subject, html) {
+  try {
+    await addDoc(collection(db, 'mail'), {
+      to,
+      message: { subject, html },
+    });
+    return { ok: true };
+  } catch(e) {
+    console.error('[mail] _addMailDoc failed:', e);
+    return { ok: false, error: e.message };
+  }
+};
+
 // Record a practice attempt using atomic server-side increment.
 // The client says "add 1 to attempted" and the server does it —
 // a student can never set their own score to an arbitrary value this way.
