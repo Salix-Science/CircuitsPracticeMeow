@@ -330,11 +330,18 @@ window.submitAssignProb = async function submitAssignProb(assignId, probId) {
   }
 
   // ── Sync authoritative counts back into local state ──
+  // The Cloud Function wrote assignAttempts via FieldValue.increment() directly
+  // to Firestore. Mirror into local DB so syncAssignAttempts() restores the
+  // correct count on the next page refresh.
   const used   = result.attemptsUsed;
   const maxAtt = result.attemptsMax;
   window._assignAttempts[varKey] = used;
   const _u = window.DB.users[window.S.user];
-  if (_u) { if (!_u.assignAttempts) _u.assignAttempts = {}; _u.assignAttempts[varKey] = used; }
+  if (_u) {
+    if (!_u.assignAttempts) _u.assignAttempts = {};
+    // Always take the higher value — never let a stale local count win.
+    _u.assignAttempts[varKey] = Math.max(_u.assignAttempts[varKey] || 0, used);
+  }
 
   // ── Log attempt for the admin analytics view ──
   const prob = window.DB.problems.find(p => p.id === probId);
@@ -361,7 +368,7 @@ window.submitAssignProb = async function submitAssignProb(assignId, probId) {
     correct: result.allOk, late: result.late, attempt_num: used,
   });
 
-  // ── Wrong answer with attempts remaining — inline feedback only ──
+  // ── Wrong answer with attempts remaining — rebuild row to update badge ──
   if (!result.allOk && !result.locked) {
     const remaining = maxAtt > 0 ? ` (${maxAtt - used} attempt${maxAtt-used!==1?'s':''} left)` : '';
     const detail = result.details.map(d =>
@@ -369,16 +376,17 @@ window.submitAssignProb = async function submitAssignProb(assignId, probId) {
         ? `${answers.length > 1 ? d.label+': ' : ''}✓`
         : `${answers.length > 1 ? d.label+': ' : ''}✗`
     ).join(' · ');
-    if (fb) { fb.className='feedback wrong'; fb.innerHTML=`${detail}${remaining}`; fb.style.display='block'; }
-    if (submitBtn) { submitBtn.disabled = false; submitBtn.innerHTML = '<i class="ti ti-send"></i> Submit'; }
-    // Update attempt badge without rebuilding row
-    const attBadges = document.querySelectorAll(`#assign-row-${assignId}-${probId} .pill`);
-    attBadges.forEach(b => {
-      if (b.textContent.includes('attempt')) {
-        b.textContent = maxAtt > 0 && used >= maxAtt ? 'No attempts left' : `${used}/${maxAtt} attempts`;
-        b.className   = `pill ${used >= maxAtt ? 'pill-red' : 'pill-warn'}`;
-      }
-    });
+    // Rebuild the row so the attempt badge reflects the new count reliably.
+    // buildProbRow only touches this problem's div — the accordion stays open.
+    const u2 = window.DB.users[window.S.user];
+    const sub2 = u2?.assignSubmissions?.[assignId] || {};
+    const row2 = document.getElementById(`assign-row-${assignId}-${probId}`);
+    if (row2 && ap !== undefined && idx !== undefined) {
+      buildProbRow(row2, assign, ap, idx, p, sub2, result.late || false);
+    }
+    // Re-acquire fb after rebuild and show feedback
+    const fb2 = document.getElementById(`afb-${assignId}-${probId}`);
+    if (fb2) { fb2.className='feedback wrong'; fb2.innerHTML=`${detail}${remaining}`; fb2.style.display='block'; }
     return;
   }
 
