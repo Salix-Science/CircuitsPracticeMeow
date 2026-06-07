@@ -10,13 +10,28 @@ if (!window._assignAttempts) window._assignAttempts = {};
 
 // Sync the in-memory attempt counter from the user's saved profile.
 // Called after login so attempt limits are restored after a page refresh.
-window.syncAssignAttempts = function() {
-  const u = window.DB && window.S && window.DB.users[window.S.user];
-  if (u && u.assignAttempts && typeof u.assignAttempts === 'object') {
-    // Merge in persisted counts — in-memory keys that already exist (e.g. from
-    // the current session) keep their value if it's higher than what's stored.
-    for (const [k, v] of Object.entries(u.assignAttempts)) {
+window.syncAssignAttempts = async function() {
+  const uid = window.S?.uid;
+  try {
+    const snap = await window._getDoc(window._docRef('users', uid));
+    const stored = snap.data().assignAttempts || {};
+    for (const [k, v] of Object.entries(stored)) {
       window._assignAttempts[k] = Math.max(window._assignAttempts[k] || 0, v);
+    }
+    const u = window.DB.users[window.S.user];
+    if (u) {
+      for (const [k, v] of Object.entries(stored)) {
+        u.assignAttempts[k] = Math.max(u.assignAttempts[k] || 0, v);
+      }
+    }
+    console.log('[syncAssignAttempts] synced', Object.keys(stored).length, 'key(s) from Firestore');
+  } catch(e) {
+    console.warn('[syncAssignAttempts] Firestore fetch failed — falling back to local DB:', e);
+    const u = window.DB?.users?.[window.S?.user];
+    if (u?.assignAttempts && typeof u.assignAttempts === 'object') {
+      for (const [k, v] of Object.entries(u.assignAttempts)) {
+        window._assignAttempts[k] = Math.max(window._assignAttempts[k] || 0, v);
+      }
     }
   }
 };
