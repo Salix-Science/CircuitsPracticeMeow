@@ -274,7 +274,7 @@ exports.submitAssignment = onCall({ enforceAppCheck: false, cors: true }, async 
  *   - Rate-limited: 5 comments per user per 60 seconds (checked in Firestore)
  *   - postId must reference a published post
  */
-exports.postComment = onCall({ enforceAppCheck: false }, async (request) => {
+exports.postComment = onCall({ enforceAppCheck: false, cors: true }, async (request) => {
   // ── Auth ──
   if (!request.auth) {
     throw new HttpsError('unauthenticated', 'You must be signed in to comment.');
