@@ -207,6 +207,116 @@ window.handleImg = function handleImg(e){
 }
 window.clearImg = function clearImg(){window.S.editorImg=null;document.getElementById('img-preview-wrap').innerHTML='';}
 
+// ── Sanity check ──────────────────────────────
+// Samples the variable space across N random seeds and checks each answer
+// formula for common authoring mistakes. Returns an array of warning strings
+// (empty = all clear). Does NOT block saving — just informs the author.
+//
+// Checks per answer box, per sample:
+//   • Formula throws (syntax/reference error)
+//   • Result is NaN or non-finite (div-by-zero, sqrt of negative, etc.)
+//   • Result is zero (almost never correct for a circuit answer)
+//   • Result is negative (warn for V/I/R/W; sign may be intentional for diff. circuits)
+//   • Result is implausibly large (>1e6) or small (<1e-6 and non-zero) — likely wrong units
+// Across all samples for a given answer:
+//   • Dynamic range > 1000× (max/min ratio) suggests degenerate edge cases in the range
+function sanitycheckProblem(prob) {
+  const SAMPLES = 50;
+  const warnings = [];
+
+  if (!prob.vars || !prob.vars.length) return warnings; // no variables → nothing to sample
+
+  // Simple LCG for deterministic sampling (not seeded — just needs spread coverage)
+  let _lcg = 1234567;
+  const lcgRand = () => { _lcg = (_lcg * 1664525 + 1013904223) & 0xffffffff; return ((_lcg >>> 0) / 0xffffffff); };
+
+  const answerDefs = (prob.answers && prob.answers.length)
+    ? prob.answers
+    : [{ id:'ans0', label:'Answer', formula: prob.formula, unit: prob.unit }];
+
+  answerDefs.forEach(ans => {
+    if (!ans.formula || !ans.formula.trim()) return;
+
+    let formulaErrors = 0;
+    let nanCount = 0;
+    let zeroCount = 0;
+    const negativeIndices = [];
+    const hugeIndices = [];
+    const tinyIndices = [];
+    const validResults = [];
+
+    for (let s = 0; s < SAMPLES; s++) {
+      // Sample each variable uniformly across its range
+      const vals = {};
+      let sampleHasZeroVar = false;
+      prob.vars.forEach(v => {
+        const min = parseFloat(v.min), max = parseFloat(v.max);
+        const val = min + lcgRand() * (max - min);
+        vals[v.name] = Math.round(val * 1000) / 1000;
+        if (val === 0) sampleHasZeroVar = true;
+      });
+
+      let result;
+      try {
+        const fn = new Function(...Object.keys(vals), `return (${ans.formula})`);
+        result = fn(...Object.values(vals));
+      } catch(e) {
+        formulaErrors++;
+        continue;
+      }
+
+      if (!Number.isFinite(result)) { nanCount++; continue; }
+      if (result === 0) { zeroCount++; continue; }
+
+      if (result < 0) negativeIndices.push(s);
+      if (Math.abs(result) > 1e6) hugeIndices.push(s);
+      if (Math.abs(result) < 1e-6 && result !== 0) tinyIndices.push(s);
+
+      validResults.push(result);
+    }
+
+    const label = answerDefs.length > 1 ? `"${ans.label}"` : 'Answer';
+
+    if (formulaErrors === SAMPLES) {
+      warnings.push(`${label}: formula threw errors on every sample — check for typos or missing variable names.`);
+      return;
+    }
+    if (formulaErrors > 0) {
+      warnings.push(`${label}: formula threw errors on ${formulaErrors}/${SAMPLES} samples — possible division by zero or variable name mismatch.`);
+    }
+    if (nanCount > 0) {
+      warnings.push(`${label}: ${nanCount}/${SAMPLES} samples produced NaN/Infinity — check for division by zero or sqrt of a negative.`);
+    }
+    if (zeroCount > SAMPLES * 0.2) {
+      warnings.push(`${label}: ${zeroCount}/${SAMPLES} samples produced exactly zero — formula may be degenerate.`);
+    }
+    if (negativeIndices.length === SAMPLES) {
+      warnings.push(`${label}: answer is negative on every sample — check sign convention or formula direction.`);
+    } else if (negativeIndices.length > 0 && negativeIndices.length < SAMPLES) {
+      warnings.push(`${label}: answer is negative on ${negativeIndices.length}/${SAMPLES} samples — variable ranges may produce physically invalid combinations.`);
+    }
+    if (hugeIndices.length > 0) {
+      warnings.push(`${label}: answer exceeds 1×10⁶ on ${hugeIndices.length}/${SAMPLES} samples — check units (e.g. Ω vs kΩ) or variable ranges.`);
+    }
+    if (tinyIndices.length > 0) {
+      warnings.push(`${label}: answer is below 1×10⁻⁶ on ${tinyIndices.length}/${SAMPLES} samples — check units or variable ranges.`);
+    }
+
+    // Dynamic range check — if valid results span > 1000× it suggests unstable ranges
+    if (validResults.length >= 2) {
+      const absResults = validResults.map(Math.abs).filter(x => x > 0);
+      if (absResults.length >= 2) {
+        const maxAbs = Math.max(...absResults), minAbs = Math.min(...absResults);
+        if (maxAbs / minAbs > 1000) {
+          warnings.push(`${label}: answer varies ${Math.round(maxAbs/minAbs)}× across the variable range (min ≈ ${rnd(minAbs,3)}, max ≈ ${rnd(maxAbs,3)} ${ans.unit}) — consider tightening variable ranges.`);
+        }
+      }
+    }
+  });
+
+  return warnings;
+}
+
 // ── Save problem ──────────────────────────────
 window.saveProblem = async function saveProblem(){
   if(!window.S.isAdmin){console.warn("[security] saveProblem blocked");return;}
@@ -236,6 +346,10 @@ window.saveProblem = async function saveProblem(){
     imgDataUrl:window.S.editorImg||null,
     enabled:window.S.formEnabled,
   };
+
+  // ── Run sanity check before saving ───────────
+  const sanityWarnings = sanitycheckProblem(prob);
+
   const idx=window.DB.problems.findIndex(p=>p.id===prob.id);
   const isNew=idx<0;
   if(idx>=0)window.DB.problems[idx]=prob;else window.DB.problems.push(prob);
@@ -255,6 +369,16 @@ window.saveProblem = async function saveProblem(){
   const answerRows=v.answers.map(a=>
     `<div style="font-family:var(--mono);font-size:10px;color:var(--text4)">${a.label}: ${a.answer!==null?a.answer+' '+a.unit:'⚠ error'}</div>`
   ).join('');
+
+  // Render sanity warnings inline in the preview card (non-blocking)
+  const warningHtml = sanityWarnings.length
+    ? `<div style="margin-top:10px;padding:8px 10px;background:rgba(251,191,36,.08);border:0.5px solid rgba(251,191,36,.30);border-radius:var(--r2)">
+        <div style="font-size:10px;font-weight:700;color:var(--warn);font-family:var(--mono);margin-bottom:4px;text-transform:uppercase;letter-spacing:.06em">⚠ Sanity check</div>
+        ${sanityWarnings.map(w=>`<div style="font-size:11px;color:var(--warn);line-height:1.6;font-family:var(--mono)">• ${w}</div>`).join('')}
+        <div style="font-size:10px;color:var(--text4);margin-top:4px;font-family:var(--mono)">Problem saved — review warnings before enabling.</div>
+      </div>`
+    : `<div style="margin-top:8px;font-size:10px;color:var(--green);font-family:var(--mono)">✓ Sanity check passed (50 samples)</div>`;
+
   wrap.innerHTML=`<div style="background:var(--bg3);border:0.5px solid var(--border);border-radius:var(--r2);padding:10px;font-size:12px">
     <div style="display:flex;align-items:center;gap:6px;margin-bottom:6px">
       <span style="font-family:var(--font-display);font-size:12px;color:var(--accent2)">${prob.title}</span>
@@ -264,8 +388,13 @@ window.saveProblem = async function saveProblem(){
     <p style="color:var(--text);line-height:1.6;margin-bottom:6px">${v.question}</p>
     ${answerRows}
     ${attNote}
+    ${warningHtml}
   </div>`;
-  alert(`"${prob.title}" saved!`);
+  if(sanityWarnings.length){
+    alert(`"${prob.title}" saved with ${sanityWarnings.length} warning${sanityWarnings.length!==1?'s':''}.\n\nSee the preview panel for details.`);
+  } else {
+    alert(`"${prob.title}" saved!`);
+  }
 }
 
 // ── Load problem into form ────────────────────
