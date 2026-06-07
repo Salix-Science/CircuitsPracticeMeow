@@ -1,54 +1,145 @@
-/* notifications.js — Email notification sending via EmailJS
-   
-   SETUP REQUIRED (one-time, ~5 minutes):
-   1. Create a free account at https://emailjs.com
-   2. Add an Email Service (Gmail works) — copy the Service ID
-   3. Create an Email Template with these variables:
-        {{to_email}}   — recipient address
-        {{subject}}    — email subject
-        {{message}}    — email body (HTML ok)
-        {{from_name}}  — "Circuits Practice"
-   4. Copy your Template ID and Public Key
-   5. Replace the three placeholders below with your real values.
+/* notifications.js — Email via SendPulse (server-side Netlify function)
+   All sends go to /api/send-email which holds the API secret.
+   No email credentials are exposed in client-side code.
 
-   Free tier: 200 emails/month, no credit card required.
+   Email types handled here:
+     - Bulk notifications  (new post, announcement, assignment)
+     - Welcome email       (account creation)
+     - Password reset      (custom branded email)
 
-   Student notification preferences are saved in their profile
-   (Profile tab → Email notifications). Admins send from here.
+   Student notification preferences are saved in their Firestore profile
+   under notifPrefs: { email, posts, announcements, assignments }
 */
 
-const EMAILJS_SERVICE_ID  = 'service_vj8344b';
-const EMAILJS_TEMPLATE_ID = 'template_r5jq4ed';
-const EMAILJS_PUBLIC_KEY  = '6v4OZ7JLX_TuXeLws';
+const EMAIL_ENDPOINT = '/api/send-email';
 
-function emailjsConfigured() {
-  return !EMAILJS_SERVICE_ID.startsWith('YOUR_') &&
-         !EMAILJS_TEMPLATE_ID.startsWith('YOUR_') &&
-         !EMAILJS_PUBLIC_KEY.startsWith('YOUR_');
-}
-
-// ── Send one email ────────────────────────────
-async function sendOneEmail(toEmail, subject, message) {
-  if (!emailjsConfigured()) { console.info('[notifications] EmailJS not configured'); return { ok:false }; }
-  if (typeof emailjs === 'undefined') { console.warn('[notifications] EmailJS SDK not loaded'); return { ok:false }; }
+// ── Core send function ────────────────────────────────────────────────────────
+// to: string (single) | Array of { email, name } (bulk)
+async function callSendEmail(to, subject, html) {
   try {
-    await emailjs.send(EMAILJS_SERVICE_ID, EMAILJS_TEMPLATE_ID, {
-      to_email:  toEmail,
-      subject,
-      message,
-      from_name: 'Circuits Practice',
-    }, EMAILJS_PUBLIC_KEY);
-    return { ok: true };
+    const res = await fetch(EMAIL_ENDPOINT, {
+      method:  'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body:    JSON.stringify({ to, subject, html }),
+    });
+    const data = await res.json();
+    if (!res.ok) {
+      console.error('[notifications] send-email function error:', data.error);
+      return { ok: false, error: data.error };
+    }
+    return data; // { ok, sent, failed }
   } catch(e) {
-    console.error('[notifications] send failed:', e);
+    console.error('[notifications] fetch failed:', e);
     return { ok: false, error: e.message };
   }
 }
 
-// ── Resolve subscribers for a type ────────────
-// IMPORTANT: window.DB.users only holds the *current* session's user, so the
-// old code could never reach other students. We fetch all users (admin-only)
-// so auto-sends and bulk sends actually reach every subscriber.
+// ── Email templates ───────────────────────────────────────────────────────────
+function baseTemplate(title, bodyHtml) {
+  return `<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1"/>
+  <title>${title}</title>
+</head>
+<body style="margin:0;padding:0;background:#0f1117;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif">
+  <table width="100%" cellpadding="0" cellspacing="0" style="background:#0f1117;padding:32px 16px">
+    <tr><td align="center">
+      <table width="560" cellpadding="0" cellspacing="0" style="max-width:560px;width:100%">
+        <!-- Header -->
+        <tr>
+          <td style="background:#161b27;border-radius:12px 12px 0 0;padding:24px 32px;border-bottom:1px solid #2a3040">
+            <span style="font-size:15px;font-weight:700;color:#7dd3fc;letter-spacing:.02em">
+              ⚡ Circuits Practice
+            </span>
+          </td>
+        </tr>
+        <!-- Body -->
+        <tr>
+          <td style="background:#161b27;padding:28px 32px;color:#e2e8f0;font-size:14px;line-height:1.7">
+            ${bodyHtml}
+          </td>
+        </tr>
+        <!-- Footer -->
+        <tr>
+          <td style="background:#0f1117;border-radius:0 0 12px 12px;padding:16px 32px;border-top:1px solid #2a3040">
+            <p style="margin:0;font-size:11px;color:#4a5568;line-height:1.6">
+              You're receiving this because you're enrolled in a course using
+              <a href="https://circuitspractice.org" style="color:#7dd3fc;text-decoration:none">circuitspractice.org</a>.
+              Update your email preferences in your
+              <a href="https://circuitspractice.org" style="color:#7dd3fc;text-decoration:none">profile settings</a>.
+            </p>
+          </td>
+        </tr>
+      </table>
+    </td></tr>
+  </table>
+</body>
+</html>`;
+}
+
+function notificationTemplate(title, message) {
+  return baseTemplate(title, `
+    <h2 style="margin:0 0 16px;font-size:20px;font-weight:700;color:#f1f5f9">${title}</h2>
+    <div style="color:#cbd5e1">${message}</div>
+    <div style="margin-top:24px">
+      <a href="https://circuitspractice.org"
+         style="display:inline-block;background:#3b82f6;color:#fff;text-decoration:none;
+                padding:10px 20px;border-radius:8px;font-size:13px;font-weight:600">
+        Open Circuits Practice →
+      </a>
+    </div>
+  `);
+}
+
+function welcomeTemplate(username) {
+  return baseTemplate('Welcome to Circuits Practice', `
+    <h2 style="margin:0 0 16px;font-size:20px;font-weight:700;color:#f1f5f9">
+      Welcome, ${username}! ⚡
+    </h2>
+    <p style="margin:0 0 12px;color:#cbd5e1">
+      Your Circuits Practice account is ready. You can now access practice problems,
+      assignments, and course resources.
+    </p>
+    <p style="margin:0 0 20px;color:#94a3b8;font-size:13px">
+      Sign in with the email address this was sent to and the temporary password
+      your instructor provided.
+    </p>
+    <div style="margin-top:8px">
+      <a href="https://circuitspractice.org"
+         style="display:inline-block;background:#3b82f6;color:#fff;text-decoration:none;
+                padding:10px 20px;border-radius:8px;font-size:13px;font-weight:600">
+        Get Started →
+      </a>
+    </div>
+  `);
+}
+
+function passwordResetTemplate(resetLink) {
+  return baseTemplate('Reset your password', `
+    <h2 style="margin:0 0 16px;font-size:20px;font-weight:700;color:#f1f5f9">
+      Password reset requested
+    </h2>
+    <p style="margin:0 0 12px;color:#cbd5e1">
+      We received a request to reset your Circuits Practice password.
+      Click the button below to set a new one.
+    </p>
+    <div style="margin:24px 0">
+      <a href="${resetLink}"
+         style="display:inline-block;background:#3b82f6;color:#fff;text-decoration:none;
+                padding:10px 20px;border-radius:8px;font-size:13px;font-weight:600">
+        Reset Password →
+      </a>
+    </div>
+    <p style="margin:0;font-size:12px;color:#64748b;line-height:1.6">
+      If you didn't request this, you can safely ignore this email.
+      This link expires in 1 hour.
+    </p>
+  `);
+}
+
+// ── Resolve subscribers for a notification type ───────────────────────────────
 async function getAllSubscribers(type) {
   let users = [];
   try {
@@ -61,56 +152,77 @@ async function getAllSubscribers(type) {
   if (!users.length) users = Object.values(window.DB.users || {});
   return users
     .filter(u => u.notifPrefs?.email && u.notifPrefs?.[type])
-    .map(u => ({ email: u.notifPrefs.email, username: u.username }));
+    .map(u => ({ email: u.notifPrefs.email, name: u.username || u.notifPrefs.email }));
 }
 
-// ── Send bulk to all subscribers of a type ────
+// ── Public API ────────────────────────────────────────────────────────────────
+
+// Bulk notification to all subscribers of a type.
 // type: 'posts' | 'announcements' | 'assignments'
 async function sendBulkNotification(type, subject, message) {
-  if (!window.S.isAdmin) { console.warn('[notifications] sendBulkNotification blocked — not admin'); return { sent:0, failed:0 }; }
-  const recipients = await getAllSubscribers(type);
-  if (!recipients.length) return { sent:0, failed:0 };
-  let sent=0, failed=0;
-  for (const r of recipients) {
-    const res = await sendOneEmail(r.email, subject, message);
-    if (res.ok) sent++; else failed++;
+  if (!window.S.isAdmin) {
+    console.warn('[notifications] sendBulkNotification blocked — not admin');
+    return { sent: 0, failed: 0 };
   }
-  logAdminAction('send_notification', { type, subject, sent, failed });
-  return { sent, failed };
+  const recipients = await getAllSubscribers(type);
+  if (!recipients.length) {
+    console.info('[notifications] no subscribers for type:', type);
+    return { sent: 0, failed: 0 };
+  }
+  const html = notificationTemplate(subject, message);
+  const result = await callSendEmail(recipients, subject, html);
+  logAdminAction('send_notification', { type, subject, sent: result.sent || 0, failed: result.failed || 0 });
+  return { sent: result.sent || 0, failed: result.failed || 0 };
 }
 
-// Wrapper used by auto-send hooks (blog.js, editor.js). Was previously
-// referenced but never defined, so auto-emails silently did nothing.
+// Send a welcome email to a newly created student account.
+window.sendWelcomeEmail = async function sendWelcomeEmail(toEmail, username) {
+  if (!window.S.isAdmin) return;
+  const subject = 'Welcome to Circuits Practice';
+  const html    = welcomeTemplate(username);
+  const result  = await callSendEmail(toEmail, subject, html);
+  if (!result.ok) console.warn('[notifications] welcome email failed:', result.error);
+  return result;
+};
+
+// Send a password reset email (custom branded, wraps Firebase reset link).
+window.sendPasswordResetEmail = async function sendPasswordResetEmail(toEmail, resetLink) {
+  const subject = 'Reset your Circuits Practice password';
+  const html    = passwordResetTemplate(resetLink);
+  const result  = await callSendEmail(toEmail, subject, html);
+  if (!result.ok) console.warn('[notifications] password reset email failed:', result.error);
+  return result;
+};
+
+// Wrapper used by auto-send hooks in blog.js and editor.js
 window.sendEmailNotification = async function sendEmailNotification(subject, message, type = 'posts') {
   return sendBulkNotification(type, subject, message);
 };
 window.sendBulkNotification = sendBulkNotification;
 
-// ── Admin notification panel ──────────────────
+// ── Admin notification panel ──────────────────────────────────────────────────
 window.renderAdminNotifPanel = async function renderAdminNotifPanel() {
   const wrap = document.getElementById('admin-notif-wrap');
   if (!wrap) return;
-  const configured = emailjsConfigured();
 
-  // Count subscribers per type across ALL users (not just the loaded session user)
   let users = [];
-  try { if (typeof window._fetchAllUsers === 'function') users = await window._fetchAllUsers(); }
-  catch(e) { console.error('[notifications] subscriber count fetch failed:', e); }
+  try {
+    if (typeof window._fetchAllUsers === 'function') users = await window._fetchAllUsers();
+  } catch(e) {
+    console.error('[notifications] subscriber count fetch failed:', e);
+  }
   if (!users.length) users = Object.values(window.DB.users || {});
+
   const countPosts = users.filter(u => u.notifPrefs?.email && u.notifPrefs?.posts).length;
   const countAnn   = users.filter(u => u.notifPrefs?.email && u.notifPrefs?.announcements).length;
   const countAss   = users.filter(u => u.notifPrefs?.email && u.notifPrefs?.assignments).length;
 
   wrap.innerHTML = `
-    ${!configured ? `
-      <div style="background:rgba(251,191,36,.08);border:0.5px solid rgba(251,191,36,.3);border-radius:var(--r2);padding:12px 14px;margin-bottom:14px;font-size:12px;color:var(--warn);line-height:1.7">
-        <strong>EmailJS not configured.</strong> Replace the three placeholders at the top of <code>js/notifications.js</code>
-        with your EmailJS Service ID, Template ID, and Public Key.
-        Get them free at <a href="https://emailjs.com" target="_blank" style="color:var(--accent2)">emailjs.com</a>.
-      </div>` : `
-      <div style="background:rgba(74,222,128,.08);border:0.5px solid rgba(74,222,128,.25);border-radius:var(--r2);padding:10px 14px;margin-bottom:14px;font-size:12px;color:var(--green)">
-        ✓ EmailJS configured and ready to send.
-      </div>`}
+    <div style="background:rgba(74,222,128,.08);border:0.5px solid rgba(74,222,128,.25);
+                border-radius:var(--r2);padding:10px 14px;margin-bottom:14px;
+                font-size:12px;color:var(--green)">
+      ✓ SendPulse configured — sending from noreply@circuitspractice.org
+    </div>
 
     <div style="display:flex;gap:8px;margin-bottom:14px;flex-wrap:wrap">
       ${subBadge('Posts', countPosts)}
@@ -137,16 +249,17 @@ window.renderAdminNotifPanel = async function renderAdminNotifPanel() {
         <textarea id="notif-send-body" rows="4" placeholder="Write your message here…"></textarea>
       </div>
       <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
-        <button class="btn btn-sm btn-accent" onclick="adminSendNotification()" ${!configured?'disabled':''}>
+        <button class="btn btn-sm btn-accent" onclick="adminSendNotification()">
           <i class="ti ti-send"></i> Send email
         </button>
         <div class="ok-msg hidden" id="notif-send-ok"></div>
       </div>
     </div>`;
-}
+};
 
 function subBadge(label, count) {
-  return `<div style="background:var(--bg3);border:0.5px solid var(--border);border-radius:var(--r2);padding:8px 12px;text-align:center;min-width:100px">
+  return `<div style="background:var(--bg3);border:0.5px solid var(--border);
+                      border-radius:var(--r2);padding:8px 12px;text-align:center;min-width:100px">
     <div style="font-size:18px;font-family:var(--mono);font-weight:500;color:var(--accent2)">${count}</div>
     <div style="font-size:9px;color:var(--text4);text-transform:uppercase;letter-spacing:.1em;margin-top:2px">${label}</div>
   </div>`;
@@ -165,6 +278,6 @@ window.adminSendNotification = async function adminSendNotification() {
   ok.classList.remove('hidden');
 
   const result = await sendBulkNotification(type, subject, body);
-  ok.textContent = `Sent to ${result.sent} student${result.sent!==1?'s':''}${result.failed?' · '+result.failed+' failed':''}.`;
-  setTimeout(() => ok.classList.add('hidden'), 5000);
-}
+  ok.textContent = `Sent to ${result.sent} student${result.sent !== 1 ? 's' : ''}${result.failed ? ' · ' + result.failed + ' failed' : ''}.`;
+  setTimeout(() => ok.classList.add('hidden'), 6000);
+};
