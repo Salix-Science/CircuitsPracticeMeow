@@ -935,12 +935,6 @@ window.adminCreateUser = async function() {
     await signInWithEmailAndPassword(auth, adminEmail, adminPass);
     window._suppressAuthObserver = false;
     logAdminAction('create_account', { uid: createdUid, username, isAdmin, hasEmail: true }).catch(() => {});
-    // Send branded welcome email via SendPulse (non-blocking — never fails account creation)
-    if (typeof window.sendWelcomeEmail === 'function') {
-      window.sendWelcomeEmail(email, username).catch(e =>
-        console.warn('[adminCreateUser] welcome email failed (non-fatal):', e.message)
-      );
-    }
     ok.textContent = `"${username}" created. Email: ${email} — Password: ${pass}`;
     ok.classList.remove('hidden');
     ['mu-email','mu-user','mu-pass'].forEach(id => document.getElementById(id).value = '');

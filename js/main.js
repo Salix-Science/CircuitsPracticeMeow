@@ -13,7 +13,6 @@ const scripts = [
   'js/blog.js',
   'js/editor.js',
   'js/assignments.js',
-  'js/patch-verify.js',   // server-side answer verification — overrides checkMainAnswer + submitAssignProb
   'js/gradebook.js',
   'js/admin.js',
   'js/sitegrades.js',
