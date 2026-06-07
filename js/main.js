@@ -22,6 +22,7 @@ const scripts = [
   'js/profile.js',
   'js/notifications.js',
   'js/ratings.js',
+  'js/adminlog.js',
   'js/app.js',
 ];
 
