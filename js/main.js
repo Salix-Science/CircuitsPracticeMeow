@@ -8,21 +8,21 @@ import './firebase.js';
 // so by the time this import resolves, all window.* functions are defined.
 // Now dynamically load the remaining scripts in strict order.
 const scripts = [
-  'js/home.js',
-  'js/practice.js',
-  'js/blog.js',
-  'js/editor.js',
-  'js/assignments.js',
-  'js/gradebook.js',
-  'js/admin.js',
-  'js/sitegrades.js',
-  'js/sections.js',
-  'js/progress.js',
-  'js/calendar.js',
-  'js/profile.js',
-  'js/notifications.js',
-  'js/ratings.js',
-  'js/app.js',
+  '/js/home.js',
+  '/js/practice.js',
+  '/js/blog.js',
+  '/js/editor.js',
+  '/js/assignments.js',
+  '/js/gradebook.js',
+  '/js/admin.js',
+  '/js/sitegrades.js',
+  '/js/sections.js',
+  '/js/progress.js',
+  '/js/calendar.js',
+  '/js/profile.js',
+  '/js/notifications.js',
+  '/js/ratings.js',
+  '/js/app.js',
 ];
 
 for (const src of scripts) {
