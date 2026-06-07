@@ -285,89 +285,92 @@ window.reshuffleAssignProb = function reshuffleAssignProb(assignId, probId, varK
   }
 }
 
-// ── Submit ────────────────────────────────────
+// ── Submit (server-side verification via Cloud Function) ──────────────────
 window.submitAssignProb = async function submitAssignProb(assignId, probId) {
-  // varKey is always deterministic — reconstruct it here rather than
-  // passing it through an onclick attribute where it could be tampered with.
   const varKey = `${assignId}-${probId}-${window.S.user}`;
   const p      = window._assignVals[varKey]; if (!p) return;
   const assign = window.DB.assignments.find(a => a.id === assignId);
   const ap     = assign?.problems.find(ap => ap.probId === probId);
   const idx    = assign?.problems.indexOf(ap);
   const fb     = document.getElementById(`afb-${assignId}-${probId}`);
-  const answers = p.answers || [{ id:'ans0', label:'Answer', answer:p.answer, unit:p.unit, tol:p.tol||0.02 }];
+  const answers = p.answers || [{ id:'ans0', label:'Answer', unit:p.unit }];
 
-  // Collect inputs
-  const results = answers.map((a, ai) => {
+  // ── Collect raw inputs (client only reads the DOM — no answer values) ──
+  const inputs = [];
+  for (let ai = 0; ai < answers.length; ai++) {
     const raw = parseFloat(document.getElementById(`ai-${assignId}-${probId}-${ai}`)?.value);
-    if (isNaN(raw)) return { missing:true, label:a.label };
-    const tol = Math.abs(a.answer) * (a.tol||0.02) + 0.001;
-    return { ok: Math.abs(raw - a.answer) <= tol, raw, label:a.label, answer:a.answer, unit:a.unit, tol:a.tol||0.02, missing:false };
-  });
+    if (isNaN(raw)) {
+      if (fb) { fb.textContent = 'Fill in all answer boxes.'; fb.className = 'feedback wrong'; fb.style.display = 'block'; }
+      return;
+    }
+    inputs.push(raw);
+  }
 
-  if (results.some(r => r.missing)) {
-    if (fb) { fb.textContent = 'Fill in all answer boxes.'; fb.className = 'feedback wrong'; fb.style.display = 'block'; }
+  // ── Disable submit button while the round-trip is in flight ──
+  const submitBtn = document.querySelector(`#assign-row-${assignId}-${probId} .btn-accent`);
+  if (submitBtn) { submitBtn.disabled = true; submitBtn.textContent = 'Checking…'; }
+  if (fb) { fb.style.display = 'none'; }
+
+  let result;
+  try {
+    const { getFunctions, httpsCallable } = await import(
+      'https://www.gstatic.com/firebasejs/10.12.0/firebase-functions.js'
+    );
+    const fns  = getFunctions(window._firebaseApp, 'us-central1');
+    const call = httpsCallable(fns, 'submitAssignment');
+    const res  = await call({ assignId, probId, inputs });
+    result = res.data;
+    console.log('[submitAssignment] server response:', result);
+  } catch (err) {
+    console.error('[submitAssignment] Cloud Function error:', err);
+    if (submitBtn) { submitBtn.disabled = false; submitBtn.innerHTML = '<i class="ti ti-send"></i> Submit'; }
+    const msg = err?.message || 'Server error — please try again.';
+    if (fb) { fb.className = 'feedback wrong'; fb.textContent = msg; fb.style.display = 'block'; }
     return;
   }
 
-  const allOk  = results.every(r => r.ok);
-  window._assignAttempts[varKey] = (window._assignAttempts[varKey] || 0) + 1;
-  const used   = window._assignAttempts[varKey];
-  // Mirror the updated count into the user profile so saveUserOnly persists it.
+  // ── Sync authoritative counts back into local state ──
+  const used   = result.attemptsUsed;
+  const maxAtt = result.attemptsMax;
+  window._assignAttempts[varKey] = used;
   const _u = window.DB.users[window.S.user];
   if (_u) { if (!_u.assignAttempts) _u.assignAttempts = {}; _u.assignAttempts[varKey] = used; }
-  const maxAtt = p.maxAttempts || 0;
-  const noMore = maxAtt > 0 && used >= maxAtt;
 
-  const due    = assign?.due ? new Date(assign.due) : null;
-  const isLate = due && Date.now() > due.getTime();
-
-  // Hard block — re-checked at submission time so keeping a tab open past
-  // the deadline (or calling this from the console) doesn't bypass it.
-  if (isLate && assign.allowLate === false) {
-    const fb = document.getElementById(`afb-${assignId}-${probId}`);
-    if (fb) {
-      fb.className = 'feedback wrong';
-      fb.textContent = 'This assignment is closed — the deadline has passed.';
-      fb.style.display = 'block';
-    }
-    // Rebuild the row to remove the input form
-    const row = document.getElementById(`assign-row-${assignId}-${probId}`);
-    if (row && ap !== undefined && idx !== undefined) {
-      buildProbRow(row, assign, ap, idx, p, sub, isLate);
-    }
-    return;
-  }
-
-  // ── Log this attempt (every attempt, win or lose, is recorded) ──
+  // ── Log attempt for the admin analytics view ──
   const prob = window.DB.problems.find(p => p.id === probId);
-  window.logAttempt({
-    ts:         Date.now(),
+  window.logAttempt?.({
+    ts:          Date.now(),
     assignId,
     probId,
-    probTitle:  prob?.title || probId,
+    probTitle:   prob?.title || probId,
     assignTitle: assign?.title || assignId,
-    attemptNum: used,
-    correct:    allOk,
-    late:       isLate,
-    answers: results.map(r => ({
-      label:     r.label,
-      submitted: rnd(r.raw, 4),
-      expected:  r.answer,
-      unit:      r.unit,
-      ok:        r.ok,
+    attemptNum:  used,
+    correct:     result.allOk,
+    late:        result.late || false,
+    answers: result.details.map((d, i) => ({
+      label:     d.label,
+      submitted: inputs[i],
+      expected:  d.answer ?? null,  // only present when locked
+      unit:      d.unit,
+      ok:        d.ok,
     })),
   });
 
-  if (!allOk && !noMore) {
-    // Wrong but still has attempts — show feedback inline, don't re-render
+  window.track?.("assignment_submit", {
+    assign_id: assignId, prob_id: probId,
+    correct: result.allOk, late: result.late, attempt_num: used,
+  });
+
+  // ── Wrong answer with attempts remaining — inline feedback only ──
+  if (!result.allOk && !result.locked) {
     const remaining = maxAtt > 0 ? ` (${maxAtt - used} attempt${maxAtt-used!==1?'s':''} left)` : '';
-    const detail = results.map(r =>
-      r.ok
-        ? `${answers.length > 1 ? r.label+': ' : ''}✓`
-        : `${answers.length > 1 ? r.label+': ' : ''}✗${window.S.isAdmin ? ` expected ≈${r.answer} ${r.unit}` : ''}`
+    const detail = result.details.map(d =>
+      d.ok
+        ? `${answers.length > 1 ? d.label+': ' : ''}✓`
+        : `${answers.length > 1 ? d.label+': ' : ''}✗`
     ).join(' · ');
     if (fb) { fb.className='feedback wrong'; fb.innerHTML=`${detail}${remaining}`; fb.style.display='block'; }
+    if (submitBtn) { submitBtn.disabled = false; submitBtn.innerHTML = '<i class="ti ti-send"></i> Submit'; }
     // Update attempt badge without rebuilding row
     const attBadges = document.querySelectorAll(`#assign-row-${assignId}-${probId} .pill`);
     attBadges.forEach(b => {
@@ -379,35 +382,40 @@ window.submitAssignProb = async function submitAssignProb(assignId, probId) {
     return;
   }
 
-  // Lock in submission
+  // ── Locked (correct or out of attempts) — update local cache and rebuild row ──
   const u = window.DB.users[window.S.user];
-  if (!u.assignSubmissions)            u.assignSubmissions = {};
-  if (!u.assignSubmissions[assignId])  u.assignSubmissions[assignId] = {};
+  if (!u.assignSubmissions)           u.assignSubmissions = {};
+  if (!u.assignSubmissions[assignId]) u.assignSubmissions[assignId] = {};
+  // Populate from server response so the row renders consistently with Firestore
   u.assignSubmissions[assignId][probId] = {
-    correct: allOk,
-    details: results.map(r => ({ label:r.label, answer:r.answer, unit:r.unit, submitted:rnd(r.raw,4), ok:r.ok })),
+    correct:   result.allOk,
+    late:      result.late || false,
     timestamp: Date.now(),
-    late: isLate,
+    details:   result.details.map((d, i) => ({
+      label:     d.label,
+      ok:        d.ok,
+      submitted: inputs[i],
+      unit:      d.unit,
+      answer:    d.answer ?? null,
+    })),
   };
-  window.track?.("assignment_submit", { assign_id: assignId, prob_id: probId, correct: allOk, late: isLate, attempt_num: used });
-  await saveUserOnly();
 
-  // Update header counts
+  // Update header pill counts
   const sub   = u.assignSubmissions[assignId];
   const total = assign?.problems.length || 0;
-  const done  = Object.keys(sub).length;
+  const doneCount = Object.keys(sub).length;
   const head  = document.querySelector(`#ab-${assignId}`)?.previousElementSibling;
   if (head) {
     const pill = head.querySelector('.pill-purple, .pill-green');
     if (pill) {
-      pill.className = done === total ? 'pill pill-green' : 'pill pill-purple';
-      pill.textContent = done === total ? 'Submitted' : `${done}/${total} done`;
+      pill.className   = doneCount === total ? 'pill pill-green' : 'pill pill-purple';
+      pill.textContent = doneCount === total ? 'Submitted' : `${doneCount}/${total} done`;
     }
   }
 
-  // Rebuild only this problem row in place — accordion stays open
+  // Rebuild only this problem's row — accordion stays open
   const row = document.getElementById(`assign-row-${assignId}-${probId}`);
   if (row && ap !== undefined && idx !== undefined) {
-    buildProbRow(row, assign, ap, idx, p, u.assignSubmissions[assignId], isLate);
+    buildProbRow(row, assign, ap, idx, p, u.assignSubmissions[assignId], result.late || false);
   }
 }

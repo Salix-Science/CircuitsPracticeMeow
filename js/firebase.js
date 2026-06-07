@@ -38,6 +38,10 @@ const app       = initializeApp(firebaseConfig);
 const auth      = getAuth(app);
 const db        = getFirestore(app);
 
+// Expose the Firebase app instance so assignments.js can call getFunctions()
+// without re-initializing (avoids "Firebase: App named '[DEFAULT]' already exists" error).
+window._firebaseApp = app;
+
 // Analytics may fail in dev (localhost/file://) or if blocked by an ad blocker.
 // Wrap in try/catch so a failure here never prevents login from working.
 let analytics = null;
