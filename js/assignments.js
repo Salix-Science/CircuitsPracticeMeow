@@ -215,11 +215,14 @@ window.buildProbRow = function buildProbRow(row, assign, ap, idx, p, sub, isLate
 
   const inputsHTML = answers.map((a, ai) => {
     const pts = boxPts && boxPts[ai] != null ? boxPts[ai].points : null;
-    const ptsBadge = (pts != null && answers.length > 1)
+    const ptsBadge = pts != null
       ? `<span style="font-size:10px;color:var(--text4);font-family:var(--mono);margin-left:auto">${pts} pt${pts===1?'':'s'}</span>` : '';
+    const rowLabel = answers.length > 1
+      ? `<div class="multi-ans-label" style="display:flex;align-items:center">${escHtml(a.label)}${ptsBadge}</div>`
+      : ptsBadge ? `<div style="display:flex;align-items:center;margin-bottom:2px"><span style="font-size:11px;color:var(--text3)">Answer</span>${ptsBadge}</div>` : '';
     return `
     <div class="multi-ans-row">
-      ${answers.length > 1 ? `<div class="multi-ans-label" style="display:flex;align-items:center">${escHtml(a.label)}${ptsBadge}</div>` : ''}
+      ${rowLabel}
       <div style="display:flex;gap:8px;align-items:center;margin-bottom:4px">
         <input class="mono" type="number" step="any" placeholder="0.000"
           id="ai-${assign.id}-${ap.probId}-${ai}"
