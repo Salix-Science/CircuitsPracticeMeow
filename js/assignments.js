@@ -12,12 +12,26 @@ if (!window._assignAttempts) window._assignAttempts = {};
 // Called after login so attempt limits are restored after a page refresh.
 window.syncAssignAttempts = function() {
   const u = window.DB && window.S && window.DB.users[window.S.user];
+  console.log('[syncAssignAttempts] user:', window.S?.user,
+              '| u exists:', !!u,
+              '| assignAttempts in profile:', u?.assignAttempts
+                ? JSON.stringify(u.assignAttempts)
+                : 'MISSING or empty');
   if (u && u.assignAttempts && typeof u.assignAttempts === 'object') {
+    const keys = Object.keys(u.assignAttempts);
+    if (keys.length === 0) {
+      console.log('[syncAssignAttempts] assignAttempts object present but empty — no attempt counts to restore');
+    }
     // Merge in persisted counts — in-memory keys that already exist (e.g. from
     // the current session) keep their value if it's higher than what's stored.
     for (const [k, v] of Object.entries(u.assignAttempts)) {
       window._assignAttempts[k] = Math.max(window._assignAttempts[k] || 0, v);
     }
+    console.log('[syncAssignAttempts] synced', keys.length,
+                'key(s) into window._assignAttempts:', JSON.stringify(window._assignAttempts));
+  } else {
+    console.warn('[syncAssignAttempts] nothing to sync — u:', !!u,
+                 '| u.assignAttempts:', u?.assignAttempts);
   }
 };
 
@@ -201,49 +215,48 @@ window.buildProbRow = function buildProbRow(row, assign, ap, idx, p, sub, isLate
   const inputsHTML = answers.map((a, ai) => {
     const pts = boxPts && boxPts[ai] != null ? boxPts[ai].points : null;
     const ptsBadge = (pts != null && answers.length > 1)
-      ? `<span style="font-size:10px;color:var(--text4);font-family:var(--mono);margin-left:auto">${pts} pt${pts===1?'':'s'}</span>` : '';
+      ? `<span style="font-size:10px;color:var(--text4);font-family:var(--mono)">${pts}pt</span>`
+      : '';
     return `
-    <div class="multi-ans-row">
-      ${answers.length > 1 ? `<div class="multi-ans-label" style="display:flex;align-items:center">${escHtml(a.label)}${ptsBadge}</div>` : ''}
-      <div style="display:flex;gap:8px;align-items:center;margin-bottom:4px">
-        <input class="mono" type="number" step="any" placeholder="0.000"
+      <div style="display:flex;align-items:center;gap:6px;margin-bottom:4px">
+        ${answers.length > 1 ? `<label style="font-size:11px;color:var(--text3);min-width:60px">${escHtml(a.label)}</label>` : ''}
+        <input type="number" step="any"
           id="ai-${assign.id}-${ap.probId}-${ai}"
-          style="width:120px;padding:6px 10px;font-size:12px"/>
-        <span style="font-size:13px;font-weight:500;color:var(--text2)">${a.unit}</span>
-      </div>
-    </div>`;
+          style="width:120px;font-size:12px;font-family:var(--mono)"
+          placeholder="Answer"/>
+        <span style="font-size:11px;color:var(--text4)">${escHtml(a.unit||'')}</span>
+        ${ptsBadge}
+      </div>`;
   }).join('');
 
-  const lateNote = isLate ? `<span class="pill pill-warn" style="font-size:9px">Late</span>` : '';
+  const maxPts = (() => {
+    if (boxPts) return boxPts.reduce((s, b) => s + (b?.points || 0), 0) + ' pts';
+    return (ap.points || 1) + ' pt' + ((ap.points || 1) !== 1 ? 's' : '');
+  })();
 
-  // Partial-credit display: per-box points → show earned/max instead of ✓/✗
-  const partial  = Array.isArray(ap.boxPoints) && ap.boxPoints.length > 1;
-  const maxPts    = (typeof window.problemMaxPoints==='function') ? window.problemMaxPoints(ap) : (ap.points||0);
-  const earnedPts = done ? ((typeof window.problemEarned==='function') ? window.problemEarned(ap, done) : (done.correct?(ap.points||0):0)) : 0;
-  const earnedCol = earnedPts===maxPts ? 'pill-green' : earnedPts>0 ? 'pill-warn' : 'pill-red';
+  const lateNote = '<span class="pill pill-warn" style="font-size:10px">Late</span>';
 
-  const doneStatusPill = !done ? ''
-    : partial
-      ? `<span class="pill ${earnedCol}">${earnedPts}/${maxPts} pts</span>`
-      : `<span class="pill ${done.correct ? 'pill-green' : 'pill-red'}">${done.correct ? '✓ Correct' : '✗ Incorrect'}</span>`;
+  const doneStatusPill = done
+    ? `<span class="pill ${done.correct ? 'pill-green' : 'pill-red'}" style="font-size:10px">${done.correct ? '✓ Correct' : '✗ Incorrect'}</span>`
+    : '';
 
-  const doneFeedback = !done
-    ? `<div class="feedback wrong" style="display:block">No attempts remaining.</div>`
-    : partial
-      ? `<div class="feedback ${earnedPts===maxPts?'correct':'wrong'}" style="display:block">
-           You earned ${earnedPts} / ${maxPts} pts.
-           ${(done.details||[]).map(d=>`<div style="font-size:11px;margin-top:2px">${escHtml(d.label)}: ${d.ok?'<span style="color:var(--green)">✓</span>':'<span style="color:var(--red)">✗</span>'}${window.S.isAdmin && !d.ok ? ` <span style="color:var(--text4)">(expected ≈${d.answer ?? d.expected} ${escHtml(d.unit||'')})</span>`:''}</div>`).join('')}
-         </div>`
-      : `<div class="feedback ${done.correct ? 'correct' : 'wrong'}" style="display:block">
-           ${done.correct
-             ? '✓ Correct!'
-             : '✗ Incorrect' + (window.S.isAdmin ? ' — ' + (done.details || []).map(d => `${escHtml(d.label)}: expected ${d.answer ?? d.expected} ${escHtml(d.unit||'')}`).join(' · ') : '')}
-         </div>`;
+  const doneFeedback = done
+    ? (done.details && done.details.length > 1
+        ? `<div class="feedback ${done.correct ? 'correct' : 'wrong'}" style="display:block">
+             ${done.correct ? '✓ All correct!' : '✗ Some answers incorrect'}
+             ${(done.details||[]).map(d=>`<div style="font-size:11px;margin-top:2px">${escHtml(d.label)}: ${d.ok?'<span style="color:var(--green)">✓</span>':'<span style="color:var(--red)">✗</span>'}${window.S.isAdmin && !d.ok ? ` <span style="color:var(--text4)">(expected ≈${d.answer ?? d.expected} ${escHtml(d.unit||'')})</span>`:''}</div>`).join('')}
+           </div>`
+        : `<div class="feedback ${done.correct ? 'correct' : 'wrong'}" style="display:block">
+             ${done.correct
+               ? '✓ Correct!'
+               : '✗ Incorrect' + (window.S.isAdmin ? ' — ' + (done.details || []).map(d => `${escHtml(d.label)}: expected ${d.answer ?? d.expected} ${escHtml(d.unit||'')}`).join(' · ') : '')}
+           </div>`)
+    : '';
 
   row.innerHTML = `
     <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;flex-wrap:wrap">
       <span style="font-size:12px;font-weight:600;color:var(--accent2)">${idx+1}. ${escHtml(p.title)}</span>
-      <span style="font-size:11px;font-family:var(--mono);color:var(--text3)">${maxPts} pts</span>
+      <span style="font-size:11px;font-family:var(--mono);color:var(--text3)">${maxPts}</span>
       ${doneStatusPill}
       ${done && done.late ? lateNote : ''}
       ${attBadge}
@@ -269,9 +282,8 @@ window.reshuffleAssignProb = function reshuffleAssignProb(assignId, probId, varK
   const prob = window.DB.problems.find(p => p.id === probId);
   if (!prob) return;
   try { sessionStorage.removeItem(`prob_vals_${window.S.user || 'anon'}_${probId}`); } catch(e) {}
-  window._assignVals[varKey]    = genAuthoredVariant(prob, true);
+  window._assignVals[varKey]     = genSeededVariant(prob, varKey + '_reshuffled_' + Date.now());
   window._assignAttempts[varKey] = 0;
-  // Rebuild just this problem's row, not the whole page
   const assign = window.DB.assignments.find(a => a.id === assignId);
   const ap     = assign?.problems.find(ap => ap.probId === probId);
   const idx    = assign?.problems.indexOf(ap);
@@ -341,6 +353,7 @@ window.submitAssignProb = async function submitAssignProb(assignId, probId) {
     if (!_u.assignAttempts) _u.assignAttempts = {};
     // Always take the higher value — never let a stale local count win.
     _u.assignAttempts[varKey] = Math.max(_u.assignAttempts[varKey] || 0, used);
+    console.log('[submitAssignment] mirrored assignAttempts[' + varKey + '] =', _u.assignAttempts[varKey]);
   }
 
   // ── Log attempt for the admin analytics view ──
@@ -357,7 +370,7 @@ window.submitAssignProb = async function submitAssignProb(assignId, probId) {
     answers: result.details.map((d, i) => ({
       label:     d.label,
       submitted: inputs[i],
-      expected:  d.answer ?? null,  // only present when locked
+      expected:  d.answer ?? null,
       unit:      d.unit,
       ok:        d.ok,
     })),
@@ -376,15 +389,12 @@ window.submitAssignProb = async function submitAssignProb(assignId, probId) {
         ? `${answers.length > 1 ? d.label+': ' : ''}✓`
         : `${answers.length > 1 ? d.label+': ' : ''}✗`
     ).join(' · ');
-    // Rebuild the row so the attempt badge reflects the new count reliably.
-    // buildProbRow only touches this problem's div — the accordion stays open.
     const u2 = window.DB.users[window.S.user];
     const sub2 = u2?.assignSubmissions?.[assignId] || {};
     const row2 = document.getElementById(`assign-row-${assignId}-${probId}`);
     if (row2 && ap !== undefined && idx !== undefined) {
       buildProbRow(row2, assign, ap, idx, p, sub2, result.late || false);
     }
-    // Re-acquire fb after rebuild and show feedback
     const fb2 = document.getElementById(`afb-${assignId}-${probId}`);
     if (fb2) { fb2.className='feedback wrong'; fb2.innerHTML=`${detail}${remaining}`; fb2.style.display='block'; }
     return;
@@ -394,7 +404,6 @@ window.submitAssignProb = async function submitAssignProb(assignId, probId) {
   const u = window.DB.users[window.S.user];
   if (!u.assignSubmissions)           u.assignSubmissions = {};
   if (!u.assignSubmissions[assignId]) u.assignSubmissions[assignId] = {};
-  // Populate from server response so the row renders consistently with Firestore
   u.assignSubmissions[assignId][probId] = {
     correct:   result.allOk,
     late:      result.late || false,
