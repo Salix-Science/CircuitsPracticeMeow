@@ -331,17 +331,52 @@ window.removeAnswerBox = function removeAnswerBox(i){
 }
 
 window.previewAllFormulas = function previewAllFormulas(){
-  const vals={};
-  window.S.editorVars.forEach(v=>{vals[v.name]=(parseFloat(v.min)+parseFloat(v.max))/2;});
+  const vars = window.S.editorVars;
+  const mkVals = (pos) => {
+    const v = {};
+    vars.forEach(va => {
+      const lo = parseFloat(va.min), hi = parseFloat(va.max);
+      v[va.name] = pos === 'min' ? lo : pos === 'max' ? hi : (lo + hi) / 2;
+    });
+    return v;
+  };
+  const midVals = mkVals('mid');
+  const minVals = mkVals('min');
+  const maxVals = mkVals('max');
+  const varStr  = vars.map(va=>`${va.name}=${midVals[va.name]} ${va.unit||''}`).join(', ') || 'no vars';
+
   window.S.editorAnswers.forEach((ans,i)=>{
     const prev=document.getElementById(`formula-preview-${i}`);if(!prev)return;
-    if(!ans.formula.trim()){prev.textContent='Formula preview';return;}
+    if(!ans.formula.trim()){
+      prev.textContent='Formula preview';
+      prev.style.color='';
+      prev.title='';
+      return;
+    }
     try{
-      const fn=new Function(...Object.keys(vals),`return (${ans.formula})`);
-      const res=fn(...Object.values(vals));
-      const varStr=window.S.editorVars.map(v=>`${v.name}=${vals[v.name]} ${v.unit||''}`).join(', ')||'no vars';
-      prev.textContent=`Preview: ${varStr} → ${rnd(res,4)} ${ans.unit}`;
-    }catch(e){prev.textContent=`⚠ ${e.message}`;}
+      const fn     = new Function(...Object.keys(midVals),`return (${ans.formula})`);
+      const resMid = fn(...Object.values(midVals));
+
+      // Range-check at extremes
+      let rangeWarn = '';
+      try {
+        const fnLo  = new Function(...Object.keys(minVals),`return (${ans.formula})`);
+        const fnHi  = new Function(...Object.keys(maxVals),`return (${ans.formula})`);
+        const resLo = fnLo(...Object.values(minVals));
+        const resHi = fnHi(...Object.values(maxVals));
+        if(!isFinite(resLo) || !isFinite(resHi)) rangeWarn = ' ⚠ range';
+        else if(Math.sign(resLo) !== Math.sign(resHi) && resLo !== 0 && resHi !== 0)
+          rangeWarn = ' ⚠ sign flip';
+      } catch(_){ rangeWarn = ' ⚠ range err'; }
+
+      prev.textContent = `Preview: ${varStr} → ${rnd(resMid,4)} ${ans.unit}${rangeWarn}`;
+      prev.style.color = rangeWarn ? 'var(--warn)' : '';
+      prev.title       = rangeWarn ? 'Checked at min/max variable values — see warning' : '';
+    }catch(e){
+      prev.textContent=`⚠ ${e.message}`;
+      prev.style.color='var(--red)';
+      prev.title=e.message;
+    }
   });
 }
 
