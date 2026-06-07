@@ -359,12 +359,12 @@ window.renderPmList = function renderPmList(){
 
     // Compute average difficulty from all users
     const avgDiff = typeof computeAvgDifficulty === 'function' ? computeAvgDifficulty(p.id) : null;
-    const diffStr = avgDiff ? ' · ' + '★'.repeat(Math.round(avgDiff)) + '☆'.repeat(5-Math.round(avgDiff)) + ' ' + avgDiff.toFixed(1) : '';
+    const diffStr = avgDiff ? ` · ★${avgDiff}` : '';
+
     row.innerHTML = `
-      <div class="pm-drag-handle"><i class="ti ti-grip-vertical"></i></div>
-      <div class="pm-row-body">
+      <div class="pm-row-info">
         <div class="pm-row-title">${escHtml(p.title)}</div>
-        <div class="pm-row-meta">${p.topic||'—'} · ${p.vars.length} vars · ${ansCount} answer${ansCount!==1?'s':''} · ${maxAtt>0?maxAtt+' att.':'unlimited'}${!isEnabled?' · hidden':''}${diffStr}</div>
+        <div class="pm-row-meta">${p.topic||'—'} · ${ansCount} box${ansCount!==1?'es':''} · ${maxAtt||'∞'} att${maxAtt!==1?'s':''} · ${isEnabled?'visible':'hidden'}${diffStr}</div>
       </div>
       <div class="pm-row-actions">
         <div class="toggle-wrap" onclick="event.stopPropagation();quickToggleEnabled('${p.id}')">
@@ -456,6 +456,7 @@ window.createFolder = async function createFolder(){
   document.getElementById('new-folder-name').value='';
   await saveDB();renderFolderList();buildPracticeSidebar();
 }
+
 // ── Rename a folder (inline edit) ─────────────
 window.startRenameFolder = function startRenameFolder(id){
   if(!window.S.isAdmin){console.warn("[security] startRenameFolder blocked");return;}
@@ -524,23 +525,18 @@ window.renderFolderList = function renderFolderList(){
   window.DB.folders.forEach(f=>{
     const card=document.createElement('div');card.className='folder-card';
 
-    // Build the draggable problem rows
-    const probRows=document.createElement('div');
-    probRows.style.cssText='padding:8px 14px 4px;display:flex;flex-direction:column;gap:4px';
-
-    if(!f.problemIds.length){
-      probRows.innerHTML='<span style="font-size:11px;color:var(--text4)">No problems yet.</span>';
-    } else {
-      f.problemIds.forEach((pid,pi)=>{
-        const p=window.DB.problems.find(pr=>pr.id===pid);if(!p)return;
-        const hidden=p.enabled===false;
-        const row=document.createElement('div');
-        row.className='folder-prob-row';
-        row.draggable=true;
-        row.dataset.idx=pi;
-        row.innerHTML=`
-          <i class="ti ti-grip-vertical" style="font-size:13px;color:var(--text4);cursor:grab;flex-shrink:0"></i>
-          <span style="flex:1;font-size:12px;color:${hidden?'var(--text4)':'var(--text2)'}">${p.title}
+    // Build the problem rows first (drag-and-drop reorder within folder)
+    const probRows=document.createElement('div');probRows.className='folder-prob-list';
+    (f.problemIds||[]).forEach((pid,pi)=>{
+      const p=window.DB.problems.find(x=>x.id===pid);
+      const hidden=p&&p.enabled===false;
+      const row=document.createElement('div');
+      row.className='folder-prob-row';
+      row.draggable=true;
+      row.innerHTML=`
+          <i class="ti ti-grip-vertical" style="color:var(--text4);font-size:12px;cursor:grab"></i>
+          <span style="flex:1;font-size:12px;color:${hidden?'var(--text4)':'var(--text2)'}">
+            ${p?escHtml(p.title):`<span style="color:var(--red)">${pid} (missing)</span>`}
             ${hidden?'<span style="font-size:9px;color:var(--text4);margin-left:4px">(hidden)</span>':''}
           </span>
           <button class="pm-icon-btn del" style="flex-shrink:0"
@@ -548,39 +544,38 @@ window.renderFolderList = function renderFolderList(){
             <i class="ti ti-x"></i>
           </button>`;
 
-        // Drag events
-        row.addEventListener('dragstart', e=>{
-          _folderDragSrc={folderId:f.id,idx:pi};
-          row.style.opacity='0.4';
-          e.dataTransfer.effectAllowed='move';
-        });
-        row.addEventListener('dragend', ()=>{
-          row.style.opacity='';
-          probRows.querySelectorAll('.folder-prob-row').forEach(r=>r.classList.remove('folder-prob-drag-over'));
-        });
-        row.addEventListener('dragover', e=>{
-          e.preventDefault();
-          row.classList.add('folder-prob-drag-over');
-        });
-        row.addEventListener('dragleave', ()=>row.classList.remove('folder-prob-drag-over'));
-        row.addEventListener('drop', async e=>{
-          e.preventDefault();
-          row.classList.remove('folder-prob-drag-over');
-          if(!_folderDragSrc||_folderDragSrc.folderId!==f.id||_folderDragSrc.idx===pi) return;
-          // Reorder problemIds in this folder
-          const ids=[...f.problemIds];
-          const [moved]=ids.splice(_folderDragSrc.idx,1);
-          ids.splice(pi,0,moved);
-          f.problemIds=ids;
-          _folderDragSrc=null;
-          await saveDB();
-          renderFolderList();
-          buildPracticeSidebar();
-        });
-
-        probRows.appendChild(row);
+      // Drag events
+      row.addEventListener('dragstart', e=>{
+        _folderDragSrc={folderId:f.id,idx:pi};
+        row.style.opacity='0.4';
+        e.dataTransfer.effectAllowed='move';
       });
-    }
+      row.addEventListener('dragend', ()=>{
+        row.style.opacity='';
+        probRows.querySelectorAll('.folder-prob-row').forEach(r=>r.classList.remove('folder-prob-drag-over'));
+      });
+      row.addEventListener('dragover', e=>{
+        e.preventDefault();
+        row.classList.add('folder-prob-drag-over');
+      });
+      row.addEventListener('dragleave', ()=>row.classList.remove('folder-prob-drag-over'));
+      row.addEventListener('drop', async e=>{
+        e.preventDefault();
+        row.classList.remove('folder-prob-drag-over');
+        if(!_folderDragSrc||_folderDragSrc.folderId!==f.id||_folderDragSrc.idx===pi) return;
+        // Reorder problemIds in this folder
+        const ids=[...f.problemIds];
+        const [moved]=ids.splice(_folderDragSrc.idx,1);
+        ids.splice(pi,0,moved);
+        f.problemIds=ids;
+        _folderDragSrc=null;
+        await saveDB();
+        renderFolderList();
+        buildPracticeSidebar();
+      });
+
+      probRows.appendChild(row);
+    });
 
     // Header
     const head=document.createElement('div');
@@ -658,6 +653,18 @@ window.newAssignment = function newAssignment(){
   if(lateToggle) lateToggle.checked=true; // default: allow late
   renderAssignProbPicker();
 }
+
+// ── Helper: convert a datetime-local string to a UTC ISO string ──
+// datetime-local inputs give "YYYY-MM-DDTHH:MM" with no timezone info.
+// Browsers treat this as local time, but Cloud Functions (Node.js) treat
+// it as UTC — causing deadlines to appear hours earlier server-side.
+// Converting here ensures both client and server parse the same instant.
+function _localDtToISO(val) {
+  if (!val) return '';
+  const d = new Date(val); // treated as local time by the browser
+  return isNaN(d.getTime()) ? '' : d.toISOString();
+}
+
 window.saveAssignment = async function saveAssignment(){
   if(!window.S.isAdmin){console.warn("[security] saveAssignment blocked");return;}
   const title=document.getElementById('as-title').value.trim();if(!title){alert('Enter a title.');return;}
@@ -672,10 +679,17 @@ window.saveAssignment = async function saveAssignment(){
     const points = boxPoints.reduce((s,b)=>s+b.points,0);   // total = sum of box points
     return { probId:p.id, points, boxPoints };
   });
-  const assign={id:window.S.editingAssignId||`assign-${Date.now()}`,title,
-    instructions:document.getElementById('as-instructions').value,
-    opens:document.getElementById('as-open').value,due:document.getElementById('as-due').value,
-    allowLate, problems};
+  const assign={
+    id:     window.S.editingAssignId||`assign-${Date.now()}`,
+    title,
+    instructions: document.getElementById('as-instructions').value,
+    // Store as UTC ISO strings so the Cloud Function deadline check uses the
+    // same instant as the browser, regardless of server timezone.
+    opens: _localDtToISO(document.getElementById('as-open').value),
+    due:   _localDtToISO(document.getElementById('as-due').value),
+    allowLate,
+    problems,
+  };
   const _aIdx=window.DB.assignments.findIndex(a=>a.id===assign.id);
   const _aIsNew=_aIdx<0;
   if(_aIdx>=0)window.DB.assignments[_aIdx]=assign;else window.DB.assignments.push(assign);
@@ -718,7 +732,16 @@ window.renderAssignAdmin = function renderAssignAdmin(){
 window.loadAssignToEditor = function loadAssignToEditor(id){
   const a=window.DB.assignments.find(a=>a.id===id);if(!a)return;window.S.editingAssignId=id;
   document.getElementById('as-title').value=a.title||'';document.getElementById('as-instructions').value=a.instructions||'';
-  document.getElementById('as-open').value=a.opens||'';document.getElementById('as-due').value=a.due||'';
+  // Convert stored ISO/UTC string back to datetime-local format (YYYY-MM-DDTHH:MM in local time)
+  const toLocalDt = iso => {
+    if(!iso) return '';
+    const d = new Date(iso);
+    if(isNaN(d.getTime())) return iso; // legacy plain string — leave as-is
+    const pad = n => String(n).padStart(2,'0');
+    return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+  };
+  document.getElementById('as-open').value=toLocalDt(a.opens);
+  document.getElementById('as-due').value=toLocalDt(a.due);
   const lateToggle=document.getElementById('as-allow-late');
   if(lateToggle) lateToggle.checked=a.allowLate!==false;
   // The picker reads window.S.editingAssignId and pre-fills checkboxes + per-box points itself.
