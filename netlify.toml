@@ -1,0 +1,15 @@
+[build]
+  publish   = "."
+  functions = "netlify/functions"
+
+# Proxy /api/* → Netlify Functions so client calls /api/send-email
+# instead of /.netlify/functions/send-email
+[[redirects]]
+  from   = "/api/send-email"
+  to     = "/.netlify/functions/send-email"
+  status = 200
+
+[[redirects]]
+  from   = "/api/verify-answer"
+  to     = "/.netlify/functions/verify-answer"
+  status = 200
