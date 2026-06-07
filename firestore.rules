@@ -1,0 +1,67 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+match /mail/{docId} {
+  allow create: if request.auth != null;
+  allow read, update, delete: if false;
+}
+    match /users/{userId} {
+  allow read: if request.auth.uid == userId || isAdmin();
+  // Admins can write anything
+  allow write: if isAdmin();
+  // A newly created user can create their own document (resource is null — new doc)
+  allow create: if request.auth.uid == userId;
+  // Students can update their own existing doc only if it passes validation
+  allow update: if request.auth.uid == userId && validUserWrite();
+}
+
+    match /problems/{id}    { allow read: if request.auth != null; allow write: if isAdmin(); }
+    match /posts/{id}       { allow read: if request.auth != null; allow write: if isAdmin(); }
+    match /assignments/{id} { allow read: if request.auth != null; allow write: if isAdmin(); }
+    match /folders/{id}     { allow read: if request.auth != null; allow write: if isAdmin(); }
+    match /topics/{id}      { allow read: if request.auth != null; allow write: if isAdmin(); }
+    match /config/{docId}   { allow read: if request.auth != null; allow write: if isAdmin(); }
+    match /events/{id}      { allow read: if request.auth != null; allow write: if isAdmin(); }
+    match /sections/{id}    { allow read: if isAdmin(); allow write: if isAdmin(); }
+
+    match /ratings/{probId} {
+      allow read:  if request.auth != null;
+      allow write: if request.auth != null;
+    }
+
+    match /auditLog/{docId} {
+      allow create: if isAdmin();
+      allow read, update, delete: if false;
+    }
+
+    function isAdmin() {
+      return request.auth != null &&
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.isAdmin == true;
+    }
+
+    function validUserWrite() {
+      let d = request.resource.data;
+      let affected = d.diff(resource.data).affectedKeys();
+
+      // Must not escalate to admin
+      return (!affected.hasAny(['isAdmin']) || d.isAdmin == false)
+
+          // streak: if present as a plain value, must be a non-negative number
+          // (increment() writes are allowed — they don't appear as plain values in rules)
+          && (!affected.hasAny(['streak'])
+              || ((d.streak is int || d.streak is float) && d.streak >= 0 && d.streak <= 9999))
+
+          // username must be a plain string
+          && d.username is string
+          && d.username.size() <= 100
+
+          // scores, assignSubmissions must be maps if written as plain values
+          && (!affected.hasAny(['scores']) || d.scores is map)
+          && (!affected.hasAny(['assignSubmissions']) || d.assignSubmissions is map)
+
+          // notifPrefs and attemptLog type checks
+          && (!d.keys().hasAny(['notifPrefs']) || d.notifPrefs is map)
+          && (!d.keys().hasAny(['attemptLog']) || d.attemptLog is list);
+    }
+  }
+}
