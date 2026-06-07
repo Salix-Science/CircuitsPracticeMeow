@@ -93,7 +93,6 @@ window.sanitizeUser = function(data) {
   }
 
   // assignSubmissions — object of { assignId: { probId: submission } }
-  // We don't render values from inside submissions into innerHTML, but sanitize anyway
   safe.assignSubmissions = {};
   if (data.assignSubmissions && typeof data.assignSubmissions === 'object') {
     for (const [aId, probs] of Object.entries(data.assignSubmissions)) {
@@ -137,7 +136,8 @@ window.sanitizeUser = function(data) {
 
   // attemptLog — array, keep structure but sanitize string fields
   safe.attemptLog = [];
-  if (Array.isArray(data.attemptLog)) {    safe.attemptLog = data.attemptLog.slice(-500).map(e => ({
+  if (Array.isArray(data.attemptLog)) {
+    safe.attemptLog = data.attemptLog.slice(-500).map(e => ({
       ts:          safeInt(e.ts, Date.now() + 1e10),
       assignId:    stripTags(String(e.assignId  || '')).slice(0, 100),
       probId:      stripTags(String(e.probId    || '')).slice(0, 100),
@@ -154,6 +154,18 @@ window.sanitizeUser = function(data) {
         ok:        !!a.ok,
       })) : [],
     }));
+  }
+
+  // probRatings — { probId: 1-5 } — written by ratings.js via saveUserOnly
+  safe.probRatings = {};
+  if (data.probRatings && typeof data.probRatings === 'object') {
+    for (const [k, v] of Object.entries(data.probRatings)) {
+      if (typeof k !== 'string' || k.length > 100) continue;
+      const n = parseInt(v, 10);
+      if (Number.isFinite(n) && n >= 1 && n <= 5) {
+        safe.probRatings[k] = n;
+      }
+    }
   }
 
   return safe;
@@ -178,32 +190,21 @@ window.escHtml = function(str) {
 // so a colour set in the Category editor is consistent everywhere.
 // Stored in Firestore at config/blogCategories as { list:[{name,color}] }.
 window.DEFAULT_CATEGORIES = [
-  { name:'Tutorial',     color:'#4ade80' },
+  { name:'Tutorial',     color:'#4fa3e0' },
   { name:'Update',       color:'#9d7de8' },
-  { name:'Announcement', color:'#e8c96b' },
-  { name:'Resource',     color:'#2dd4bf' },
+  { name:'Announcement', color:'#e07c4f' },
+  { name:'Resource',     color:'#4fba7c' },
 ];
 
-// Convert a #rrggbb (or #rgb) hex to "r,g,b" for use inside rgba()
 window.hexToRgb = function(hex) {
-  let h = String(hex || '').trim().replace(/^#/, '');
-  if (h.length === 3) h = h.split('').map(c => c + c).join('');
-  if (!/^[0-9a-fA-F]{6}$/.test(h)) return '157,125,232'; // fallback to accent purple
-  const n = parseInt(h, 16);
-  return `${(n >> 16) & 255},${(n >> 8) & 255},${n & 255}`;
+  const r = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
+  return r ? `${parseInt(r[1],16)},${parseInt(r[2],16)},${parseInt(r[3],16)}` : '157,125,232';
 };
 
-// Look up a category's colour by name (falls back to a neutral grey)
-window.getCatColor = function(name) {
-  const cats = window.DB.categories && window.DB.categories.length
-    ? window.DB.categories : window.DEFAULT_CATEGORIES;
-  const c = cats.find(c => c.name === name);
-  return c ? c.color : null;
-};
-
-// Canonical pill renderer used by blog.js AND home.js
-window.catPill = function(cat) {
-  const color = window.getCatColor(cat);
+window.categoryPill = function(cat, categories) {
+  const list = categories || window.DB.categories || window.DEFAULT_CATEGORIES;
+  const match = list.find(c => c.name === cat);
+  const color = match?.color || null;
   const style = color
     ? `background:rgba(${window.hexToRgb(color)},.12);color:${color};border:0.5px solid rgba(${window.hexToRgb(color)},.30)`
     : 'background:rgba(157,125,232,.08);color:var(--text3);border:0.5px solid var(--border)';
@@ -249,18 +250,42 @@ function toArray(snapshot) {
 }
 
 // ── Load shared content from Firestore ────────
+// FIX: Each collection is fetched individually so a permission error on one
+// (e.g. draft posts blocked by rules, or sections if not yet admin) cannot
+// crash the entire Promise.all and silently abort the login flow.
+async function safeGetDocs(col) {
+  try {
+    return await getDocs(collection(db, col));
+  } catch(e) {
+    console.warn(`[loadSharedData] ${col} read failed (${e.code || e.message}) — using empty fallback`);
+    return { docs: [] };
+  }
+}
+
+async function safeGetDoc(ref) {
+  try {
+    return await getDoc(ref);
+  } catch(e) {
+    console.warn(`[loadSharedData] doc read failed (${e.code || e.message}) — using empty fallback`);
+    return { exists: () => false };
+  }
+}
+
 async function loadSharedData() {
+  console.log('[loadSharedData] starting — isAdmin:', window.S.isAdmin);
+
   const [probSnap, postSnap, assignSnap, folderSnap, topicSnap, hpSnap, evSnap, ratingSnap, sectSnap] = await Promise.all([
-    getDocs(collection(db, 'problems')),
-    getDocs(collection(db, 'posts')),
-    getDocs(collection(db, 'assignments')),
-    getDocs(collection(db, 'folders')),
-    getDocs(collection(db, 'topics')),
-    getDoc(doc(db, 'config', 'homepage')),
-    getDocs(collection(db, 'events')),
-    getDocs(collection(db, 'ratings')),
-    window.S.isAdmin ? getDocs(collection(db, 'sections')) : Promise.resolve({ docs: [] }),
+    safeGetDocs('problems'),
+    safeGetDocs('posts'),
+    safeGetDocs('assignments'),
+    safeGetDocs('folders'),
+    safeGetDocs('topics'),
+    safeGetDoc(doc(db, 'config', 'homepage')),
+    safeGetDocs('events'),
+    safeGetDocs('ratings'),
+    window.S.isAdmin ? safeGetDocs('sections') : Promise.resolve({ docs: [] }),
   ]);
+
   window.DB.problems    = toArray(probSnap).sort((a,b) => (a.order ?? 999) - (b.order ?? 999));
   window.DB.posts       = toArray(postSnap);
   window.DB.assignments = toArray(assignSnap);
@@ -269,6 +294,12 @@ async function loadSharedData() {
   window.DB.homepage    = hpSnap.exists() ? hpSnap.data() : { banner:'', bannerEnabled:true };
   window.DB.events      = toArray(evSnap);
   window.DB.sections    = toArray(sectSnap);
+
+  console.log('[loadSharedData] loaded — problems:', window.DB.problems.length,
+              '| assignments:', window.DB.assignments.length,
+              '| posts:', window.DB.posts.length,
+              '| sections:', window.DB.sections.length);
+
   // Blog categories — read separately and defensively. If this doc is missing
   // OR the Firestore rules deny reading it, we fall back to defaults instead of
   // letting the whole app fail to load.
@@ -287,6 +318,7 @@ async function loadSharedData() {
   } catch(e) {
     console.warn('blogCategories read failed — using default categories:', e.code || e.message);
   }
+
   // Merge rating aggregates onto problem objects
   const ratingsMap = {};
   toArray(ratingSnap).forEach(r => { ratingsMap[r.id] = r; });
@@ -299,13 +331,30 @@ async function loadSharedData() {
 
 // ── Load this user's profile ──────────────────
 async function loadUserProfile(uid) {
-  const snap = await getDoc(doc(db, 'users', uid));
-  if (snap.exists()) {
-    const data = sanitizeUser(snap.data());
-    window.DB.users[data.username] = data;
-    return data;
+  console.log('[loadUserProfile] fetching uid:', uid);
+  let snap;
+  try {
+    snap = await getDoc(doc(db, 'users', uid));
+  } catch(e) {
+    console.error('[loadUserProfile] Firestore read FAILED:', e.code, e.message,
+                  '— check Firestore rules for users collection');
+    return null;
   }
-  return null;
+  if (!snap.exists()) {
+    console.warn('[loadUserProfile] no document found for uid:', uid,
+                 '— profile may not have been created yet');
+    return null;
+  }
+  const raw  = snap.data();
+  console.log('[loadUserProfile] raw from Firestore — username:', raw.username,
+              '| isAdmin:', raw.isAdmin,
+              '| assignAttempts keys:', Object.keys(raw.assignAttempts || {}).length,
+              '| assignSubmissions keys:', Object.keys(raw.assignSubmissions || {}).length);
+  const data = sanitizeUser(raw);
+  console.log('[loadUserProfile] after sanitizeUser — isAdmin:', data.isAdmin,
+              '| assignAttempts keys:', Object.keys(data.assignAttempts || {}).length);
+  window.DB.users[data.username] = data;
+  return data;
 }
 
 // ── saveDB — writes everything back ──────────
@@ -366,8 +415,15 @@ window.saveUserOnly = async function() {
   if (!u) { console.warn('saveUserOnly: no user object'); return; }
 
   // Whitelist exact fields and enforce types before writing.
-  // This means even if u.streak was tampered with in memory,
-  // we only ever write a safe integer to Firestore.
+  // IMPORTANT — assignAttempts is deliberately EXCLUDED from this payload.
+  // The Cloud Function owns assignAttempts via atomic FieldValue.increment().
+  // Writing the whole map here via setDoc({ merge:true }) replaces the entire
+  // Firestore map field, stomping any increments the CF wrote between the last
+  // page load and now. Instead we write assignAttempts keys individually via
+  // updateDoc with dot-notation paths (see below), which is truly non-destructive.
+  //
+  // attemptLog is also excluded — it is written exclusively via logAttempt →
+  // arrayUnion, which appends atomically.
   const safe = {
     scores:            (u.scores && typeof u.scores === 'object') ? u.scores : {},
     streak:            (Number.isFinite(parseInt(u.streak)) && parseInt(u.streak) >= 0)
@@ -383,12 +439,9 @@ window.saveUserOnly = async function() {
                              assignments:   !!u.notifPrefs.assignments,
                            }
                          : {},
-    // NOTE: attemptLog is intentionally absent here. It is written exclusively
-    // via logAttempt → arrayUnion, which appends atomically. Writing it here
-    // would overwrite the Firestore array with a stale in-memory snapshot and
-    // erase entries that logAttempt queued but hasn't flushed yet.
-    assignAttempts:    (u.assignAttempts && typeof u.assignAttempts === 'object')
-                         ? u.assignAttempts : {},
+    // probRatings — student difficulty ratings, written by ratings.js
+    probRatings:       (u.probRatings && typeof u.probRatings === 'object')
+                         ? u.probRatings : {},
   };
 
   try {
@@ -396,6 +449,31 @@ window.saveUserOnly = async function() {
   } catch(e) {
     console.error('saveUserOnly failed:', e.code, e.message);
     throw e;
+  }
+
+  // Write assignAttempts using dot-notation updateDoc so each key is written
+  // independently. This is safe to do alongside the CF's increment() because
+  // we only ever write keys the client already knows about — and we always
+  // take the max so we can never reduce a count the CF has already advanced.
+  if (u.assignAttempts && typeof u.assignAttempts === 'object') {
+    const keys = Object.keys(u.assignAttempts);
+    if (keys.length > 0) {
+      const dotUpdates = {};
+      for (const [k, v] of Object.entries(u.assignAttempts)) {
+        if (typeof k !== 'string' || k.length > 200) continue;
+        const n = parseInt(v, 10);
+        if (Number.isFinite(n) && n >= 0 && n <= 9999) {
+          dotUpdates[`assignAttempts.${k}`] = n;
+        }
+      }
+      if (Object.keys(dotUpdates).length > 0) {
+        try {
+          await updateDoc(doc(db, 'users', uid), dotUpdates);
+        } catch(e) {
+          console.warn('saveUserOnly: assignAttempts dot-update failed:', e.code, e.message);
+        }
+      }
+    }
   }
 };
 
@@ -437,7 +515,6 @@ async function _flushAttemptLog() {
 // Flush on page unload so nothing is lost when student closes tab
 window.addEventListener('beforeunload', () => {
   if (_attemptQueue.length && window.S.uid) {
-    // Use sendBeacon for reliable unload writes
     _flushAttemptLog();
   }
 });
@@ -450,26 +527,21 @@ window.saveHomepage = async function() {
 };
 
 // Append a record to the top-level `auditLog` collection in Firestore.
-// Each document is one admin action — auto-ID'd by Firestore so they
-// stack up in insertion order and are easy to filter/export in the console.
-// Uses addDoc so it never overwrites anything.
 window.logAdminAction = async function(action, details = {}) {
   try {
     await addDoc(collection(db, 'auditLog'), {
       ts:       Date.now(),
       admin:    window.S.user || '—',
-      action,   // e.g. 'save_problem', 'delete_folder', 'publish_post'
+      action,
       ...details,
     });
   } catch(e) {
-    // Non-critical — never surface to admin
     console.warn('logAdminAction failed:', e);
   }
 };
 
 // Write a document to the `mail` collection so the Firebase "Trigger Email"
 // extension picks it up and sends it via your SMTP credentials.
-// Plain scripts (notifications.js) call this since they can't import addDoc.
 window._addMailDoc = async function(to, subject, html) {
   try {
     await addDoc(collection(db, 'mail'), {
@@ -484,8 +556,6 @@ window._addMailDoc = async function(to, subject, html) {
 };
 
 // Record a practice attempt using atomic server-side increment.
-// The client says "add 1 to attempted" and the server does it —
-// a student can never set their own score to an arbitrary value this way.
 window.recordScore = async function(topicKey, correct) {
   const uid = window.S.uid;
   if (!uid) return;
@@ -494,17 +564,16 @@ window.recordScore = async function(topicKey, correct) {
     await updateDoc(doc(db, 'users', uid), {
       [`${field}.attempted`]: increment(1),
       [`${field}.correct`]:   increment(correct ? 1 : 0),
-      streak: increment(correct ? 1 : -999999), // handled below
+      streak: increment(correct ? 1 : -999999),
     });
   } catch(e) {
-    // If the score field doesn't exist yet, create it
     await setDoc(doc(db, 'users', uid), {
       scores: { [topicKey]: { attempted: 1, correct: correct ? 1 : 0 } },
     }, { merge: true });
   }
 };
 
-// Record streak atomically — separate from score so we can set it to 0 on wrong answer
+// Record streak atomically
 window.recordStreak = async function(correct) {
   const uid = window.S.uid;
   if (!uid) return;
@@ -537,7 +606,7 @@ window._docRef    = (col, id)       => doc(db, col, id);
 window._getDoc    = (ref)           => getDoc(ref);
 window._updateDoc = (ref, data)     => updateDoc(ref, data);
 
-// Delete a Firestore document (used when deleting problems/posts/etc.)
+// Delete a Firestore document
 window.deleteFromDB = async function(collectionName, id) {
   await deleteDoc(doc(db, collectionName, id));
 };
@@ -563,29 +632,17 @@ window.doLogin = async function() {
   const pass  = document.getElementById('l-pass').value;
   if (!idRaw || !pass) { showAuthErr('l-err', 'Enter your email and password.'); return; }
 
-  // Determine the Firebase Auth email to sign in with.
-  // New accounts: real email is the Auth identity — use directly.
-  // Legacy accounts: Auth identity is username@circuitspractice.app.
-  //   - Username typed (no @): map directly.
-  //   - Real email typed (@): check localStorage for a cached mapping written
-  //     after a previous successful login or after the migration modal was saved.
-  //     This avoids any unauthenticated Firestore read (rules block it).
   let loginEmail;
 
   if (!idRaw.includes('@')) {
-    // Plain username — map to legacy auth address
     const safePart = idRaw.replace(/\s+/g, '.').replace(/[^a-zA-Z0-9._%+\-]/g, '');
     loginEmail = safePart + '@circuitspractice.app';
   } else {
     const typedEmail = idRaw.toLowerCase();
-    // Check localStorage for a previously cached legacy mapping
     const cached = localStorage.getItem('cp_legacy_' + typedEmail);
     if (cached) {
       loginEmail = cached;
     } else {
-      // No mapping known — try the email directly (works for new accounts).
-      // Legacy users who haven't logged in since migration should use their
-      // username once more; after that the mapping is cached automatically.
       loginEmail = typedEmail;
     }
   }
@@ -596,9 +653,6 @@ window.doLogin = async function() {
   } catch(e) {
     if (e.code === 'auth/user-not-found' || e.code === 'auth/invalid-credential' ||
         e.code === 'auth/wrong-password'  || e.code === 'auth/invalid-email') {
-      // If we used a cached legacy mapping and it failed, the mapping is stale
-      // (e.g. the old @circuitspractice.app account was deleted). Clear it so
-      // the next attempt tries the email directly and self-heals.
       if (idRaw.includes('@')) {
         localStorage.removeItem('cp_legacy_' + idRaw.toLowerCase());
       }
@@ -610,10 +664,6 @@ window.doLogin = async function() {
 };
 
 // ── Self-serve password reset ─────────────────
-// Sends a Firebase reset email to the address entered. Only works for accounts
-// whose Auth email is a real address (all accounts created with an email, and
-// any older account migrated in the Firebase console). We never reveal whether
-// an address is registered.
 window.toggleResetForm = function() {
   const box = document.getElementById('auth-reset');
   if (!box) return;
@@ -622,7 +672,7 @@ window.toggleResetForm = function() {
   if (!showing) {
     const pre = document.getElementById('l-user').value.trim();
     const inp = document.getElementById('l-reset-email');
-    if (inp && pre.includes('@')) inp.value = pre;   // prefill if they typed an email
+    if (inp && pre.includes('@')) inp.value = pre;
     inp?.focus();
   }
 };
@@ -640,7 +690,6 @@ window.sendPasswordReset = async function() {
     await sendPasswordResetEmail(auth, email);
     showOk('If an account uses that email, a reset link is on its way. Check your inbox (and spam).');
   } catch(e) {
-    // Don't disclose whether the address exists.
     if (e.code === 'auth/user-not-found' || e.code === 'auth/invalid-email') {
       showOk('If an account uses that email, a reset link is on its way. Check your inbox (and spam).');
     } else {
@@ -651,17 +700,11 @@ window.sendPasswordReset = async function() {
 };
 
 // ── One-time email migration prompt ───────────
-// Legacy accounts were created with username@circuitspractice.app as their Auth
-// email, so native password reset can't reach them. On login we offer to set a
-// real email — that becomes their Auth identity (sign-in + reset) and contact
-// address. Once migrated (Auth email no longer @circuitspractice.app), it never
-// shows again. "Skip for now" hides it for this session only.
 window.maybePromptEmailMigration = function() {
   try {
     if (window._emailMigrateSkipped) return;
     const legacy = (window.S.authEmail || '').toLowerCase().endsWith('@circuitspractice.app');
     if (!legacy) return;
-    // Also suppress if they already saved a real contact email in a prior session
     const u = window.DB.users[window.S.user];
     const savedEmail = (u && u.notifPrefs && u.notifPrefs.email) || '';
     if (savedEmail && !savedEmail.endsWith('@circuitspractice.app')) return;
@@ -675,7 +718,6 @@ window.maybePromptEmailMigration = function() {
   } catch(e) { console.error('maybePromptEmailMigration failed:', e); }
 };
 
-// Can also be called manually (e.g. from profile) to update the email at any time.
 window.openEmailMigrate = function() {
   const modal = document.getElementById('email-migrate-modal');
   if (!modal) return;
@@ -700,10 +742,6 @@ window.submitEmailMigration = async function() {
 
   if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) { showErr('Enter a valid email address.'); return; }
 
-  // Save the real email to the Firestore profile. doLogin will use this to
-  // look up legacy accounts by contact email, so the student can sign in
-  // with this address even though Firebase Auth still holds the
-  // username@circuitspractice.app identity internally.
   try {
     const u = window.DB.users[window.S.user];
     if (u) {
@@ -716,11 +754,8 @@ window.submitEmailMigration = async function() {
       };
       await saveUserOnly();
     }
-    // Cache the email → legacy auth address mapping in localStorage so
-    // doLogin can resolve it without an unauthenticated Firestore read.
     const _safePart = (window.S.user || '').replace(/\s+/g, '.').replace(/[^a-zA-Z0-9._%+\-]/g, '');
     localStorage.setItem('cp_legacy_' + email, _safePart + '@circuitspractice.app');
-    // Mark as migrated so the modal suppresses on future logins
     window.S.authEmail = email;
     logAdminAction('set_login_email', { username: window.S.user });
     showOk('Done! You can now sign in with ' + email + '.');
@@ -732,10 +767,6 @@ window.submitEmailMigration = async function() {
 };
 
 window.doRegister = async function() {
-  // Public self-registration is disabled — accounts are created by admins only
-  // (Admin → User management → create account). This guard ensures that even if
-  // doRegister is invoked (e.g. an old cached page, or the console), no public
-  // account is ever created.
   console.warn('[security] public registration is disabled — accounts are admin-created only');
   const err = document.getElementById('r-err');
   if (err) {
@@ -743,7 +774,6 @@ window.doRegister = async function() {
     if (span) span.textContent = 'Registration is disabled. Contact your instructor for an account.';
     err.classList.remove('hidden');
   } else {
-    // Registration UI has been removed; surface the message on the login form instead
     try { showAuthErr('l-err', 'Registration is disabled. Contact your instructor for an account.'); } catch(e) {}
   }
 };
@@ -754,16 +784,17 @@ window.doLogout = async function() {
 };
 
 // ── Auth state observer ───────────────────────
-// Set to true during adminCreateUser to suppress the observer while the
-// Firestore profile is being written — prevents a race-condition signOut.
 window._suppressAuthObserver = false;
 
 onAuthStateChanged(auth, async (firebaseUser) => {
   if (window._suppressAuthObserver) return;
   if (firebaseUser) {
+    console.log('[authObserver] user signed in — uid:', firebaseUser.uid, '| email:', firebaseUser.email);
+
     // Load profile immediately regardless of app ready state
     const profile = await loadUserProfile(firebaseUser.uid);
     if (!profile) {
+      console.error('[authObserver] loadUserProfile returned null — signing out');
       await signOut(auth);
       return;
     }
@@ -773,25 +804,29 @@ onAuthStateChanged(auth, async (firebaseUser) => {
     window.S.isAdmin = !!profile.isAdmin;
     window.S.authEmail = firebaseUser.email || '';
 
+    console.log('[authObserver] window.S set — user:', window.S.user,
+                '| isAdmin:', window.S.isAdmin,
+                '| uid:', window.S.uid);
+
     // Cache email → Firebase Auth address mapping for future logins.
-    // Covers both: legacy users (contact email → @circuitspractice.app)
-    // and new users (email IS the auth address, mapping is a no-op but harmless).
     const _contactEmail = profile.notifPrefs?.email || '';
     if (_contactEmail && _contactEmail !== firebaseUser.email) {
       localStorage.setItem('cp_legacy_' + _contactEmail.toLowerCase(), firebaseUser.email);
     }
 
     if (analytics) {
-      setUserId(analytics, firebaseUser.uid);
-      setUserProperties(analytics, { is_admin: profile.isAdmin ? 'true' : 'false' });
+      try {
+        setUserId(analytics, firebaseUser.uid);
+        setUserProperties(analytics, { is_admin: profile.isAdmin ? 'true' : 'false' });
+      } catch(e) {}
     }
     track('login', { method: 'username' });
 
+    console.log('[authObserver] calling loadSharedData…');
     await loadSharedData();
+    console.log('[authObserver] loadSharedData complete — calling enterApp…');
 
     // enterApp() is defined in app.js which loads after firebase.js.
-    // If it's ready, call it now. If not, store a callback — app.js will
-    // call it immediately after setting window._appReady = true.
     const go = () => enterApp();
     if (window._appReady) {
       go();
@@ -800,6 +835,7 @@ onAuthStateChanged(auth, async (firebaseUser) => {
     }
 
   } else {
+    console.log('[authObserver] user signed out');
     window.S.user    = null;
     window.S.isAdmin = false;
     window.S.uid     = null;
@@ -822,7 +858,7 @@ window.renderUserMgmt = async function() {
   const wrap = document.getElementById('user-mgmt-list');
   wrap.innerHTML = '<div style="color:var(--text3);font-size:12px">Loading…</div>';
   const snap = await getDocs(collection(db, 'users'));
-  const users = snap.docs.map(d => ({ uid: d.id, ...d.data() }));
+  const users = snap.docs.map(d => sanitizeUser({ uid: d.id, ...d.data() }));
   wrap.innerHTML = '';
 
   users.forEach(u => {
@@ -830,13 +866,11 @@ window.renderUserMgmt = async function() {
     const row = document.createElement('div');
     row.className = 'user-row';
 
-    // Username — textContent only, never innerHTML
     const unSpan = document.createElement('span');
     unSpan.className = 'un';
-    unSpan.textContent = u.username;         // ← textContent, not innerHTML
+    unSpan.textContent = u.username;
     row.appendChild(unSpan);
 
-    // Contact email (if on file) — textContent only, never innerHTML
     if (u.notifPrefs && typeof u.notifPrefs.email === 'string' && u.notifPrefs.email) {
       const em = document.createElement('span');
       em.style.cssText = 'font-size:11px;color:var(--text4);font-family:var(--mono)';
@@ -844,7 +878,6 @@ window.renderUserMgmt = async function() {
       row.appendChild(em);
     }
 
-    // Role pill
     const pill = document.createElement('span');
     pill.className = u.isAdmin ? 'pill pill-admin' : 'pill';
     if (!u.isAdmin) pill.style.cssText = 'background:rgba(255,255,255,.04);color:var(--text3)';
@@ -857,7 +890,6 @@ window.renderUserMgmt = async function() {
       you.textContent = '(you)';
       row.appendChild(you);
     } else {
-      // Toggle admin — addEventListener, uid/username never touch HTML
       const toggleBtn = document.createElement('button');
       toggleBtn.className = 'btn btn-sm';
       toggleBtn.innerHTML = `<i class="ti ${u.isAdmin ? 'ti-shield-off' : 'ti-shield-check'}"></i>`;
@@ -866,7 +898,6 @@ window.renderUserMgmt = async function() {
       toggleBtn.addEventListener('click', () => toggleAdmin(u.uid, u.username, !u.isAdmin));
       row.appendChild(toggleBtn);
 
-      // Delete — addEventListener, uid/username never touch HTML
       const delBtn = document.createElement('button');
       delBtn.className = 'btn btn-sm btn-red';
       delBtn.innerHTML = '<i class="ti ti-trash"></i>';
@@ -884,9 +915,8 @@ window.toggleAdmin = async function(uid, username, makeAdmin) {
     return;
   }
   await setDoc(doc(db, 'users', uid), { isAdmin: makeAdmin }, { merge: true });
-  logAdminAction(makeAdmin ? 'grant_admin' : 'revoke_admin', { uid, username });
+  logAdminAction(makeAdmin ? 'grant_admin' : 'revoke_admin', { targetUid: uid, targetUsername: username }).catch(() => {});
   renderUserMgmt();
-  renderAnalytics();
 };
 
 window.deleteUser = async function(uid, username) {
@@ -894,64 +924,47 @@ window.deleteUser = async function(uid, username) {
     console.warn('[security] deleteUser blocked — caller is not admin');
     return;
   }
-  if (!confirm(
-    `Delete "${username}"?\n\n` +
-    `This removes their profile and data from the database.\n\n` +
-    `IMPORTANT: You must also delete their login account manually:\n` +
-    `Firebase Console → Authentication → Users → find their email → Delete.\n\n` +
-    `If you skip that step they will still be able to sign in.`
-  )) return;
+  if (!confirm(`Delete user "${username}"? This cannot be undone.`)) return;
   await deleteDoc(doc(db, 'users', uid));
-  logAdminAction('delete_account', { uid, username });
+  logAdminAction('delete_user', { targetUid: uid, targetUsername: username }).catch(() => {});
   renderUserMgmt();
-  renderAnalytics();
 };
 
+// ── Admin: create account ─────────────────────
 window.adminCreateUser = async function() {
-  if (!window.S.isAdmin) {
-    console.warn('[security] adminCreateUser blocked — caller is not admin');
-    return;
-  }
-  const email    = document.getElementById('mu-email').value.trim().toLowerCase();
-  const username = document.getElementById('mu-user').value.trim();
-  const pass     = document.getElementById('mu-pass').value.trim();
-  const isAdmin  = document.getElementById('mu-admin').checked;
-  const err = document.getElementById('mu-err');
-  const ok  = document.getElementById('mu-ok');
+  const username  = document.getElementById('mu-user').value.trim();
+  const email     = document.getElementById('mu-email')?.value.trim() || '';
+  const pass      = document.getElementById('mu-pass').value;
+  const isAdmin   = document.getElementById('mu-admin').checked;
+  const err       = document.getElementById('mu-err');
+  const ok        = document.getElementById('mu-ok');
+  const showErr   = msg => { err.querySelector('span').textContent = msg; err.classList.remove('hidden'); };
+
   err.classList.add('hidden'); ok.classList.add('hidden');
-  const showErr = m => { err.querySelector('span').textContent = m; err.classList.remove('hidden'); };
 
-  const adminPass = (document.getElementById('mu-admin-pass')?.value || '').trim();
+  if (!username) { showErr('Enter a username.'); return; }
+  if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) { showErr('Enter a valid email address.'); return; }
+  if (pass.length < 6) { showErr('Password must be at least 6 characters.'); return; }
 
-  if (!email)                                   { showErr('Enter an email address.');      return; }
-  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) { showErr('Enter a valid email address.'); return; }
-  if (!username)                                { showErr('Enter a username.');            return; }
-  if (pass.length < 6)                          { showErr('Password needs 6+ characters.');return; }
-  if (!adminPass)                               { showErr('Enter your admin password so you stay signed in after.');return; }
+  const adminEmail = auth.currentUser?.email;
+  const adminPass  = document.getElementById('mu-adminpass')?.value || '';
+  if (!adminPass) { showErr('Re-enter your admin password to confirm account creation.'); return; }
 
-  const adminEmail = window.S.authEmail;
-
-  // Username uniqueness check — username is the display name in analytics/grades
+  // Check username uniqueness
   try {
-    const existing = await window._fetchAllUsers();
-    if (existing.some(u => (u.username || '').toLowerCase() === username.toLowerCase())) {
-      showErr('That username is already in use — pick another.'); return;
-    }
+    const existingSnap = await getDocs(collection(db, 'users'));
+    const taken = existingSnap.docs.some(d => d.data().username === username);
+    if (taken) { showErr('A user with that username already exists.'); return; }
   } catch(e) { console.warn('username uniqueness check skipped:', e); }
 
-  // Suppress observer during creation — Firebase signs us in as the new user
-  // the moment createUserWithEmailAndPassword resolves. We write the profile
-  // as that user, then immediately re-sign in as admin before releasing.
   window._suppressAuthObserver = true;
   try {
     const cred = await createUserWithEmailAndPassword(auth, email, pass);
-    // Write profile while authenticated as the new user (allowed by Firestore rules)
     await setDoc(doc(db, 'users', cred.user.uid), {
       username, isAdmin, scores:{}, probScores:{}, streak:0, assignSubmissions:{},
       notifPrefs: { email, posts:true, announcements:true, assignments:true },
     });
     const createdUid = cred.user.uid;
-    // Re-sign in as admin BEFORE releasing the observer — stays on admin panel
     await signInWithEmailAndPassword(auth, adminEmail, adminPass);
     window._suppressAuthObserver = false;
     logAdminAction('create_account', { uid: createdUid, username, isAdmin, hasEmail: true }).catch(() => {});
@@ -997,147 +1010,45 @@ window.changePassword = async function() {
   }
 };
 
-
-// ── Batch account creation ────────────────────
-// Parses a CSV with columns: name, email (header row optional).
-// Creates one Firebase Auth account per row using the real email as the
-// login identity, generates a random password, and writes the Firestore
-// profile. Runs sequentially — the Firebase client SDK signs in as each
-// newly created user, so we re-authenticate as admin after every account.
-// Results (including generated passwords) are shown in the UI so the
-// instructor can distribute credentials.
-
+// ── Batch create accounts ─────────────────────
 function _batchGenPassword() {
-  const chars = 'abcdefghjkmnpqrstuvwxyzABCDEFGHJKMNPQRSTUVWXYZ23456789!@#';
-  let p = '';
-  for (let i = 0; i < 12; i++) p += chars[Math.floor(Math.random() * chars.length)];
-  return p;
+  const chars = 'ABCDEFGHJKMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789';
+  return Array.from({length:10}, () => chars[Math.floor(Math.random()*chars.length)]).join('');
 }
 
-function _batchParseCSV(raw) {
-  // Split into non-empty lines
-  const lines = raw.split(/\r?\n/).map(l => l.trim()).filter(Boolean);
-  if (!lines.length) return { rows: [], error: 'CSV is empty.' };
-
-  // Detect delimiter: comma or tab
-  const delim = lines[0].includes('\t') ? '\t' : ',';
-
-  // Parse each line: strip surrounding quotes from each cell
-  const parsed = lines.map(l =>
-    l.split(delim).map(c => c.trim().replace(/^["']|["']$/g, '').trim())
-  );
-
-  // Skip header row if first row contains no @ sign in either cell
-  const firstRow = parsed[0];
-  const hasHeader = firstRow.length >= 2 &&
-    !firstRow[0].includes('@') && !firstRow[1].includes('@');
-  const dataRows = hasHeader ? parsed.slice(1) : parsed;
-
-  if (!dataRows.length) return { rows: [], error: 'No data rows found after header.' };
-
-  // Determine which column is name vs email
-  // Try to auto-detect: the column that contains @ is email
-  let nameCol = 0, emailCol = 1;
-  const sample = dataRows.find(r => r.length >= 2);
-  if (sample && sample[0].includes('@') && !sample[1].includes('@')) {
-    nameCol = 1; emailCol = 0;
-  }
-
-  const rows = [];
-  const emailSeen = new Set();
-  dataRows.forEach((cols, i) => {
-    if (cols.length < 2) return; // skip malformed rows
-    const name  = cols[nameCol]  || '';
-    const email = (cols[emailCol] || '').toLowerCase();
-    if (!name || !email) return;
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return; // skip invalid emails
-    if (emailSeen.has(email)) return; // deduplicate
-    emailSeen.add(email);
-    rows.push({ name, email });
-  });
-
-  if (!rows.length) return { rows: [], error: 'No valid name/email rows found. Check that columns are name and email.' };
-  return { rows, error: null };
-}
-
-window.batchPreviewCSV = function batchPreviewCSV() {
+window.batchCreateUsers = async function() {
   const raw = document.getElementById('batch-csv')?.value || '';
-  const preview = document.getElementById('batch-preview');
-  if (!preview) return;
-
-  const { rows, error } = _batchParseCSV(raw);
-  if (error) {
-    preview.innerHTML = `<div style="color:var(--red);font-size:12px;margin-top:8px"><i class="ti ti-alert-circle"></i> ${escHtml(error)}</div>`;
-    return;
-  }
-  preview.innerHTML = `
-    <div style="font-size:12px;color:var(--text3);margin-top:10px;margin-bottom:6px">
-      <i class="ti ti-check" style="color:var(--green)"></i>
-      Found <strong style="color:var(--text)">${rows.length}</strong> student${rows.length !== 1 ? 's' : ''} — review before creating:
-    </div>
-    <div style="overflow-x:auto;max-height:180px;overflow-y:auto;border:0.5px solid var(--border);border-radius:var(--r2)">
-      <table class="dash-table" style="font-size:11px">
-        <thead><tr><th>#</th><th>Name</th><th>Email</th></tr></thead>
-        <tbody>
-          ${rows.map((r, i) => `<tr><td style="color:var(--text4)">${i + 1}</td><td>${escHtml(r.name)}</td><td style="font-family:var(--mono)">${escHtml(r.email)}</td></tr>`).join('')}
-        </tbody>
-      </table>
-    </div>
-    <button class="btn btn-accent" style="margin-top:10px" onclick="batchCreateAccounts()">
-      <i class="ti ti-user-plus"></i> Create ${rows.length} account${rows.length !== 1 ? 's' : ''}
-    </button>`;
-};
-
-window.batchCreateAccounts = async function batchCreateAccounts() {
-  if (!window.S.isAdmin) { console.warn('[security] batchCreateAccounts blocked'); return; }
-
-  const raw = document.getElementById('batch-csv')?.value || '';
-  const { rows, error } = _batchParseCSV(raw);
-  if (error || !rows.length) return;
-
-  // Save admin credentials before we start (creating users signs us out)
-  const adminEmail    = window.S.authEmail;
-  const adminPassEl   = document.getElementById('batch-admin-pass');
-  const adminPass     = adminPassEl?.value || '';
-  if (!adminPass) {
-    const errEl = document.getElementById('batch-err');
-    if (errEl) { errEl.querySelector('span').textContent = 'Enter your admin password so we can re-sign you in after each account is created.'; errEl.classList.remove('hidden'); }
-    return;
-  }
-  document.getElementById('batch-err')?.classList.add('hidden');
-
-  const log     = document.getElementById('batch-log');
-  const results = document.getElementById('batch-results');
-  if (log)     { log.innerHTML = ''; log.style.display = 'block'; }
-  if (results) results.innerHTML = '';
-
-  // Disable the create button to prevent double-clicks
-  const btn = document.querySelector('[onclick="batchCreateAccounts()"]');
-  if (btn) btn.setAttribute('disabled', '');
-
-  const created = [];
-  const skipped = [];
-  const failed  = [];
-
-  function addLog(msg, color = 'var(--text3)') {
-    if (!log) return;
+  const log = document.getElementById('batch-log');
+  if (!log) return;
+  const addLog = (msg, color='var(--text)') => {
     const line = document.createElement('div');
-    line.style.cssText = `font-size:11px;font-family:var(--mono);color:${color};margin-bottom:2px`;
+    line.style.color = color;
     line.textContent = msg;
     log.appendChild(line);
     log.scrollTop = log.scrollHeight;
-  }
+  };
+  log.innerHTML = '';
 
-  addLog(`Starting batch creation for ${rows.length} students…`);
+  const rows = raw.split('\n')
+    .map(r => r.trim())
+    .filter(Boolean)
+    .map(r => {
+      const [name, email] = r.split(',').map(s => s.trim());
+      return { name, email };
+    })
+    .filter(r => r.name && r.email && r.email.includes('@'));
 
-  // Fetch existing users once for duplicate checking
-  let existingEmails = new Set();
-  try {
-    const existing = await window._fetchAllUsers();
-    existing.forEach(u => {
-      if (u.notifPrefs?.email) existingEmails.add(u.notifPrefs.email.toLowerCase());
-    });
-  } catch(e) { addLog('Warning: could not check for existing accounts — duplicates may occur.', 'var(--warn)'); }
+  if (!rows.length) { addLog('No valid rows found. Format: Full Name, email@example.com', 'var(--red)'); return; }
+
+  const adminEmail = auth.currentUser?.email;
+  const adminPass  = document.getElementById('batch-adminpass')?.value || '';
+  if (!adminPass) { addLog('Enter your admin password first.', 'var(--red)'); return; }
+
+  addLog(`Starting batch creation of ${rows.length} account(s)…`, 'var(--text3)');
+
+  const created = [], skipped = [], failed = [];
+  const existingSnap = await getDocs(collection(db, 'users'));
+  const existingEmails = new Set(existingSnap.docs.map(d => d.data().notifPrefs?.email).filter(Boolean));
 
   window._suppressAuthObserver = true;
   for (let i = 0; i < rows.length; i++) {
@@ -1153,7 +1064,6 @@ window.batchCreateAccounts = async function batchCreateAccounts() {
     const pass = _batchGenPassword();
     try {
       const cred = await createUserWithEmailAndPassword(auth, email, pass);
-      // Write profile before re-authing so the document exists if the observer fires
       await setDoc(doc(db, 'users', cred.user.uid), {
         username: name,
         isAdmin:  false,
@@ -1172,7 +1082,6 @@ window.batchCreateAccounts = async function batchCreateAccounts() {
       failed.push({ name, email, reason });
     }
 
-    // Re-authenticate as admin after each creation
     try {
       await signInWithEmailAndPassword(auth, adminEmail, adminPass);
     } catch(e) {
@@ -1185,71 +1094,12 @@ window.batchCreateAccounts = async function batchCreateAccounts() {
   addLog(`Done. ${created.length} created, ${skipped.length} skipped, ${failed.length} failed.`,
     failed.length ? 'var(--warn)' : 'var(--green)');
 
-  // ── Results table ──
-  if (!results) return;
-  let html = '';
-
   if (created.length) {
-    html += `
-      <div style="margin-top:14px">
-        <div style="font-size:11px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.08em;margin-bottom:6px">
-          <i class="ti ti-check" style="color:var(--green)"></i> Created (${created.length}) — save these passwords now
-        </div>
-        <div style="overflow-x:auto;border:0.5px solid var(--border);border-radius:var(--r2)">
-          <table class="dash-table" style="font-size:11px">
-            <thead><tr><th>Name</th><th>Email</th><th>Temp password</th></tr></thead>
-            <tbody>
-              ${created.map(r => `<tr>
-                <td>${escHtml(r.name)}</td>
-                <td style="font-family:var(--mono)">${escHtml(r.email)}</td>
-                <td style="font-family:var(--mono);color:var(--accent2)">${escHtml(r.pass)}</td>
-              </tr>`).join('')}
-            </tbody>
-          </table>
-        </div>
-        <button class="btn btn-sm" style="margin-top:8px" onclick="batchExportCSV()">
-          <i class="ti ti-table-export"></i> Download credentials CSV
-        </button>
-      </div>`;
+    const csv = ['Name,Email,Temp Password', ...created.map(r => `${r.name},${r.email},${r.pass}`)].join('\n');
+    const blob = new Blob([csv], { type:'text/csv' });
+    const a    = document.createElement('a');
+    a.href     = URL.createObjectURL(blob);
+    a.download = 'new_accounts.csv';
+    a.click();
   }
-
-  if (skipped.length) {
-    html += `
-      <div style="margin-top:12px;font-size:11px;color:var(--warn)">
-        <i class="ti ti-alert-triangle"></i> Skipped (${skipped.length}):
-        ${skipped.map(r => `${escHtml(r.name)} (${escHtml(r.email)})`).join(', ')}
-      </div>`;
-  }
-
-  if (failed.length) {
-    html += `
-      <div style="margin-top:8px;font-size:11px;color:var(--red)">
-        <i class="ti ti-x"></i> Failed (${failed.length}):
-        ${failed.map(r => `${escHtml(r.name)}: ${escHtml(r.reason)}`).join(', ')}
-      </div>`;
-  }
-
-  results.innerHTML = html;
-  window._batchCreated = created; // store for CSV export
-  renderUserMgmt();
 };
-
-window.batchExportCSV = function batchExportCSV() {
-  const rows = window._batchCreated;
-  if (!rows || !rows.length) return;
-  const lines = ['Name,Email,Temporary Password',
-    ...rows.map(r => [r.name, r.email, r.pass].map(v => {
-      const s = String(v ?? '');
-      return /[",\n]/.test(s) ? `"${s.replace(/"/g,'""')}"` : s;
-    }).join(','))
-  ];
-  const blob = new Blob([lines.join('\r\n')], { type: 'text/csv;charset=utf-8;' });
-  const url  = URL.createObjectURL(blob);
-  const a    = document.createElement('a');
-  a.href = url; a.download = `circuitspractice_credentials_${new Date().toISOString().slice(0,10)}.csv`;
-  document.body.appendChild(a); a.click();
-  document.body.removeChild(a);
-  setTimeout(() => URL.revokeObjectURL(url), 1000);
-};
-
-// (Script loading order is handled by main.js)
