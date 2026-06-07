@@ -127,7 +127,7 @@ window.renderBlogList = function renderBlogList() {
     card.innerHTML = `
       <div class="blog-card-inner">
         <div class="blog-card-meta">
-          ${window.catPill(post.category)}
+          ${window.categoryPill(post.category)}
           ${post.status === 'draft' ? `<span class="pill pill-warn">Draft</span>` : ''}
           <span class="blog-card-date">${date}</span>
         </div>
@@ -151,7 +151,7 @@ window.openBlogPost = function openBlogPost(id) {
   const date = new Date(post.createdAt).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
   document.getElementById('post-title-el').textContent = post.title;
   document.getElementById('post-meta-el').innerHTML =
-    `${window.catPill(post.category)}<span class="post-date">${date}</span><span class="post-date">by ${post.author}</span>
+    `${window.categoryPill(post.category)}<span class="post-date">${date}</span><span class="post-date">by ${post.author}</span>
     ${post.status === 'draft' ? '<span class="pill pill-warn">Draft</span>' : ''}`;
   document.getElementById('post-content-el').innerHTML = post.content;
   document.getElementById('view-blog').scrollTop = 0;
