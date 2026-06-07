@@ -8,30 +8,47 @@
 if (!window._assignVals)     window._assignVals     = {};
 if (!window._assignAttempts) window._assignAttempts = {};
 
-// Sync the in-memory attempt counter from the user's saved profile.
-// Called after login so attempt limits are restored after a page refresh.
-window.syncAssignAttempts = function() {
-  const u = window.DB && window.S && window.DB.users[window.S.user];
-  console.log('[syncAssignAttempts] user:', window.S?.user,
-              '| u exists:', !!u,
-              '| assignAttempts in profile:', u?.assignAttempts
-                ? JSON.stringify(u.assignAttempts)
-                : 'MISSING or empty');
-  if (u && u.assignAttempts && typeof u.assignAttempts === 'object') {
-    const keys = Object.keys(u.assignAttempts);
-    if (keys.length === 0) {
-      console.log('[syncAssignAttempts] assignAttempts object present but empty — no attempt counts to restore');
+// Sync the in-memory attempt counter directly from Firestore.
+// Called after login so attempt limits are always restored from the authoritative
+// server value, not from the local DB mirror which may be stale after a refresh.
+window.syncAssignAttempts = async function() {
+  const uid = window.S?.uid;
+  if (!uid) {
+    console.warn('[syncAssignAttempts] no uid — skipping');
+    return;
+  }
+  try {
+    const snap = await window._getDoc(window._docRef('users', uid));
+    if (!snap.exists()) {
+      console.warn('[syncAssignAttempts] user doc not found in Firestore');
+      return;
     }
-    // Merge in persisted counts — in-memory keys that already exist (e.g. from
-    // the current session) keep their value if it's higher than what's stored.
-    for (const [k, v] of Object.entries(u.assignAttempts)) {
+    const stored = snap.data().assignAttempts || {};
+    const keys   = Object.keys(stored);
+    // Merge authoritative Firestore counts into in-memory tracker.
+    // Always take the higher value so a count the CF already advanced is never lost.
+    for (const [k, v] of Object.entries(stored)) {
       window._assignAttempts[k] = Math.max(window._assignAttempts[k] || 0, v);
     }
+    // Also update the local DB mirror so buildProbRow reads correctly.
+    const u = window.DB.users[window.S.user];
+    if (u) {
+      if (!u.assignAttempts) u.assignAttempts = {};
+      for (const [k, v] of Object.entries(stored)) {
+        u.assignAttempts[k] = Math.max(u.assignAttempts[k] || 0, v);
+      }
+    }
     console.log('[syncAssignAttempts] synced', keys.length,
-                'key(s) into window._assignAttempts:', JSON.stringify(window._assignAttempts));
-  } else {
-    console.warn('[syncAssignAttempts] nothing to sync — u:', !!u,
-                 '| u.assignAttempts:', u?.assignAttempts);
+                'key(s) from Firestore:', JSON.stringify(window._assignAttempts));
+  } catch(e) {
+    console.warn('[syncAssignAttempts] Firestore fetch failed — falling back to local DB:', e);
+    // Fallback: use whatever the local DB mirror has (may be stale)
+    const u = window.DB?.users?.[window.S?.user];
+    if (u?.assignAttempts && typeof u.assignAttempts === 'object') {
+      for (const [k, v] of Object.entries(u.assignAttempts)) {
+        window._assignAttempts[k] = Math.max(window._assignAttempts[k] || 0, v);
+      }
+    }
   }
 };
 
@@ -354,6 +371,10 @@ window.submitAssignProb = async function submitAssignProb(assignId, probId) {
     // Always take the higher value — never let a stale local count win.
     _u.assignAttempts[varKey] = Math.max(_u.assignAttempts[varKey] || 0, used);
     console.log('[submitAssignment] mirrored assignAttempts[' + varKey + '] =', _u.assignAttempts[varKey]);
+    // Persist to Firestore immediately via dot-notation (non-destructive to CF-managed keys).
+    // Belt-and-suspenders: syncAssignAttempts() re-fetches on next login, but this ensures
+    // the count survives a same-session refresh even if that fetch hasn't run yet.
+    window.saveUserOnly().catch(e => console.warn('[submitAssignment] saveUserOnly failed:', e));
   }
 
   // ── Log attempt for the admin analytics view ──
