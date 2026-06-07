@@ -13,8 +13,20 @@ import {
 } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
 import {
   getFirestore,
-  doc, getDoc, setDoc, updateDoc,
-  collection, getDocs, deleteDoc, arrayUnion, addDoc, increment
+  doc,
+  getDoc,
+  setDoc,
+  updateDoc,
+  collection,
+  getDocs,
+  deleteDoc,
+  arrayUnion,
+  addDoc,
+  increment,
+  query,
+  orderBy,
+  limit,
+  startAfter
 } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
 import {
   getAnalytics,
