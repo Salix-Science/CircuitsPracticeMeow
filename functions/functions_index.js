@@ -69,91 +69,130 @@ exports.submitAssignment = onCall({ enforceAppCheck: false, cors: true }, async 
   if (inputs.length > 20)
     throw new HttpsError('invalid-argument', 'Too many answer boxes.');
 
-  // ── Load user doc first — username comes from Firestore, NOT from Auth email ──
-  // Real-email accounts (dtp23003@uconn.edu) don't have @circuitspractice.app
-  // to strip, so deriving username from the token email gives the wrong varKey.
-  const userRef  = db.collection('users').doc(uid);
-  const userSnap = await userRef.get();
-  if (!userSnap.exists) throw new HttpsError('not-found', 'User profile not found.');
-  const userData = userSnap.data();
-  const username = userData.username || uid;
-  console.log('[submitAssignment] uid:', uid, 'username:', username);
-
-  // ── Load assignment ──
+  // ── Load assignment and problem (outside transaction — these are read-only) ──
   const assignSnap = await db.collection('assignments').doc(assignId).get();
   if (!assignSnap.exists) throw new HttpsError('not-found', 'Assignment not found.');
   const assign = assignSnap.data();
 
-  // ── Deadline check ──
   const due    = assign.due ? new Date(assign.due) : null;
   const isLate = due && Date.now() > due.getTime();
   if (isLate && assign.allowLate === false)
     throw new HttpsError('failed-precondition', 'This assignment is closed — the deadline has passed.');
 
-  // ── Verify problem is in assignment ──
   const ap = (assign.problems || []).find(p => p.probId === probId);
   if (!ap) throw new HttpsError('not-found', 'Problem not found in this assignment.');
 
-  // ── Load problem ──
   const probSnap = await db.collection('problems').doc(probId).get();
   if (!probSnap.exists) throw new HttpsError('not-found', 'Problem definition not found.');
   const prob = probSnap.data();
 
-  // ── varKey must match client: assignId-probId-username ──
-  const varKey           = `${assignId}-${probId}-${username}`;
-  const maxAtt           = parseInt(prob.maxAttempts) || 0;
-  const existingAttempts = (userData.assignAttempts || {})[varKey] || 0;
-  console.log('[submitAssignment] varKey:', varKey, 'existingAttempts:', existingAttempts, 'maxAtt:', maxAtt);
+  const maxAtt = parseInt(prob.maxAttempts) || 0;
 
-  if (maxAtt > 0 && existingAttempts >= maxAtt)
-    throw new HttpsError('failed-precondition', `No attempts remaining (${maxAtt}/${maxAtt} used).`);
+  // ── Grade answers (pure computation, no Firestore needed) ──
+  // Done outside the transaction so the transaction body stays minimal.
+  // We need username first — read it inside the transaction below.
 
-  // ── Already submitted? ──
-  const existingSub = (userData.assignSubmissions || {})[assignId]?.[probId];
-  if (existingSub) {
+  const userRef = db.collection('users').doc(uid);
+
+  // ── Transaction: fresh read → check → grade → write ──
+  // Running the attempt check and the increment inside a single transaction
+  // guarantees the read is never served from cache. The Admin SDK always does
+  // a strong (server) read inside a transaction, so concurrent rapid submits
+  // can never both see existingAttempts=0 and both think they have attempts left.
+  let result;
+  try {
+    result = await db.runTransaction(async (txn) => {
+      const userSnap = await txn.get(userRef);
+      if (!userSnap.exists) throw new HttpsError('not-found', 'User profile not found.');
+      const userData = userSnap.data();
+      const username = userData.username || uid;
+
+      // varKey must match client: assignId-probId-username
+      const varKey           = `${assignId}-${probId}-${username}`;
+      const existingAttempts = (userData.assignAttempts || {})[varKey] || 0;
+      console.log('[submitAssignment] txn read — varKey:', varKey,
+                  'existingAttempts:', existingAttempts, 'maxAtt:', maxAtt);
+
+      if (maxAtt > 0 && existingAttempts >= maxAtt)
+        throw new HttpsError('failed-precondition', `No attempts remaining (${maxAtt}/${maxAtt} used).`);
+
+      // Already locked (correct or out of attempts on a previous submit)?
+      const existingSub = (userData.assignSubmissions || {})[assignId]?.[probId];
+      if (existingSub) {
+        // Return without writing — txn.get() already happened, that's fine.
+        return {
+          allOk:        existingSub.correct,
+          locked:       true,
+          details:      (existingSub.details || []).map(d => ({ label: d.label, ok: d.ok, unit: d.unit })),
+          attemptsUsed: existingAttempts,
+          attemptsMax:  maxAtt,
+          username,
+          varKey,
+          skippedWrite: true,
+        };
+      }
+
+      // Grade
+      const { answers } = genSeededVariant(prob, varKey);
+      if (inputs.length !== answers.length)
+        throw new HttpsError('invalid-argument', `Expected ${answers.length} answer(s), got ${inputs.length}.`);
+
+      const details = answers.map((a, i) => {
+        const raw = inputs[i];
+        const tol = Math.abs(a.answer) * (a.tol || 0.02) + 0.001;
+        const ok  = Math.abs(raw - a.answer) <= tol;
+        return { label: a.label, ok, submitted: rnd(raw, 4), answer: a.answer, unit: a.unit };
+      });
+      const allOk  = details.every(d => d.ok);
+      const used   = existingAttempts + 1;
+      const noMore = maxAtt > 0 && used >= maxAtt;
+      const locked = allOk || noMore;
+
+      // Write inside the transaction — atomic with the read above
+      const updates = { [`assignAttempts.${varKey}`]: FieldValue.increment(1) };
+      if (locked) {
+        updates[`assignSubmissions.${assignId}.${probId}`] = {
+          correct: allOk, late: isLate || false, timestamp: Date.now(),
+          details: details.map(d => ({ label: d.label, ok: d.ok, submitted: d.submitted, unit: d.unit, answer: d.answer })),
+        };
+      }
+      txn.update(userRef, updates);
+      console.log('[submitAssignment] txn write — varKey:', varKey, 'used:', used, 'locked:', locked);
+
+      return { allOk, locked, details, used, maxAtt, username, varKey, skippedWrite: false };
+    });
+  } catch (e) {
+    // Re-throw HttpsErrors as-is; wrap anything else
+    if (e instanceof HttpsError) throw e;
+    console.error('[submitAssignment] transaction failed:', e);
+    throw new HttpsError('internal', 'Submission failed — please try again.');
+  }
+
+  // Already-submitted fast path
+  if (result.skippedWrite) {
     return {
-      allOk:        existingSub.correct,
-      locked:       true,
-      details:      (existingSub.details || []).map(d => ({ label: d.label, ok: d.ok, unit: d.unit })),
-      attemptsUsed: existingAttempts,
-      attemptsMax:  maxAtt,
+      allOk:        result.allOk,
+      locked:       result.locked,
+      details:      result.details,
+      attemptsUsed: result.attemptsUsed,
+      attemptsMax:  result.attemptsMax,
+      late:         isLate || false,
     };
   }
 
-  // ── Generate expected answers server-side ──
-  const { answers } = genSeededVariant(prob, varKey);
-  if (inputs.length !== answers.length)
-    throw new HttpsError('invalid-argument', `Expected ${answers.length} answer(s), got ${inputs.length}.`);
-
-  // ── Grade ──
-  const details = answers.map((a, i) => {
-    const raw = inputs[i];
-    const tol = Math.abs(a.answer) * (a.tol || 0.02) + 0.001;
-    const ok  = Math.abs(raw - a.answer) <= tol;
-    return { label: a.label, ok, submitted: rnd(raw, 4), answer: a.answer, unit: a.unit };
-  });
-  const allOk  = details.every(d => d.ok);
-  const used   = existingAttempts + 1;
-  const noMore = maxAtt > 0 && used >= maxAtt;
-  const locked = allOk || noMore;
-
-  // ── Atomic Firestore write ──
-  const updates = { [`assignAttempts.${varKey}`]: FieldValue.increment(1) };
-  if (locked) {
-    updates[`assignSubmissions.${assignId}.${probId}`] = {
-      correct: allOk, late: isLate || false, timestamp: Date.now(),
-      details: details.map(d => ({ label: d.label, ok: d.ok, submitted: d.submitted, unit: d.unit, answer: d.answer })),
-    };
-  }
-  await userRef.update(updates);
-  console.log('[submitAssignment] wrote varKey:', varKey, 'used:', used, 'locked:', locked);
-
-  const responseDetails = details.map(d => ({
+  const responseDetails = result.details.map(d => ({
     label: d.label, ok: d.ok, unit: d.unit,
-    ...(locked && !allOk ? { answer: d.answer } : {}),
+    ...(result.locked && !result.allOk ? { answer: d.answer } : {}),
   }));
 
-  return { allOk, locked, details: responseDetails, attemptsUsed: used, attemptsMax: maxAtt, late: isLate || false };
+  return {
+    allOk:        result.allOk,
+    locked:       result.locked,
+    details:      responseDetails,
+    attemptsUsed: result.used,
+    attemptsMax:  result.maxAtt,
+    late:         isLate || false,
+  };
 });
 
 
