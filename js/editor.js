@@ -215,21 +215,50 @@ window.removeTableCol = function removeTableCol(c) {
 
 window.previewTableFormulas = function previewTableFormulas() {
   const t = window.S.editorTable;
-  const vals = {};
-  window.S.editorVars.forEach(v=>{ vals[v.name]=(parseFloat(v.min)+parseFloat(v.max))/2; });
+  const vars = window.S.editorVars;
+
+  // Three sample points: min, mid, max — to catch range problems
+  const mkVals = (pos) => {
+    const v = {};
+    vars.forEach(va => {
+      const lo = parseFloat(va.min), hi = parseFloat(va.max);
+      v[va.name] = pos === 'min' ? lo : pos === 'max' ? hi : (lo + hi) / 2;
+    });
+    return v;
+  };
+  const midVals = mkVals('mid');
+  const minVals = mkVals('min');
+  const maxVals = mkVals('max');
+  const varStr  = vars.map(va=>`${va.name}=${midVals[va.name]} ${va.unit||''}`).join(', ') || 'no vars';
+
   t.rows.forEach((row,r)=>{
     t.cols.forEach((_col,c)=>{
       const el = document.getElementById(`tblprev-${r}-${c}`); if(!el) return;
       const formula = (row.cells && row.cells[c]) || '';
-      if(!formula.trim()){ el.textContent=''; return; }
+      if(!formula.trim()){ el.textContent=''; el.title=''; return; }
       try {
-        const fn  = new Function(...Object.keys(vals), `return (${formula})`);
-        const res = fn(...Object.values(vals));
-        el.textContent = `= ${rnd(res,4)}`;
-        el.style.color = 'var(--accent2)';
+        const fn     = new Function(...Object.keys(midVals), `return (${formula})`);
+        const resMid = fn(...Object.values(midVals));
+
+        // Range-check at extremes
+        let rangeWarn = '';
+        try {
+          const fnLo = new Function(...Object.keys(minVals), `return (${formula})`);
+          const fnHi = new Function(...Object.keys(maxVals), `return (${formula})`);
+          const resLo = fnLo(...Object.values(minVals));
+          const resHi = fnHi(...Object.values(maxVals));
+          if (!isFinite(resLo) || !isFinite(resHi)) rangeWarn = ' ⚠ range';
+          else if (Math.sign(resLo) !== Math.sign(resHi) && resLo !== 0 && resHi !== 0)
+            rangeWarn = ' ⚠ sign flip';
+        } catch(_) { rangeWarn = ' ⚠ range err'; }
+
+        el.textContent = `${rnd(resMid,4)} ${row.unit||''}${rangeWarn}`;
+        el.style.color  = rangeWarn ? 'var(--warn)' : 'var(--accent2)';
+        el.title        = `${varStr} → ${rnd(resMid,4)} ${row.unit||''}`;
       } catch(e) {
-        el.textContent = '⚠';
+        el.textContent = `⚠ ${e.message}`;
         el.style.color = 'var(--red)';
+        el.title       = e.message;
       }
     });
   });
