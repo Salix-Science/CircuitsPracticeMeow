@@ -872,7 +872,6 @@ window.adminCreateUser = async function() {
   } catch(e) { console.warn('username uniqueness check skipped:', e); }
 
   // The real email is the Firebase Auth identity. Student signs in with their email.
-  // Username is stored as their display name only.
   try {
     const cred = await createUserWithEmailAndPassword(auth, email, pass);
     await setDoc(doc(db, 'users', cred.user.uid), {
@@ -882,7 +881,7 @@ window.adminCreateUser = async function() {
     logAdminAction('create_account', { uid: cred.user.uid, username, isAdmin, hasEmail: true });
     track('admin_create_account', { is_admin: isAdmin });
 
-    // Send branded welcome email via SendPulse (non-blocking — don't fail account creation on email error)
+    // Send branded welcome email via SendPulse (non-blocking)
     if (typeof window.sendWelcomeEmail === 'function') {
       window.sendWelcomeEmail(email, username).catch(e =>
         console.warn('[adminCreateUser] welcome email failed (non-fatal):', e.message)
