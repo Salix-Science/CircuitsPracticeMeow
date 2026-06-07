@@ -19,6 +19,9 @@ window.resetForm = function resetForm(){
   window.S.editorImg=null;
   window.S.formEnabled=true;
   window.S.editorAnswers=[{id:`ans-${Date.now()}`,label:'Answer',formula:'',unit:'V',tol:'2'}];
+  window.S.editorAnswerMode='boxes';
+  window.S.editorTable={corner:'',tol:'2',rows:[{label:'Row 1',unit:'V',cells:['']}],cols:[{label:'Col 1'}]};
+  setAnswerMode('boxes');
   ['e-title','e-topic','e-question','e-hint'].forEach(id=>{
     const el=document.getElementById(id); if(el) el.value='';
   });
@@ -108,6 +111,128 @@ window.renderVarInsertChips = function renderVarInsertChips(){
     const n=document.createElement('span');n.style.cssText='font-size:11px;color:var(--text4)';
     n.textContent='Add variables to see insert buttons.';wrap.appendChild(n);
   }
+}
+
+// ── Answer mode (boxes | table) ───────────────
+// S.editorAnswerMode = 'boxes' | 'table'
+// S.editorTable = { corner, tol, rows:[{label,unit,cells:[]}], cols:[{label}] }
+if(!window.S.editorAnswerMode) window.S.editorAnswerMode = 'boxes';
+if(!window.S.editorTable) window.S.editorTable = {
+  corner:'', tol:'2',
+  rows:[{label:'Row 1', unit:'V', cells:['']}],
+  cols:[{label:'Col 1'}]
+};
+
+window.setAnswerMode = function setAnswerMode(mode) {
+  window.S.editorAnswerMode = mode;
+  document.getElementById('answer-mode-boxes').style.display = mode==='boxes' ? '' : 'none';
+  document.getElementById('answer-mode-table').style.display = mode==='table' ? '' : 'none';
+  document.getElementById('amt-boxes').classList.toggle('active', mode==='boxes');
+  document.getElementById('amt-table').classList.toggle('active', mode==='table');
+  if (mode==='table') renderTableEditor();
+}
+
+window.renderTableEditor = function renderTableEditor() {
+  const wrap = document.getElementById('table-editor-wrap'); if(!wrap) return;
+  const t = window.S.editorTable;
+  // Sync corner + tol fields
+  const cornerEl = document.getElementById('tbl-corner'); if(cornerEl) cornerEl.value = t.corner||'';
+  const tolEl    = document.getElementById('tbl-tol');    if(tolEl)    tolEl.value    = t.tol||'2';
+
+  // Build a small editor grid:
+  // Row 0: empty corner | col-label inputs | [del col btn]
+  // Row N: row-label input | unit input | cell formula inputs | [del row btn]
+  let html = `<div class="tbl-ed-scroll"><table class="tbl-ed">`;
+
+  // Header row — col labels
+  html += `<thead><tr><th class="tbl-ed-corner">Rows ↓ / Cols →</th>`;
+  t.cols.forEach((col,c)=>{
+    html += `<th>
+      <input type="text" class="tbl-ed-col-label" value="${escHtml(col.label||'')}"
+        placeholder="Col ${c+1}"
+        oninput="window.S.editorTable.cols[${c}].label=this.value"/>
+      <button class="tbl-ed-del" title="Delete column" onclick="removeTableCol(${c})"><i class="ti ti-x"></i></button>
+    </th>`;
+  });
+  html += `<th class="tbl-ed-unit-h">Unit</th><th></th></tr></thead>`;
+
+  // Body — one row per row
+  html += `<tbody>`;
+  t.rows.forEach((row,r)=>{
+    // Ensure cells array is long enough
+    while((row.cells||[]).length < t.cols.length) { if(!row.cells) row.cells=[]; row.cells.push(''); }
+
+    html += `<tr><th>
+      <input type="text" class="tbl-ed-row-label" value="${escHtml(row.label||'')}"
+        placeholder="Row ${r+1}"
+        oninput="window.S.editorTable.rows[${r}].label=this.value"/>
+      <button class="tbl-ed-del" title="Delete row" onclick="removeTableRow(${r})"><i class="ti ti-x"></i></button>
+    </th>`;
+    t.cols.forEach((_col,c)=>{
+      const formula = (row.cells && row.cells[c]) || '';
+      html += `<td>
+        <input type="text" class="tbl-ed-formula mono" value="${escHtml(formula)}"
+          placeholder="formula"
+          oninput="window.S.editorTable.rows[${r}].cells[${c}]=this.value;previewTableFormulas()"/>
+        <span class="tbl-ed-preview" id="tblprev-${r}-${c}"></span>
+      </td>`;
+    });
+    html += `<td>
+      <input type="text" class="tbl-ed-unit" value="${escHtml(row.unit||'')}"
+        placeholder="V"
+        oninput="window.S.editorTable.rows[${r}].unit=this.value"/>
+    </td><td></td></tr>`;
+  });
+  html += `</tbody></table></div>`;
+  wrap.innerHTML = html;
+  previewTableFormulas();
+}
+
+window.addTableRow = function addTableRow() {
+  const t = window.S.editorTable;
+  t.rows.push({ label:`Row ${t.rows.length+1}`, unit:'V', cells: t.cols.map(()=>'') });
+  renderTableEditor();
+}
+window.removeTableRow = function removeTableRow(r) {
+  const t = window.S.editorTable;
+  if(t.rows.length <= 1){ alert('A table needs at least one row.'); return; }
+  t.rows.splice(r,1);
+  renderTableEditor();
+}
+window.addTableCol = function addTableCol() {
+  const t = window.S.editorTable;
+  t.cols.push({ label:`Col ${t.cols.length+1}` });
+  t.rows.forEach(row=>{ if(!row.cells) row.cells=[]; row.cells.push(''); });
+  renderTableEditor();
+}
+window.removeTableCol = function removeTableCol(c) {
+  const t = window.S.editorTable;
+  if(t.cols.length <= 1){ alert('A table needs at least one column.'); return; }
+  t.cols.splice(c,1);
+  t.rows.forEach(row=>{ if(row.cells) row.cells.splice(c,1); });
+  renderTableEditor();
+}
+
+window.previewTableFormulas = function previewTableFormulas() {
+  const t = window.S.editorTable;
+  const vals = {};
+  window.S.editorVars.forEach(v=>{ vals[v.name]=(parseFloat(v.min)+parseFloat(v.max))/2; });
+  t.rows.forEach((row,r)=>{
+    t.cols.forEach((_col,c)=>{
+      const el = document.getElementById(`tblprev-${r}-${c}`); if(!el) return;
+      const formula = (row.cells && row.cells[c]) || '';
+      if(!formula.trim()){ el.textContent=''; return; }
+      try {
+        const fn  = new Function(...Object.keys(vals), `return (${formula})`);
+        const res = fn(...Object.values(vals));
+        el.textContent = `= ${rnd(res,4)}`;
+        el.style.color = 'var(--accent2)';
+      } catch(e) {
+        el.textContent = '⚠';
+        el.style.color = 'var(--red)';
+      }
+    });
+  });
 }
 
 // ── Answer boxes ──────────────────────────────
@@ -213,10 +338,20 @@ window.saveProblem = async function saveProblem(){
   const title=document.getElementById('e-title').value.trim();
   const question=document.getElementById('e-question').value.trim();
   if(!title||!question){alert('Title and Question are required.');return;}
+
+  const isTableMode = window.S.editorAnswerMode === 'table';
   const answers=window.S.editorAnswers;
-  if(!answers.length||!answers[0].formula.trim()){alert('At least one answer formula is required.');return;}
-  const badFormulas=answers.filter(a=>!a.formula.trim());
-  if(badFormulas.length){alert(`Answer box "${badFormulas[0].label}" has no formula.`);return;}
+
+  if(!isTableMode){
+    if(!answers.length||!answers[0].formula.trim()){alert('At least one answer formula is required.');return;}
+    const badFormulas=answers.filter(a=>!a.formula.trim());
+    if(badFormulas.length){alert(`Answer box "${badFormulas[0].label}" has no formula.`);return;}
+  } else {
+    const t = window.S.editorTable;
+    if(!t.rows.length || !t.cols.length){alert('Table needs at least one row and one column.');return;}
+    const missingCell = t.rows.some(row=>t.cols.some((_,c)=>!(row.cells&&row.cells[c]&&row.cells[c].trim())));
+    if(missingCell){alert('Every table cell needs a formula.');return;}
+  }
 
   const maxAttempts=parseInt(document.getElementById('e-max-attempts').value)||0;
   const prob={
@@ -224,11 +359,18 @@ window.saveProblem = async function saveProblem(){
     title,
     topic:document.getElementById('e-topic').value.trim(),
     question,
-    answers:answers.map(a=>({...a})),   // array of answer boxes
-    // Legacy single-answer fields kept for compatibility with old problems
-    formula:answers[0].formula,
-    unit:answers[0].unit,
-    tol:answers[0].tol,
+    answerMode: isTableMode ? 'table' : 'boxes',
+    answers: isTableMode ? [] : answers.map(a=>({...a})),
+    table: isTableMode ? {
+      corner: window.S.editorTable.corner||'',
+      tol:    window.S.editorTable.tol||'2',
+      rows:   window.S.editorTable.rows.map(r=>({...r, cells:[...r.cells]})),
+      cols:   window.S.editorTable.cols.map(c=>({...c})),
+    } : null,
+    // Legacy single-answer fields kept for compatibility
+    formula: isTableMode ? '' : answers[0].formula,
+    unit:    isTableMode ? '' : answers[0].unit,
+    tol:     isTableMode ? (window.S.editorTable.tol||'2') : answers[0].tol,
     vars:window.S.editorVars.map(v=>({...v})),
     defaultPts:parseInt(document.getElementById('e-pts').value)||10,
     maxAttempts,
@@ -243,7 +385,7 @@ window.saveProblem = async function saveProblem(){
   document.getElementById('form-mode-label').textContent='Saving…';
   await saveDB();
   document.getElementById('form-mode-label').textContent=`Editing: ${prob.title}`;
-  logAdminAction(isNew ? 'create_problem' : 'edit_problem', { id: prob.id, title: prob.title, topic: prob.topic, enabled: prob.enabled, answerCount: (prob.answers||[]).length });
+  logAdminAction(isNew ? 'create_problem' : 'edit_problem', { id: prob.id, title: prob.title, topic: prob.topic, enabled: prob.enabled, answerMode: prob.answerMode, answerCount: isTableMode ? (prob.table.rows.length*prob.table.cols.length) : (prob.answers||[]).length });
   buildPracticeSidebar();renderPmList();renderFolderList();
 
   // Preview
@@ -259,6 +401,7 @@ window.saveProblem = async function saveProblem(){
     <div style="display:flex;align-items:center;gap:6px;margin-bottom:6px">
       <span style="font-family:var(--font-display);font-size:12px;color:var(--accent2)">${prob.title}</span>
       ${!prob.enabled?'<span class="pill pill-disabled">hidden</span>':'<span class="pill pill-green">visible</span>'}
+      ${isTableMode?'<span class="pill pill-purple" style="font-size:9px">table</span>':''}
     </div>
     ${prob.imgDataUrl?`<img src="${prob.imgDataUrl}" style="max-width:100%;max-height:80px;border-radius:4px;margin-bottom:6px;display:block"/>`:''}
     <p style="color:var(--text);line-height:1.6;margin-bottom:6px">${v.question}</p>
@@ -274,6 +417,19 @@ window.loadProbToForm = function loadProbToForm(prob){
   window.S.editorVars=prob.vars.map(v=>({...v}));
   window.S.editorImg=prob.imgDataUrl||null;
   window.S.formEnabled=prob.enabled!==false;
+
+  // Restore answer mode
+  const mode = prob.answerMode === 'table' ? 'table' : 'boxes';
+  if (mode === 'table' && prob.table) {
+    window.S.editorTable = {
+      corner: prob.table.corner || '',
+      tol:    prob.table.tol    || '2',
+      rows:   (prob.table.rows||[]).map(r=>({ ...r, cells:[...(r.cells||[])] })),
+      cols:   (prob.table.cols||[]).map(c=>({ ...c })),
+    };
+  } else {
+    window.S.editorTable = {corner:'',tol:'2',rows:[{label:'Row 1',unit:'V',cells:['']}],cols:[{label:'Col 1'}]};
+  }
 
   // Load answers — support old single-formula problems
   if(prob.answers&&prob.answers.length){
@@ -306,6 +462,7 @@ window.loadProbToForm = function loadProbToForm(prob){
   if(topicInp) topicInp.value=prob.topic||'';
 
   renderVarRows();renderVarInsertChips();renderAnswerBoxes();
+  setAnswerMode(mode);
   showEdTab('problems',document.querySelector('.editor-top-tab'));
 }
 
@@ -624,26 +781,25 @@ window.renderAssignProbPicker = function renderAssignProbPicker(){
     const boxesHtml = answers.map((a,i)=>{
       let dft;
       if(existing && Array.isArray(existing.boxPoints) && existing.boxPoints[i] != null) dft = existing.boxPoints[i].points;
-      else if(existing && existing.points != null && answers.length===1)                  dft = existing.points;
+      else if(existing && answers.length===1 && existing.points != null)                 dft = existing.points;
       else dft = p.defaultPts || 10;
-      const label = answers.length > 1 ? (a.label || `Part ${i+1}`) : 'Points';
+      const label = a.label || `Part ${i+1}`;
       return `<div style="display:flex;align-items:center;gap:8px">
-        <span style="flex:1;font-size:11px;color:var(--text3)">${escHtml(label)}</span>
+        <span style="flex:1;font-size:11px;color:var(--text3)">${answers.length>1?escHtml(label):'Points'}</span>
         <input class="assign-pts-input" type="number" id="apbox-${p.id}-${i}" value="${dft}" min="0" max="1000"/>
-        <span style="font-size:10px;color:var(--text4)">pts</span>
       </div>`;
     }).join('');
 
     const row=document.createElement('div');
     row.className='assign-prob-picker-row';
-    row.style.cssText='flex-direction:column;align-items:stretch;gap:6px';
+    row.style.cssText='flex-direction:column;align-items:stretch;gap:8px';
     row.innerHTML=`
       <label style="display:flex;align-items:center;gap:6px">
         <input type="checkbox" id="apc-${p.id}" style="width:auto" ${existing?'checked':''}/> ${escHtml(p.title)}
         ${p.enabled===false?'<span class="pill pill-disabled" style="font-size:9px">hidden</span>':''}
         ${answers.length>1?`<span style="font-size:9px;color:var(--text4)">${answers.length} boxes</span>`:''}
       </label>
-      <div style="padding-left:28px;display:flex;flex-direction:column;gap:4px;border-left:2px solid var(--border);margin-left:8px">${boxesHtml}</div>`;
+      <div style="padding-left:22px;display:flex;flex-direction:column;gap:6px">${boxesHtml}</div>`;
     wrap.appendChild(row);
   });
 }
