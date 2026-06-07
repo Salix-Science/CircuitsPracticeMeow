@@ -1,49 +1,89 @@
-/* notifications.js — Email notification sending via EmailJS
-   
-   SETUP REQUIRED (one-time, ~5 minutes):
-   1. Create a free account at https://emailjs.com
-   2. Add an Email Service (Gmail works) — copy the Service ID
-   3. Create an Email Template with these variables:
-        {{to_email}}   — recipient address
-        {{subject}}    — email subject
-        {{message}}    — email body (HTML ok)
-        {{from_name}}  — "Circuits Practice"
-   4. Copy your Template ID and Public Key
-   5. Replace the three placeholders below with your real values.
-
-   Free tier: 200 emails/month, no credit card required.
+/* notifications.js — Email via SendPulse (Netlify function /api/send-email)
+   API credentials live server-side only — nothing sensitive is exposed here.
 
    Student notification preferences are saved in their profile
    (Profile tab → Email notifications). Admins send from here.
 */
 
-const EMAILJS_SERVICE_ID  = 'service_vj8344b';
-const EMAILJS_TEMPLATE_ID = 'template_r5jq4ed';
-const EMAILJS_PUBLIC_KEY  = '6v4OZ7JLX_TuXeLws';
+const EMAIL_ENDPOINT = '/api/send-email';
 
-function emailjsConfigured() {
-  return !EMAILJS_SERVICE_ID.startsWith('YOUR_') &&
-         !EMAILJS_TEMPLATE_ID.startsWith('YOUR_') &&
-         !EMAILJS_PUBLIC_KEY.startsWith('YOUR_');
+// ── Email template ────────────────────────────
+function _baseTemplate(title, bodyHtml) {
+  return `<!DOCTYPE html><html><head><meta charset="utf-8"/><title>${title}</title></head>
+<body style="margin:0;padding:0;background:#0f1117;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif">
+  <table width="100%" cellpadding="0" cellspacing="0" style="background:#0f1117;padding:32px 16px">
+    <tr><td align="center">
+      <table width="560" cellpadding="0" cellspacing="0" style="max-width:560px;width:100%">
+        <tr><td style="background:#161b27;border-radius:12px 12px 0 0;padding:24px 32px;border-bottom:1px solid #2a3040">
+          <span style="font-size:15px;font-weight:700;color:#7dd3fc">⚡ Circuits Practice</span>
+        </td></tr>
+        <tr><td style="background:#161b27;padding:28px 32px;color:#e2e8f0;font-size:14px;line-height:1.7">
+          ${bodyHtml}
+        </td></tr>
+        <tr><td style="background:#0f1117;border-radius:0 0 12px 12px;padding:16px 32px;border-top:1px solid #2a3040">
+          <p style="margin:0;font-size:11px;color:#4a5568;line-height:1.6">
+            You're receiving this because you're enrolled in a course using
+            <a href="https://circuitspractice.org" style="color:#7dd3fc;text-decoration:none">circuitspractice.org</a>.
+            Update your preferences in your <a href="https://circuitspractice.org" style="color:#7dd3fc;text-decoration:none">profile settings</a>.
+          </p>
+        </td></tr>
+      </table>
+    </td></tr>
+  </table>
+</body></html>`;
 }
 
-// ── Send one email ────────────────────────────
+// ── Send one email via Netlify function ────────
 async function sendOneEmail(toEmail, subject, message) {
-  if (!emailjsConfigured()) { console.info('[notifications] EmailJS not configured'); return { ok:false }; }
-  if (typeof emailjs === 'undefined') { console.warn('[notifications] EmailJS SDK not loaded'); return { ok:false }; }
+  const html = _baseTemplate(subject, `
+    <h2 style="margin:0 0 16px;font-size:20px;font-weight:700;color:#f1f5f9">${subject}</h2>
+    <div style="color:#cbd5e1">${message}</div>
+    <div style="margin-top:24px">
+      <a href="https://circuitspractice.org"
+         style="display:inline-block;background:#3b82f6;color:#fff;text-decoration:none;
+                padding:10px 20px;border-radius:8px;font-size:13px;font-weight:600">
+        Open Circuits Practice →
+      </a>
+    </div>
+  `);
   try {
-    await emailjs.send(EMAILJS_SERVICE_ID, EMAILJS_TEMPLATE_ID, {
-      to_email:  toEmail,
-      subject,
-      message,
-      from_name: 'Circuits Practice',
-    }, EMAILJS_PUBLIC_KEY);
+    const res  = await fetch(EMAIL_ENDPOINT, {
+      method:  'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body:    JSON.stringify({ to: toEmail, subject, html }),
+    });
+    const data = await res.json();
+    if (!res.ok) { console.error('[notifications] send failed:', data.error); return { ok: false }; }
     return { ok: true };
   } catch(e) {
-    console.error('[notifications] send failed:', e);
+    console.error('[notifications] fetch failed:', e);
     return { ok: false, error: e.message };
   }
 }
+
+// Welcome email — called from firebase.js on account creation
+window.sendWelcomeEmail = async function sendWelcomeEmail(toEmail, username) {
+  const subject = 'Welcome to Circuits Practice';
+  const html = _baseTemplate(subject, `
+    <h2 style="margin:0 0 16px;font-size:20px;font-weight:700;color:#f1f5f9">Welcome, ${username}! ⚡</h2>
+    <p style="margin:0 0 12px;color:#cbd5e1">Your Circuits Practice account is ready.</p>
+    <p style="margin:0 0 20px;color:#94a3b8;font-size:13px">Sign in with this email address and the temporary password your instructor provided.</p>
+    <a href="https://circuitspractice.org"
+       style="display:inline-block;background:#3b82f6;color:#fff;text-decoration:none;
+              padding:10px 20px;border-radius:8px;font-size:13px;font-weight:600">Get Started →</a>
+  `);
+  try {
+    const res  = await fetch(EMAIL_ENDPOINT, {
+      method:  'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body:    JSON.stringify({ to: toEmail, subject, html }),
+    });
+    return await res.json();
+  } catch(e) {
+    console.error('[notifications] welcome email failed:', e);
+    return { ok: false };
+  }
+};
 
 // ── Resolve subscribers for a type ────────────
 // IMPORTANT: window.DB.users only holds the *current* session's user, so the
@@ -90,7 +130,7 @@ window.sendBulkNotification = sendBulkNotification;
 window.renderAdminNotifPanel = async function renderAdminNotifPanel() {
   const wrap = document.getElementById('admin-notif-wrap');
   if (!wrap) return;
-  const configured = emailjsConfigured();
+  const configured = true; // SendPulse via Netlify function — always ready
 
   // Count subscribers per type across ALL users (not just the loaded session user)
   let users = [];
@@ -102,15 +142,9 @@ window.renderAdminNotifPanel = async function renderAdminNotifPanel() {
   const countAss   = users.filter(u => u.notifPrefs?.email && u.notifPrefs?.assignments).length;
 
   wrap.innerHTML = `
-    ${!configured ? `
-      <div style="background:rgba(251,191,36,.08);border:0.5px solid rgba(251,191,36,.3);border-radius:var(--r2);padding:12px 14px;margin-bottom:14px;font-size:12px;color:var(--warn);line-height:1.7">
-        <strong>EmailJS not configured.</strong> Replace the three placeholders at the top of <code>js/notifications.js</code>
-        with your EmailJS Service ID, Template ID, and Public Key.
-        Get them free at <a href="https://emailjs.com" target="_blank" style="color:var(--accent2)">emailjs.com</a>.
-      </div>` : `
-      <div style="background:rgba(74,222,128,.08);border:0.5px solid rgba(74,222,128,.25);border-radius:var(--r2);padding:10px 14px;margin-bottom:14px;font-size:12px;color:var(--green)">
-        ✓ EmailJS configured and ready to send.
-      </div>`}
+    <div style="background:rgba(74,222,128,.08);border:0.5px solid rgba(74,222,128,.25);border-radius:var(--r2);padding:10px 14px;margin-bottom:14px;font-size:12px;color:var(--green)">
+      ✓ SendPulse configured — sending from noreply@circuitspractice.org
+    </div>
 
     <div style="display:flex;gap:8px;margin-bottom:14px;flex-wrap:wrap">
       ${subBadge('Posts', countPosts)}
@@ -137,7 +171,7 @@ window.renderAdminNotifPanel = async function renderAdminNotifPanel() {
         <textarea id="notif-send-body" rows="4" placeholder="Write your message here…"></textarea>
       </div>
       <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
-        <button class="btn btn-sm btn-accent" onclick="adminSendNotification()" ${!configured?'disabled':''}>
+        <button class="btn btn-sm btn-accent" onclick="adminSendNotification()">
           <i class="ti ti-send"></i> Send email
         </button>
         <div class="ok-msg hidden" id="notif-send-ok"></div>
