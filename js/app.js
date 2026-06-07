@@ -57,6 +57,7 @@ window.showAdminTab = function(t, el) {
   if(t==='coursegrades') renderCourseGrades?.();
   if(t==='sections') renderSections?.();
   if(t==='account') window.renderNotificationSettings?.();
+  if(t==='auditlog') renderAuditLog?.();
 };
 
 window.showEdTab = function(t, el) {
