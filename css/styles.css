@@ -955,3 +955,19 @@ label {
 }
 .pa-table tr:hover td { background: rgba(255,255,255,.02); }
 .pa-stars { color: var(--warn); letter-spacing: 1px; }
+/* ── Audit log ─────────────────────── */
+.al-row { display:flex; gap:12px; padding:10px 14px; border-bottom:0.5px solid var(--border); align-items:flex-start; }
+.al-row:last-child { border-bottom:none; }
+.al-row-icon { width:28px; height:28px; display:flex; align-items:center; justify-content:center; border-radius:50%; background:var(--bg3); flex-shrink:0; font-size:13px; margin-top:1px; }
+.al-row-body { flex:1; min-width:0; }
+.al-row-top { display:flex; align-items:center; gap:10px; flex-wrap:wrap; }
+.al-row-action { font-size:12px; font-weight:600; }
+.al-row-admin, .al-row-time { font-size:11px; color:var(--text4); font-family:var(--mono); display:flex; align-items:center; gap:3px; }
+.al-row-details { margin-top:3px; font-size:11px; color:var(--text3); font-family:var(--mono); display:flex; flex-wrap:wrap; gap:4px; align-items:center; }
+.al-detail-key { color:var(--text4); }
+.al-detail-sep { color:var(--text4); }
+.al-detail-val { color:var(--text2); }
+.al-detail-dot { color:var(--border); padding:0 2px; }
+.al-pill { padding:3px 9px; border-radius:999px; font-size:11px; border:0.5px solid var(--border); background:var(--bg3); color:var(--text3); cursor:pointer; display:inline-flex; align-items:center; gap:4px; transition:border-color .15s,color .15s; }
+.al-pill:hover { border-color:var(--text3); }
+.al-pill-active { border-color:var(--al-pill-color, var(--accent2)); color:var(--al-pill-color, var(--accent2)); background:rgba(157,125,232,.08); }
