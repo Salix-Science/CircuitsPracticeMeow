@@ -1,4 +1,4 @@
-
+<script type="module" src="js/adminlog.js"></script>
 // ── MathJax typeset helper ────────────────────
 // Call after rendering any content that may contain LaTeX ($...$ or $$...$$).
 window.typeset = function(el) {
