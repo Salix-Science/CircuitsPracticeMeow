@@ -634,7 +634,24 @@
           </div>
         </div>
       </div>
-
+     <!-- Audit log -->
+<div class="admin-subtab" id="atab-auditlog">
+  <div class="dash-section">
+    <div class="dash-head" style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">
+      <span><i class="ti ti-shield-check"></i> Admin audit log</span>
+      <span id="auditlog-count" style="font-size:11px;color:var(--text4);font-weight:400;margin-right:auto"></span>
+      <input type="search" id="auditlog-search" placeholder="Search…"
+        style="font-size:12px;padding:4px 10px;width:200px"
+        oninput="auditLogSearch(this.value)"/>
+      <button class="btn btn-sm" onclick="renderAuditLog()"><i class="ti ti-refresh"></i> Refresh</button>
+      <span id="auditlog-spinner" style="display:none;align-items:center;gap:4px;font-size:11px;color:var(--text3)">
+        <i class="ti ti-loader" style="animation:spin 1s linear infinite"></i> Loading
+      </span>
+    </div>
+    <div id="auditlog-pills" style="display:flex;gap:6px;flex-wrap:wrap;padding:10px 14px 4px"></div>
+    <div id="auditlog-list" style="padding:0 14px 14px"></div>
+  </div>
+</div>
       <!-- Sections -->
       <div class="admin-subtab" id="atab-sections">
         <div style="display:grid;grid-template-columns:300px 1fr;gap:20px;min-height:400px">
