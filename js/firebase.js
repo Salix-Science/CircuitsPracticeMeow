@@ -532,7 +532,7 @@ window.saveHomepage = async function() {
 // Append a record to the top-level `auditLog` collection in Firestore.
 window.logAdminAction = async function(action, details = {}) {
   try {
-    await addDoc(collection(db, 'auditLog'), {
+    await addDoc(collection(db, 'adminLog'), {
       ts:       Date.now(),
       admin:    window.S.user || '—',
       action,
