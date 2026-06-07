@@ -7,7 +7,7 @@
 
 const EMAIL_ENDPOINT = '/api/send-email';
 
-// ── Email templates ───────────────────────────
+// ── Email template ────────────────────────────
 function _baseTemplate(title, bodyHtml) {
   return `<!DOCTYPE html><html><head><meta charset="utf-8"/><title>${title}</title></head>
 <body style="margin:0;padding:0;background:#0f1117;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif">
@@ -34,7 +34,6 @@ function _baseTemplate(title, bodyHtml) {
 }
 
 // ── Send one email via Netlify function ────────
-// to: string (single address) or Array of { email, name } for bulk
 async function sendOneEmail(toEmail, subject, message) {
   const html = _baseTemplate(subject, `
     <h2 style="margin:0 0 16px;font-size:20px;font-weight:700;color:#f1f5f9">${subject}</h2>
@@ -62,7 +61,7 @@ async function sendOneEmail(toEmail, subject, message) {
   }
 }
 
-// Welcome email sent on account creation
+// Welcome email — called from firebase.js on account creation
 window.sendWelcomeEmail = async function sendWelcomeEmail(toEmail, username) {
   const subject = 'Welcome to Circuits Practice';
   const html = _baseTemplate(subject, `
@@ -79,8 +78,7 @@ window.sendWelcomeEmail = async function sendWelcomeEmail(toEmail, username) {
       headers: { 'Content-Type': 'application/json' },
       body:    JSON.stringify({ to: toEmail, subject, html }),
     });
-    const data = await res.json();
-    return data;
+    return await res.json();
   } catch(e) {
     console.error('[notifications] welcome email failed:', e);
     return { ok: false };
@@ -132,7 +130,7 @@ window.sendBulkNotification = sendBulkNotification;
 window.renderAdminNotifPanel = async function renderAdminNotifPanel() {
   const wrap = document.getElementById('admin-notif-wrap');
   if (!wrap) return;
-  const configured = true; // SendPulse configured via Netlify env vars
+  const configured = true; // SendPulse via Netlify function — always ready
 
   // Count subscribers per type across ALL users (not just the loaded session user)
   let users = [];
