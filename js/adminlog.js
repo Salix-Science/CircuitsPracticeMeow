@@ -59,8 +59,8 @@ window.auditLogLoadMore = async function() {
     const { query, collection, orderBy, limit, startAfter, getDocs } = fq;
 
     let q = AL._lastDoc
-      ? query(collection(db, 'auditLog'), orderBy('ts','desc'), startAfter(AL._lastDoc), limit(AUDITLOG_PAGE))
-      : query(collection(db, 'auditLog'), orderBy('ts','desc'), limit(AUDITLOG_PAGE));
+      ? query(collection(db, 'adminLog'), orderBy('ts','desc'), startAfter(AL._lastDoc), limit(AUDITLOG_PAGE))
+      : query(collection(db, 'adminLog'), orderBy('ts','desc'), limit(AUDITLOG_PAGE));
 
     const snap = await getDocs(q);
     if (snap.empty || snap.docs.length < AUDITLOG_PAGE) AL.allLoaded = true;
