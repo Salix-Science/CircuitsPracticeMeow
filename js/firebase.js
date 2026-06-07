@@ -415,8 +415,15 @@ window.saveUserOnly = async function() {
   if (!u) { console.warn('saveUserOnly: no user object'); return; }
 
   // Whitelist exact fields and enforce types before writing.
-  // This means even if u.streak was tampered with in memory,
-  // we only ever write a safe integer to Firestore.
+  // IMPORTANT — assignAttempts is deliberately EXCLUDED from this payload.
+  // The Cloud Function owns assignAttempts via atomic FieldValue.increment().
+  // Writing the whole map here via setDoc({ merge:true }) replaces the entire
+  // Firestore map field, stomping any increments the CF wrote between the last
+  // page load and now. Instead we write assignAttempts keys individually via
+  // updateDoc with dot-notation paths (see below), which is truly non-destructive.
+  //
+  // attemptLog is also excluded — it is written exclusively via logAttempt →
+  // arrayUnion, which appends atomically.
   const safe = {
     scores:            (u.scores && typeof u.scores === 'object') ? u.scores : {},
     streak:            (Number.isFinite(parseInt(u.streak)) && parseInt(u.streak) >= 0)
@@ -432,12 +439,6 @@ window.saveUserOnly = async function() {
                              assignments:   !!u.notifPrefs.assignments,
                            }
                          : {},
-    // NOTE: attemptLog is intentionally absent here. It is written exclusively
-    // via logAttempt → arrayUnion, which appends atomically. Writing it here
-    // would overwrite the Firestore array with a stale in-memory snapshot and
-    // erase entries that logAttempt queued but hasn't flushed yet.
-    assignAttempts:    (u.assignAttempts && typeof u.assignAttempts === 'object')
-                         ? u.assignAttempts : {},
     // probRatings — student difficulty ratings, written by ratings.js
     probRatings:       (u.probRatings && typeof u.probRatings === 'object')
                          ? u.probRatings : {},
@@ -448,6 +449,31 @@ window.saveUserOnly = async function() {
   } catch(e) {
     console.error('saveUserOnly failed:', e.code, e.message);
     throw e;
+  }
+
+  // Write assignAttempts using dot-notation updateDoc so each key is written
+  // independently. This is safe to do alongside the CF's increment() because
+  // we only ever write keys the client already knows about — and we always
+  // take the max so we can never reduce a count the CF has already advanced.
+  if (u.assignAttempts && typeof u.assignAttempts === 'object') {
+    const keys = Object.keys(u.assignAttempts);
+    if (keys.length > 0) {
+      const dotUpdates = {};
+      for (const [k, v] of Object.entries(u.assignAttempts)) {
+        if (typeof k !== 'string' || k.length > 200) continue;
+        const n = parseInt(v, 10);
+        if (Number.isFinite(n) && n >= 0 && n <= 9999) {
+          dotUpdates[`assignAttempts.${k}`] = n;
+        }
+      }
+      if (Object.keys(dotUpdates).length > 0) {
+        try {
+          await updateDoc(doc(db, 'users', uid), dotUpdates);
+        } catch(e) {
+          console.warn('saveUserOnly: assignAttempts dot-update failed:', e.code, e.message);
+        }
+      }
+    }
   }
 };
 
