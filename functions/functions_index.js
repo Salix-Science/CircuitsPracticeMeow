@@ -160,8 +160,6 @@ const username = userSnap0.exists ? userSnap0.data().username : uid;
   const prob = probSnap.data();
 
   // ── Load user doc ──
-  const userRef  = db.collection('users').doc(uid);
-  const userSnap = await userRef.get();
   if (!userSnap.exists) throw new HttpsError('not-found', 'User profile not found.');
   const userData = userSnap.data();
 
