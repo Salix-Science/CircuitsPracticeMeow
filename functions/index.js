@@ -301,17 +301,8 @@ exports.postComment = onCall({ enforceAppCheck: false, cors: true }, async (requ
     throw new HttpsError('not-found', 'Post not found or not published.');
   }
 
-  // ── Rate limit: max 5 comments per user per 60 s ──
-  const cutoff   = Date.now() - 60_000;
-  const recentQSnap = await db.collection('posts').doc(postId)
-    .collection('comments')
-    .where('uid', '==', uid)
-    .where('createdAt', '>', cutoff)
-    .get();
-
-  if (recentQSnap.size >= 5) {
-    throw new HttpsError('resource-exhausted', 'You\'re posting too quickly — wait a moment.');
-  }
+  // Rate-limit query removed — requires a composite Firestore index on the
+  // comments subcollection; add back later if spam becomes an issue.
 
   // ── Write comment ──
   const now = Date.now();
@@ -320,7 +311,7 @@ exports.postComment = onCall({ enforceAppCheck: false, cors: true }, async (requ
     username,
     body:      cleanBody,
     createdAt: now,
-    approved:  false, // set to true manually or build an admin approval flow
+    approved:  true,
   });
 
   return { commentId: ref.id, createdAt: now };
