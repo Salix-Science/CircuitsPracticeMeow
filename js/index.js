@@ -222,7 +222,7 @@ exports.postComment = onCall({ enforceAppCheck: false, cors: true }, async (requ
 
   const now = Date.now();
   const ref = await db.collection('posts').doc(postId).collection('comments').add(
-    { uid, username, body: cleanBody, createdAt: now, approved: false });
+    { uid, username, body: cleanBody, createdAt: now, approved: true });
   return { commentId: ref.id, createdAt: now };
 });
 
