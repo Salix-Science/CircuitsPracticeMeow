@@ -1,3 +1,48 @@
+<script type="module" src="js/adminlog.js"></script>
+// ── One-click unsubscribe landing ────────────
+// If the page is opened with ?unsubscribe=TOKEN (from an email footer link),
+// call the unsubscribe Cloud Function and show a confirmation overlay —
+// no login required, the token itself is the proof of identity.
+(async function() {
+  const params = new URLSearchParams(window.location.search);
+  const token  = params.get('unsubscribe');
+  if (!token) return;
+
+  // Show overlay immediately so the user sees something right away
+  const overlay = document.createElement('div');
+  overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.85);z-index:9999;display:flex;align-items:center;justify-content:center';
+  overlay.innerHTML = `
+    <div style="background:#1a1a2e;border:1px solid #2a2a4a;border-radius:10px;padding:36px 40px;max-width:420px;width:90vw;text-align:center;font-family:sans-serif">
+      <div style="font-size:13px;font-weight:700;letter-spacing:.1em;color:#9d7de8;margin-bottom:16px">CIRCUITS PRACTICE</div>
+      <div id="unsub-msg" style="font-size:14px;color:#c8c8d8;line-height:1.7">Unsubscribing…</div>
+      <button id="unsub-close" style="display:none;margin-top:20px;padding:8px 20px;background:#9d7de8;color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:13px">Close</button>
+    </div>`;
+  document.body.appendChild(overlay);
+  document.getElementById('unsub-close').addEventListener('click', () => {
+    overlay.remove();
+    history.replaceState({}, '', location.pathname);
+  });
+
+  try {
+    const resp = await fetch(
+      `https://us-central1-circuitspractice-b4cb0.cloudfunctions.net/unsubscribe?token=${encodeURIComponent(token)}`
+    );
+    const msg = document.getElementById('unsub-msg');
+    if (resp.ok) {
+      msg.textContent = "You've been unsubscribed from all Circuits Practice emails. You can re-enable notifications anytime from your profile.";
+    } else {
+      msg.textContent = 'Something went wrong. Please contact your instructor to unsubscribe.';
+    }
+  } catch(e) {
+    document.getElementById('unsub-msg').textContent = 'Could not reach the server. Please try again later.';
+    console.error('[unsubscribe] fetch failed:', e);
+  }
+
+  document.getElementById('unsub-close').style.display = 'inline-block';
+  // Clean the URL so a refresh doesn't re-trigger the handler
+  history.replaceState({}, '', location.pathname);
+})();
+
 // ── MathJax typeset helper ────────────────────
 // Call after rendering any content that may contain LaTeX ($...$ or $$...$$).
 window.typeset = function(el) {
@@ -92,7 +137,12 @@ window.enterApp = function() {
   document.getElementById('navt-admin').classList.toggle('hidden', !window.S.isAdmin);
   document.getElementById('streak-val').textContent = parseInt(window.DB.users[u]?.streak) || 0;
   buildPracticeSidebar();
-  window.showView('home');
+  // Honor ?tab= URL parameter so email footer links (e.g. ?tab=profile) land
+  // on the right view. Falls back to home for unknown or missing values.
+  const _tabParam = new URLSearchParams(window.location.search).get('tab');
+  const _validTabs = ['home','practice','blog','assignments','progress','calendar','profile'];
+  window.showView((_tabParam && _validTabs.includes(_tabParam)) ? _tabParam : 'home');
+  if (_tabParam) history.replaceState({}, '', location.pathname); // clean the URL
   // Restore persisted assignment attempt counts so limits survive page refreshes.
   if (window.syncAssignAttempts) window.syncAssignAttempts();
   // Offer legacy accounts a one-time prompt to set a real email (for reset).
