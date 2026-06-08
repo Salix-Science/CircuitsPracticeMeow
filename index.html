@@ -579,7 +579,7 @@
         <button class="admin-tab"        onclick="showAdminTab('gradebook',this)"><i class="ti ti-calculator" style="font-size:11px"></i> Gradebook</button>
         <button class="admin-tab"        onclick="showAdminTab('notifications',this)"><i class="ti ti-bell" style="font-size:11px"></i> Notifications</button>
         <button class="admin-tab" onclick="showAdminTab('auditlog',this)"><i class="ti ti-shield-check" style="font-size:11px"></i> Audit log</button>
-        <button class="admin-tab" onclick="showAdminTab('reported-comments',this);renderReportedComments()"><i class="ti ti-flag" style="font-size:11px"></i> Reported comments</button>
+        <button class="admin-tab" onclick="showAdminTab('reported-comments',this)"><i class="ti ti-flag" style="font-size:11px"></i> Reported comments</button>
       </div>
 
       <!-- Analytics -->
@@ -882,11 +882,9 @@
           </div>
         </div>
       </div>
-    </div>
-  </div><!-- /view-admin -->
 
       <!-- Reported Comments subtab -->
-      <div class="admin-subtab" id="atab-reported-comments" style="display:none">
+      <div class="admin-subtab" id="atab-reported-comments">
         <div style="padding:1.25rem;max-width:760px">
           <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px">
             <div style="font-size:11px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.08em">Reported comments</div>
@@ -895,6 +893,9 @@
           <div id="reported-comments-list"></div>
         </div>
       </div>
+
+    </div>
+  </div><!-- /view-admin -->
 
 
 
