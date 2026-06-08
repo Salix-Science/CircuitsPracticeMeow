@@ -301,9 +301,6 @@ exports.postComment = onCall({ enforceAppCheck: false, cors: true }, async (requ
     throw new HttpsError('not-found', 'Post not found or not published.');
   }
 
-  // Rate-limit query removed — requires a composite Firestore index on the
-  // comments subcollection; add back later if spam becomes an issue.
-
   // ── Write comment ──
   const now = Date.now();
   const ref = await db.collection('posts').doc(postId).collection('comments').add({
