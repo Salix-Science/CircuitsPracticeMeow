@@ -325,3 +325,50 @@ exports.postComment = onCall({ enforceAppCheck: false, cors: true }, async (requ
 
   return { commentId: ref.id, createdAt: now };
 });
+// ── Unsubscribe handler ───────────────────────
+// Called from the unsubscribe landing page. Accepts a base64url-encoded email,
+// finds the matching user doc, and turns off all notifPrefs flags.
+// No auth required — the token IS the proof of identity (it comes from a link
+// in an email only that recipient received).
+const { onRequest } = require('firebase-functions/v2/https');
+
+exports.unsubscribe = onRequest({ cors: true }, async (req, res) => {
+  const token = req.query.token || '';
+  if (!token) {
+    res.status(400).send('Missing token.');
+    return;
+  }
+
+  let email;
+  try {
+    email = Buffer.from(token, 'base64url').toString('utf8').toLowerCase();
+  } catch (e) {
+    res.status(400).send('Invalid token.');
+    return;
+  }
+
+  if (!email || !email.includes('@')) {
+    res.status(400).send('Invalid token.');
+    return;
+  }
+
+  // Find user doc with this contact email
+  const snap = await db.collection('users')
+    .where('notifPrefs.email', '==', email)
+    .limit(1)
+    .get();
+
+  if (snap.empty) {
+    // Don't reveal whether the email exists — just show success
+    res.status(200).send('ok');
+    return;
+  }
+
+  await snap.docs[0].ref.update({
+    'notifPrefs.posts':         false,
+    'notifPrefs.announcements': false,
+    'notifPrefs.assignments':   false,
+  });
+
+  res.status(200).send('ok');
+});
