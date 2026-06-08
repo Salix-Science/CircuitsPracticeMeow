@@ -565,20 +565,36 @@ window.logAdminAction = async function(action, details = {}) {
 // Generates a per-recipient unsubscribe token (base64url of their email),
 // adds List-Unsubscribe headers for Microsoft Defender / Gmail scoring,
 // and includes both plain-text and HTML parts for best deliverability.
+//
+// Accepts either plain text or a pre-built HTML document as bodyText.
+// Pre-built HTML (starts with <!DOCTYPE or <html) is passed through with
+// an unsubscribe footer injected before </body>. Plain text is wrapped in
+// the branded template.
 window._addMailDoc = async function(to, subject, bodyText) {
-  // Token = base64url(email) — verified and acted on by the unsubscribe Cloud Function.
   const token      = btoa(to).replace(/\+/g, '-').replace(/\//g, '_').replace(/=/g, '');
   const unsubUrl   = `https://us-central1-circuitspractice-b4cb0.cloudfunctions.net/unsubscribe?token=${token}`;
   const profileUrl = 'https://circuitspractice.org/?tab=profile';
+  const footerHtml = `<div style="font-size:11px;color:#888;text-align:center;padding:16px;border-top:1px solid #333;margin-top:16px">
+    <a href="${profileUrl}" style="color:#9d7de8;text-decoration:none">Manage notifications</a> &nbsp;&middot;&nbsp;
+    <a href="${unsubUrl}" style="color:#9d7de8;text-decoration:none">Unsubscribe</a>
+  </div>`;
 
-  // Plain-text part — required alongside HTML to avoid spam flags.
-  const text = `${bodyText}\n\n---\nCircuits Practice · circuitspractice.org\nManage notifications: ${profileUrl}\nUnsubscribe from all emails: ${unsubUrl}`;
+  const isPrebuiltHtml = /^[\s\S]{0,10}<!DOCTYPE/i.test(bodyText) || /^[\s\S]{0,10}<html/i.test(bodyText);
 
-  // HTML part — branded, with safe-escaped body text.
-  const safeBody = bodyText
-    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
-    .replace(/\n/g, '<br>');
-  const html = `<!DOCTYPE html>
+  let html, text;
+
+  if (isPrebuiltHtml) {
+    html = bodyText.includes('</body>')
+      ? bodyText.replace('</body>', footerHtml + '</body>')
+      : bodyText + footerHtml;
+    text = bodyText.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim()
+         + '\n\n---\nManage notifications: ' + profileUrl + '\nUnsubscribe: ' + unsubUrl;
+  } else {
+    text = bodyText + '\n\n---\nCircuits Practice \u00b7 circuitspractice.org\nManage notifications: ' + profileUrl + '\nUnsubscribe from all emails: ' + unsubUrl;
+    const safeBody = bodyText
+      .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+      .replace(/\n/g, '<br>');
+    html = `<!DOCTYPE html>
 <html><body style="margin:0;padding:0;background:#0f0f1a;font-family:sans-serif">
 <div style="max-width:580px;margin:32px auto;background:#1a1a2e;border:1px solid #2a2a4a;border-radius:8px;overflow:hidden">
   <div style="padding:20px 28px;border-bottom:1px solid #2a2a4a;background:#12122a">
@@ -588,11 +604,12 @@ window._addMailDoc = async function(to, subject, bodyText) {
   <div style="padding:16px 28px;border-top:1px solid #2a2a4a;font-size:11px;color:#555577;line-height:1.7">
     You're receiving this because you subscribed to notifications on
     <a href="https://circuitspractice.org" style="color:#9d7de8;text-decoration:none">circuitspractice.org</a>.<br>
-    <a href="${profileUrl}" style="color:#9d7de8;text-decoration:none">Manage notification preferences</a> ·
+    <a href="${profileUrl}" style="color:#9d7de8;text-decoration:none">Manage notification preferences</a> &middot;
     <a href="${unsubUrl}" style="color:#9d7de8;text-decoration:none">Unsubscribe from all emails</a>
   </div>
 </div>
 </body></html>`;
+  }
 
   try {
     await addDoc(collection(db, 'mail'), {
