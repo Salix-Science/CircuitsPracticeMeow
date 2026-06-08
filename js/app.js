@@ -1,3 +1,44 @@
++// ── One-click unsubscribe landing ────────────
++// If the page is opened with ?unsubscribe=TOKEN (from an email footer link),
++// call the Cloud Function and show a confirmation overlay without requiring login.
++(async function() {
++  const params = new URLSearchParams(window.location.search);
++  const token  = params.get('unsubscribe');
++  if (!token) return;
++
++  // Show an overlay immediately so the user sees feedback
++  const overlay = document.createElement('div');
++  overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.85);z-index:9999;display:flex;align-items:center;justify-content:center';
++  overlay.innerHTML = `
++    <div style="background:#1a1a2e;border:1px solid #2a2a4a;border-radius:10px;padding:36px 40px;max-width:420px;text-align:center;font-family:sans-serif">
++      <div style="font-size:13px;font-weight:700;letter-spacing:.1em;color:#9d7de8;margin-bottom:16px">CIRCUITS PRACTICE</div>
++      <div id="unsub-msg" style="font-size:14px;color:#c8c8d8;line-height:1.7">Unsubscribing…</div>
++      <button onclick="this.closest('div[style]').remove();history.replaceState({},'',location.pathname)"
++        style="display:none;margin-top:20px;padding:8px 20px;background:#9d7de8;color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:13px"
++        id="unsub-close">Close</button>
++    </div>`;
++  document.body.appendChild(overlay);
++
++  try {
++    const resp = await fetch(
++      `https://us-central1-circuitspractice-b4cb0.cloudfunctions.net/unsubscribe?token=${encodeURIComponent(token)}`
++    );
++    const msg = document.getElementById('unsub-msg');
++    if (resp.ok) {
++      msg.textContent = "You've been unsubscribed from all Circuits Practice emails. You can re-enable notifications anytime from your profile.";
++    } else {
++      msg.textContent = 'Something went wrong. Please contact your instructor to unsubscribe.';
++    }
++  } catch(e) {
++    document.getElementById('unsub-msg').textContent = 'Could not reach the server. Please try again later.';
++  }
++
++  document.getElementById('unsub-close').style.display = 'inline-block';
++  // Clean the URL so refreshing doesn't re-trigger
++  history.replaceState({}, '', location.pathname);
++})();
++
+ // ── MathJax typeset helper ────────────────────
 // ── MathJax typeset helper ────────────────────
 // Call after rendering any content that may contain LaTeX ($...$ or $$...$$).
 window.typeset = function(el) {
