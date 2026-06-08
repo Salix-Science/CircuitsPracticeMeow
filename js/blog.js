@@ -155,11 +155,183 @@ window.openBlogPost = function openBlogPost(id) {
     ${post.status === 'draft' ? '<span class="pill pill-warn">Draft</span>' : ''}`;
   document.getElementById('post-content-el').innerHTML = post.content;
   document.getElementById('view-blog').scrollTop = 0;
+
+  // Load comments (only for published posts)
+  if (post.status === 'published') {
+    loadComments(post.id);
+  } else {
+    const el = document.getElementById('post-comments');
+    if (el) el.style.display = 'none';
+  }
 }
+
+// ── Comments ──────────────────────────────────
+
+window.loadComments = async function loadComments(postId) {
+  const el = document.getElementById('post-comments');
+  if (!el) return;
+
+  el.style.display = 'block';
+  el.innerHTML = `<div class="comment-loading"><i class="ti ti-loader-2"></i> Loading comments…</div>`;
+
+  let comments = [];
+  try {
+    // Read directly from Firestore — no Cloud Function needed for reads.
+    const db2    = window._getFirestoreDb();
+    const { query: fsQuery, collection: fsCol, orderBy: fsOrderBy, getDocs: fsGetDocs } =
+      window._firestoreQuery;
+    const snap = await fsGetDocs(
+      fsQuery(fsCol(db2, 'posts', postId, 'comments'), fsOrderBy('createdAt', 'asc'))
+    );
+    comments = snap.docs.map(d => ({ id: d.id, ...d.data() }))
+      .filter(c => c.approved);   // only show approved comments
+  } catch(e) {
+    console.error('[loadComments] failed:', e);
+    el.innerHTML = `<div class="comment-empty">Could not load comments.</div>`;
+    return;
+  }
+
+  _renderComments(postId, comments);
+};
+
+function _renderComments(postId, comments) {
+  const el = document.getElementById('post-comments');
+  if (!el) return;
+
+  const isLoggedIn = !!window.S.uid;
+  const isAdmin    = !!window.S.isAdmin;
+  const myUid      = window.S.uid;
+
+  // Heading
+  let html = `<div class="post-comments-heading">
+    Comments <span class="comment-count">${comments.length}</span>
+  </div>`;
+
+  // Comment list
+  html += `<div class="comment-list" id="comment-list-${escPostId(postId)}">`;
+  if (comments.length === 0) {
+    html += `<div class="comment-empty">No comments yet. Be the first!</div>`;
+  } else {
+    for (const c of comments) {
+      const isMe  = c.uid === myUid;
+      const date  = new Date(c.createdAt).toLocaleDateString('en-US',
+        { month: 'short', day: 'numeric', year: 'numeric' });
+      const deleteBtn = (isAdmin || isMe)
+        ? `<button class="comment-delete-btn" title="Delete comment"
+             onclick="deleteComment('${escPostId(postId)}','${window.escHtml(c.id)}')"
+           ><i class="ti ti-trash"></i></button>`
+        : '';
+      html += `<div class="comment-item" id="comment-${window.escHtml(c.id)}">
+        ${deleteBtn}
+        <div class="comment-meta">
+          <span class="comment-author${isMe ? ' is-you' : ''}">${window.escHtml(c.username || 'Anonymous')}${isMe ? ' (you)' : ''}</span>
+          <span class="comment-date">${date}</span>
+        </div>
+        <div class="comment-body">${window.escHtml(c.body)}</div>
+      </div>`;
+    }
+  }
+  html += `</div>`;
+
+  // Compose box (logged-in users only)
+  if (isLoggedIn) {
+    html += `<div class="comment-compose">
+      <div class="comment-compose-label"><i class="ti ti-message-2"></i> Leave a comment</div>
+      <textarea id="comment-input-${escPostId(postId)}" placeholder="Write your comment…" maxlength="2000" rows="3"></textarea>
+      <div id="comment-err-${escPostId(postId)}" class="comment-err" style="display:none"></div>
+      <div class="comment-compose-row">
+        <span class="comment-compose-hint">Max 2000 characters</span>
+        <button class="btn btn-sm btn-accent comment-submit-btn"
+          onclick="submitComment('${escPostId(postId)}')">
+          <i class="ti ti-send"></i> Post comment
+        </button>
+      </div>
+    </div>`;
+  } else {
+    html += `<div class="comment-compose" style="text-align:center;color:var(--text4);font-size:13px">
+      Log in to leave a comment.
+    </div>`;
+  }
+
+  el.innerHTML = html;
+}
+
+// Safe post-ID for use in DOM IDs — strip non-alphanumeric to prevent injection
+function escPostId(id) {
+  return String(id).replace(/[^a-zA-Z0-9_-]/g, '_');
+}
+
+window.submitComment = async function submitComment(safePostId) {
+  // Recover the real post ID from the currently open post
+  const post = window.DB.posts.find(p => escPostId(p.id) === safePostId);
+  if (!post) return;
+
+  const textarea = document.getElementById(`comment-input-${safePostId}`);
+  const errEl    = document.getElementById(`comment-err-${safePostId}`);
+  if (!textarea) return;
+
+  const body = textarea.value.trim();
+  if (!body) {
+    if (errEl) { errEl.textContent = 'Comment cannot be empty.'; errEl.style.display = 'block'; }
+    return;
+  }
+  if (errEl) errEl.style.display = 'none';
+
+  // Disable button during flight
+  const btn = textarea.closest('.comment-compose')?.querySelector('.comment-submit-btn');
+  if (btn) { btn.disabled = true; btn.innerHTML = '<i class="ti ti-loader-2"></i> Posting…'; }
+
+  try {
+    const { getFunctions, httpsCallable } = await import(
+      'https://www.gstatic.com/firebasejs/10.12.0/firebase-functions.js'
+    );
+    const fns  = getFunctions(window._firebaseApp, 'us-central1');
+    const call = httpsCallable(fns, 'postComment');
+    await call({ postId: post.id, body });
+    // Reload comments to show the new one
+    await loadComments(post.id);
+  } catch(e) {
+    console.error('[submitComment] error:', e);
+    const msg = e?.message || 'Could not post comment. Try again.';
+    if (errEl) { errEl.textContent = msg; errEl.style.display = 'block'; }
+    if (btn) { btn.disabled = false; btn.innerHTML = '<i class="ti ti-send"></i> Post comment'; }
+  }
+};
+
+window.deleteComment = async function deleteComment(safePostId, commentId) {
+  if (!confirm('Delete this comment?')) return;
+
+  const post = window.DB.posts.find(p => escPostId(p.id) === safePostId);
+  if (!post) return;
+
+  // Delete directly from Firestore (admin or own comment — rules will enforce)
+  try {
+    const db2 = window._getFirestoreDb();
+    const { deleteDoc, doc } = await import(
+      'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js'
+    );
+    await deleteDoc(doc(db2, 'posts', post.id, 'comments', commentId));
+    // Remove from DOM immediately
+    document.getElementById(`comment-${window.escHtml(commentId)}`)?.remove();
+    // Update count
+    const list    = document.getElementById(`comment-list-${safePostId}`);
+    const count   = list ? list.querySelectorAll('.comment-item').length : 0;
+    const heading = document.querySelector('.post-comments-heading .comment-count');
+    if (heading) heading.textContent = count;
+    if (count === 0 && list) {
+      list.innerHTML = `<div class="comment-empty">No comments yet. Be the first!</div>`;
+    }
+  } catch(e) {
+    console.error('[deleteComment] error:', e);
+    alert('Could not delete comment: ' + (e?.message || 'Unknown error'));
+  }
+};
 
 window.showBlogList = function showBlogList() {
   document.getElementById('blog-list-view').classList.remove('hidden');
   document.getElementById('blog-post-view').classList.add('hidden');
+  const commentsEl = document.getElementById('post-comments');
+  if (commentsEl) { commentsEl.style.display = 'none'; commentsEl.innerHTML = ''; }
 }
 
 // ── Rich text editor ──────────────────────────
