@@ -221,11 +221,22 @@ function _renderComments(postId, comments) {
              onclick="deleteComment('${escPostId(postId)}','${window.escHtml(c.id)}')"
            ><i class="ti ti-trash"></i></button>`
         : '';
-      html += `<div class="comment-item" id="comment-${window.escHtml(c.id)}">
-        ${deleteBtn}
+      const reportBtn = (!isAdmin && !isMe)
+        ? (c.reported
+            ? `<button class="comment-report-btn reported" title="Already reported" disabled><i class="ti ti-flag-filled"></i></button>`
+            : `<button class="comment-report-btn" title="Report comment"
+                 onclick="reportComment('${escPostId(postId)}','${window.escHtml(c.id)}')"
+               ><i class="ti ti-flag"></i></button>`)
+        : '';
+      const reportedBadge = isAdmin && c.reported
+        ? `<span class="comment-reported-badge"><i class="ti ti-flag-filled"></i> Reported</span>`
+        : '';
+      html += `<div class="comment-item${c.reported ? ' is-reported' : ''}" id="comment-${window.escHtml(c.id)}">
+        ${deleteBtn}${reportBtn}
         <div class="comment-meta">
           <span class="comment-author${isMe ? ' is-you' : ''}">${window.escHtml(c.username || 'Anonymous')}${isMe ? ' (you)' : ''}</span>
           <span class="comment-date">${date}</span>
+          ${reportedBadge}
         </div>
         <div class="comment-body">${window.escHtml(c.body)}</div>
       </div>`;
@@ -326,6 +337,129 @@ window.deleteComment = async function deleteComment(safePostId, commentId) {
     alert('Could not delete comment: ' + (e?.message || 'Unknown error'));
   }
 };
+
+window.reportComment = async function reportComment(safePostId, commentId) {
+  if (!confirm('Report this comment to the instructor?')) return;
+  const post = window.DB.posts.find(p => escPostId(p.id) === safePostId);
+  if (!post) return;
+  try {
+    const db2 = window._getFirestoreDb();
+    const { updateDoc, doc } = await import(
+      'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js'
+    );
+    await updateDoc(doc(db2, 'posts', post.id, 'comments', commentId), {
+      reported:   true,
+      reportedBy: window.S.uid,
+      reportedAt: Date.now(),
+    });
+    const btn = document.querySelector(`#comment-${window.escHtml(commentId)} .comment-report-btn`);
+    if (btn) {
+      btn.disabled = true;
+      btn.classList.add('reported');
+      btn.title = 'Already reported';
+      btn.innerHTML = '<i class="ti ti-flag-filled"></i>';
+    }
+  } catch(e) {
+    console.error('[reportComment] error:', e);
+    alert('Could not report comment: ' + (e?.message || 'Unknown error'));
+  }
+};
+
+// ── Admin: reported comments panel ───────────
+window.renderReportedComments = async function renderReportedComments() {
+  if (!window.S.isAdmin) return;
+  const wrap = document.getElementById('reported-comments-list');
+  if (!wrap) return;
+  wrap.innerHTML = `<div class="comment-loading"><i class="ti ti-loader-2"></i> Loading...</div>`;
+
+  try {
+    const db2 = window._getFirestoreDb();
+    const { query: fsQ, collectionGroup, where, orderBy: fsOrd, getDocs: fsGet } = await import(
+      'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js'
+    );
+    const snap = await fsGet(
+      fsQ(collectionGroup(db2, 'comments'), where('reported', '==', true), fsOrd('reportedAt', 'desc'))
+    );
+
+    if (snap.empty) {
+      wrap.innerHTML = `<div class="comment-empty" style="padding:2rem">No reported comments.</div>`;
+      return;
+    }
+
+    let html = '';
+    snap.docs.forEach(d => {
+      const c       = { id: d.id, ...d.data() };
+      const postId  = d.ref.parent.parent.id;
+      const post    = window.DB.posts.find(p => p.id === postId);
+      const postTitle = post ? window.escHtml(post.title) : window.escHtml(postId);
+      const date    = new Date(c.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+      const repDate = c.reportedAt
+        ? new Date(c.reportedAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+        : '—';
+      html += `<div class="reported-comment-row" id="rc-${window.escHtml(c.id)}">
+        <div class="reported-comment-meta">
+          <span class="comment-author">${window.escHtml(c.username || 'Anonymous')}</span>
+          <span class="comment-date">${date}</span>
+          <span class="reported-in-post">in <em>${postTitle}</em></span>
+          <span class="comment-reported-badge"><i class="ti ti-flag-filled"></i> Reported ${repDate}</span>
+        </div>
+        <div class="comment-body" style="margin:8px 0 10px">${window.escHtml(c.body)}</div>
+        <div style="display:flex;gap:8px">
+          <button class="btn btn-sm btn-red" onclick="deleteReportedComment('${window.escHtml(postId)}','${window.escHtml(c.id)}')">
+            <i class="ti ti-trash"></i> Delete comment
+          </button>
+          <button class="btn btn-sm" onclick="dismissReport('${window.escHtml(postId)}','${window.escHtml(c.id)}')">
+            <i class="ti ti-circle-check"></i> Dismiss report
+          </button>
+        </div>
+      </div>`;
+    });
+    wrap.innerHTML = html;
+  } catch(e) {
+    console.error('[renderReportedComments] error:', e);
+    wrap.innerHTML = `<div class="comment-empty" style="color:var(--red)">Failed to load: ${window.escHtml(e.message)}</div>`;
+  }
+};
+
+window.deleteReportedComment = async function deleteReportedComment(postId, commentId) {
+  if (!confirm('Delete this comment?')) return;
+  try {
+    const db2 = window._getFirestoreDb();
+    const { deleteDoc, doc } = await import(
+      'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js'
+    );
+    await deleteDoc(doc(db2, 'posts', postId, 'comments', commentId));
+    document.getElementById(`rc-${window.escHtml(commentId)}`)?.remove();
+    _checkReportedEmpty();
+  } catch(e) {
+    alert('Could not delete: ' + (e?.message || 'Unknown error'));
+  }
+};
+
+window.dismissReport = async function dismissReport(postId, commentId) {
+  try {
+    const db2 = window._getFirestoreDb();
+    const { updateDoc, doc, deleteField } = await import(
+      'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js'
+    );
+    await updateDoc(doc(db2, 'posts', postId, 'comments', commentId), {
+      reported:   deleteField(),
+      reportedBy: deleteField(),
+      reportedAt: deleteField(),
+    });
+    document.getElementById(`rc-${window.escHtml(commentId)}`)?.remove();
+    _checkReportedEmpty();
+  } catch(e) {
+    alert('Could not dismiss: ' + (e?.message || 'Unknown error'));
+  }
+};
+
+function _checkReportedEmpty() {
+  const wrap = document.getElementById('reported-comments-list');
+  if (wrap && !wrap.querySelector('.reported-comment-row')) {
+    wrap.innerHTML = `<div class="comment-empty" style="padding:2rem">No reported comments.</div>`;
+  }
+}
 
 window.showBlogList = function showBlogList() {
   document.getElementById('blog-list-view').classList.remove('hidden');
