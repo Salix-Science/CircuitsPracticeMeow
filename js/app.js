@@ -1,4 +1,3 @@
-<script type="module" src="js/adminlog.js"></script>
 // ── One-click unsubscribe landing ────────────
 // If the page is opened with ?unsubscribe=TOKEN (from an email footer link),
 // call the unsubscribe Cloud Function and show a confirmation overlay —
