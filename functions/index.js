@@ -7,7 +7,7 @@
  * Deploy:  firebase deploy --only functions
  */
 
-const { onCall, HttpsError } = require('firebase-functions/v2/https');
+const { onCall, onRequest, HttpsError } = require('firebase-functions/v2/https');
 const { initializeApp }      = require('firebase-admin/app');
 const { getFirestore, FieldValue } = require('firebase-admin/firestore');
 
@@ -324,4 +324,41 @@ exports.postComment = onCall({ enforceAppCheck: false, cors: true }, async (requ
   });
 
   return { commentId: ref.id, createdAt: now };
+});
+
+
+// ── Unsubscribe handler ───────────────────────
+exports.unsubscribe = onRequest({ cors: true }, async (req, res) => {
+  const token = (req.query.token || '').trim();
+  if (!token) { res.status(400).send('Missing token.'); return; }
+
+  let email;
+  try {
+    const padded = token.replace(/-/g, '+').replace(/_/g, '/');
+    const pad = (4 - padded.length % 4) % 4;
+    email = Buffer.from(padded + '='.repeat(pad), 'base64').toString('utf8').toLowerCase().trim();
+  } catch (e) { res.status(400).send('Invalid token.'); return; }
+
+  if (!email || !email.includes('@') || email.length > 320) {
+    res.status(400).send('Invalid token.'); return;
+  }
+
+  console.log('[unsubscribe] request for email:', email);
+  try {
+    const snap = await db.collection('users')
+      .where('notifPrefs.email', '==', email)
+      .limit(1).get();
+    if (!snap.empty) {
+      await snap.docs[0].ref.update({
+        'notifPrefs.posts': false,
+        'notifPrefs.announcements': false,
+        'notifPrefs.assignments': false,
+      });
+      console.log('[unsubscribe] disabled notifications for:', email);
+    }
+    res.status(200).send('ok');
+  } catch (e) {
+    console.error('[unsubscribe] Firestore error:', e);
+    res.status(500).send('Internal error.');
+  }
 });
