@@ -382,39 +382,6 @@ label {
 .post-content code { font-family: var(--mono); font-size: 12px; background: var(--bg3); border: 0.5px solid var(--border); padding: 2px 6px; border-radius: 4px; color: var(--accent2); }
 .post-content hr { border: none; border-top: 0.5px solid var(--border); margin: 2rem 0; }
 
-/* ── Comments ── */
-.post-comments { margin-top: 3rem; padding-top: 2rem; border-top: 0.5px solid var(--border); }
-.post-comments-heading { font-size: 11px; font-weight: 700; color: var(--text3); text-transform: uppercase; letter-spacing: .09em; margin-bottom: 1.25rem; display: flex; align-items: center; gap: 8px; }
-.post-comments-heading .comment-count { font-size: 10px; color: var(--text4); font-family: var(--mono); font-weight: 400; }
-.comment-list { display: flex; flex-direction: column; gap: 14px; margin-bottom: 1.75rem; }
-.comment-item { background: var(--bg2); border: 0.5px solid var(--border); border-radius: var(--r2); padding: 14px 16px; position: relative; }
-.comment-meta { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; flex-wrap: wrap; }
-.comment-author { font-size: 12px; font-weight: 600; color: var(--accent2); }
-.comment-author.is-you { color: var(--green); }
-.comment-date { font-size: 11px; color: var(--text4); font-family: var(--mono); }
-.comment-body { font-size: 13px; line-height: 1.75; color: var(--text2); white-space: pre-wrap; word-break: break-word; }
-.comment-delete-btn { position: absolute; top: 10px; right: 10px; background: none; border: none; cursor: pointer; color: var(--text4); font-size: 14px; padding: 2px 4px; border-radius: 4px; transition: color .15s, background .15s; }
-.comment-delete-btn:hover { color: var(--red); background: var(--red-bg); }
-.comment-report-btn { position: absolute; top: 10px; right: 34px; background: none; border: none; cursor: pointer; color: var(--text4); font-size: 13px; padding: 2px 4px; border-radius: 4px; transition: color .15s, background .15s; }
-.comment-report-btn:hover { color: var(--warn); background: rgba(251,191,36,.08); }
-.comment-report-btn.reported { color: var(--warn); cursor: default; }
-.comment-reported-badge { font-size: 10px; color: var(--warn); font-family: var(--mono); display: inline-flex; align-items: center; gap: 3px; }
-.comment-item.is-reported { border-color: rgba(251,191,36,.30); }
-.reported-comment-row { background: var(--bg2); border: 0.5px solid rgba(251,191,36,.25); border-radius: var(--r2); padding: 14px 16px; margin-bottom: 12px; }
-.reported-comment-meta { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-bottom: 4px; }
-.reported-in-post { font-size: 11px; color: var(--text4); }
-.reported-in-post em { font-style: normal; color: var(--text3); }
-.comment-empty { font-size: 13px; color: var(--text4); text-align: center; padding: 1.5rem 0; }
-.comment-compose { background: var(--bg2); border: 0.5px solid var(--border); border-radius: var(--r2); padding: 14px 16px; }
-.comment-compose-label { font-size: 11px; font-weight: 600; color: var(--text3); text-transform: uppercase; letter-spacing: .07em; margin-bottom: 8px; }
-.comment-compose textarea { width: 100%; background: var(--bg3); border: 0.5px solid var(--border); border-radius: var(--r); padding: 10px 12px; color: var(--text); font-family: var(--font); font-size: 13px; line-height: 1.7; resize: vertical; min-height: 72px; outline: none; transition: border-color .2s; }
-.comment-compose textarea:focus { border-color: var(--border2); }
-.comment-compose-row { display: flex; align-items: center; justify-content: space-between; margin-top: 8px; gap: 8px; flex-wrap: wrap; }
-.comment-compose-hint { font-size: 11px; color: var(--text4); }
-.comment-submit-btn { display: inline-flex; align-items: center; gap: 5px; }
-.comment-loading { font-size: 12px; color: var(--text4); text-align: center; padding: 1rem 0; }
-.comment-err { font-size: 12px; color: var(--red); margin-top: 6px; }
-
 /* ── Rich text editor ── */
 .rte-toolbar { display: flex; gap: 3px; flex-wrap: wrap; padding: 8px 10px; background: var(--bg3); border: 0.5px solid var(--border); border-radius: var(--r) var(--r) 0 0; border-bottom: none; }
 .rte-btn {
@@ -719,6 +686,37 @@ label {
   border-radius: 99px;
   padding: 3px 12px;
   font-family: var(--mono);
+}
+
+/* ── Answer-mode segmented control (Boxes / Table / Both) ── */
+.answer-mode-tabs {
+  display: inline-flex;
+  border: 0.5px solid var(--border2);
+  border-radius: var(--r);
+  overflow: hidden;
+}
+.answer-mode-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 4px 10px;
+  font-size: 11px;
+  font-family: var(--font);
+  font-weight: 500;
+  color: var(--text3);
+  background: transparent;
+  border: none;
+  border-left: 0.5px solid var(--border2);
+  cursor: pointer;
+  transition: all .15s;
+  white-space: nowrap;
+}
+.answer-mode-tab:first-child { border-left: none; }
+.answer-mode-tab:hover { color: var(--text2); background: var(--bg4); }
+.answer-mode-tab.active {
+  background: var(--accent3);
+  color: var(--accent2);
+  font-weight: 600;
 }
 
 /* ── Multi-answer boxes ──────────────────────── */
