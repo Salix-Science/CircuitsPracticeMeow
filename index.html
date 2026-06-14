@@ -1429,7 +1429,7 @@ let _slvPyodide = null, _slvReady = false, _slvLastResults = null;
 
 const SLV_PY = `
 import json
-from sympy import symbols, Symbol, simplify, factor, zeros, inverse_laplace_transform, apart
+from sympy import symbols, Symbol, simplify, factor, zeros, inverse_laplace_transform, apart, exp, cancel
 
 def parse_netlist(text):
     """
