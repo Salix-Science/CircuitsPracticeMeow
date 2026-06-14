@@ -580,6 +580,7 @@
         <button class="admin-tab"        onclick="showAdminTab('notifications',this)"><i class="ti ti-bell" style="font-size:11px"></i> Notifications</button>
         <button class="admin-tab" onclick="showAdminTab('auditlog',this)"><i class="ti ti-shield-check" style="font-size:11px"></i> Audit log</button>
         <button class="admin-tab" onclick="showAdminTab('reported-comments',this)"><i class="ti ti-flag" style="font-size:11px"></i> Reported comments</button>
+        <button class="admin-tab" onclick="showAdminTab('solver',this)"><i class="ti ti-circuit-resistor" style="font-size:11px"></i> Circuit Solver</button>
       </div>
 
       <!-- Analytics -->
@@ -892,6 +893,14 @@
           </div>
           <div id="reported-comments-list"></div>
         </div>
+      </div>
+
+      <!-- Circuit Solver -->
+      <div class="admin-subtab" id="atab-solver" style="height:calc(100vh - 140px);display:none;flex-direction:column">
+        <iframe id="solver-iframe"
+          style="width:100%;flex:1;border:none;border-radius:var(--r2)"
+          src="about:blank">
+        </iframe>
       </div>
 
     </div>
