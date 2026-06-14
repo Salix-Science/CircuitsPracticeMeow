@@ -1,0 +1,1832 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>Circuits Practice</title>
+
+<!-- Fonts -->
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;500;600&family=Raleway:ital,wght@0,300;0,400;0,500;0,600;1,300&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet"/>
+<!-- Icons -->
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@latest/tabler-icons.min.css"/>
+<!-- Styles -->
+<link rel="stylesheet" href="css/styles.css"/>
+</head>
+<body>
+
+<!-- ════════════════════════════════════════════
+     AUTH SCREEN
+     ════════════════════════════════════════════ -->
+<div id="screen-auth">
+  <div class="wordmark">Circuits Practice</div>
+  <div class="auth-card">
+    <div class="auth-tabs">
+      <button class="auth-tab active" onclick="setAuthTab('login',this)">Sign in</button>
+      <button class="auth-tab" onclick="setAuthTab('register',this)">Register</button>
+    </div>
+
+    <!-- Login -->
+    <div id="auth-login">
+      <div class="field"><label>Username or email</label><input type="text" id="l-user" autocomplete="username" placeholder="username or email"/></div>
+      <div class="field"><label>Password</label><input type="password" id="l-pass" autocomplete="current-password" placeholder="••••••••"/></div>
+      <button class="btn btn-accent" style="width:100%;justify-content:center" onclick="doLogin()"><i class="ti ti-login"></i> Enter</button>
+      <div class="err-msg hidden" id="l-err"><i class="ti ti-alert-circle"></i><span></span></div>
+      <div style="text-align:right;margin-top:8px">
+        <button class="btn btn-sm" style="font-size:11px;color:var(--text3);background:none;border:none;padding:0;cursor:pointer" onclick="toggleResetForm()">
+          Forgot password?
+        </button>
+      </div>
+      <!-- Forgot password panel (hidden by default) -->
+      <div id="auth-reset" class="hidden" style="margin-top:10px;padding:12px;background:var(--bg3);border:0.5px solid var(--border);border-radius:var(--r2)">
+        <div style="font-size:11px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.08em;margin-bottom:8px">Reset password</div>
+        <div class="field" style="margin-bottom:8px">
+          <label>Email address on your account</label>
+          <input type="email" id="l-reset-email" placeholder="you@example.com" autocomplete="email"/>
+        </div>
+        <button class="btn btn-sm btn-accent" style="width:100%;justify-content:center" onclick="sendPasswordReset()">
+          <i class="ti ti-mail"></i> Send reset link
+        </button>
+        <div class="ok-msg hidden" id="l-reset-ok" style="margin-top:8px;font-size:12px"></div>
+        <div class="err-msg hidden" id="l-reset-err" style="margin-top:8px"><i class="ti ti-alert-circle"></i><span></span></div>
+      </div>
+    </div>
+
+    <!-- Register (disabled — accounts are admin-created) -->
+    <div id="auth-register" class="hidden">
+      <div style="text-align:center;padding:1.5rem 0.5rem;color:var(--text3);font-size:13px;line-height:1.7">
+        <i class="ti ti-lock" style="font-size:28px;display:block;margin-bottom:10px;color:var(--text4)"></i>
+        Self-registration is disabled.<br/>
+        Contact your instructor for an account.
+      </div>
+      <div class="err-msg hidden" id="r-err"><i class="ti ti-alert-circle"></i><span></span></div>
+      <div class="ok-msg hidden" id="r-ok"></div>
+    </div>
+  </div>
+</div>
+
+<!-- ════════════════════════════════════════════
+     APP SHELL
+     ════════════════════════════════════════════ -->
+<div id="screen-app" class="hidden">
+
+  <!-- Topbar -->
+  <div class="topbar">
+    <span class="topbar-wordmark">Circuits Practice</span>
+    <div class="nav-tabs">
+      <button class="nav-tab active" id="navt-home"        onclick="showView('home')">Home</button>
+      <button class="nav-tab"        id="navt-practice"    onclick="showView('practice')">Practice</button>
+      <button class="nav-tab"        id="navt-blog"        onclick="showView('blog')">Blog</button>
+      <button class="nav-tab"        id="navt-assignments" onclick="showView('assignments')">Assignments</button>
+      <button class="nav-tab"        id="navt-progress"    onclick="showView('progress')">Progress</button>
+      <button class="nav-tab"        id="navt-calendar"    onclick="showView('calendar')">Calendar</button>
+      <button class="nav-tab"        id="navt-profile"   onclick="showView('profile')"><i class="ti ti-user-circle" style="font-size:13px"></i> Profile</button>
+      <button class="nav-tab hidden" id="navt-editor"      onclick="showView('editor')">Editor</button>
+      <button class="nav-tab hidden" id="navt-admin"       onclick="showView('admin')">Admin</button>
+    </div>
+    <div class="topbar-right">
+      <div class="streak-badge"><i class="ti ti-flame"></i><span id="streak-val">0</span></div>
+      <div class="avatar" id="topbar-av">?</div>
+      <span style="font-size:12px;color:var(--text3)" id="topbar-name"></span>
+      <span class="pill pill-admin hidden" id="topbar-admin-badge">admin</span>
+      <button class="btn btn-sm" onclick="doLogout()"><i class="ti ti-logout"></i></button>
+    </div>
+  </div>
+
+
+  <!-- ── HOME ── -->
+  <div id="view-home" class="hidden"></div>
+
+  <!-- ── PRACTICE ── -->
+  <div id="view-practice" class="hidden">
+    <div class="app-layout">
+      <div class="sidebar" id="practice-sidebar"></div>
+      <div class="main-content" id="practice-main"></div>
+    </div>
+  </div>
+
+  <!-- ── BLOG ── -->
+  <div id="view-blog" class="hidden blog-outer">
+    <!-- List view -->
+    <div id="blog-list-view">
+      <div class="blog-reader">
+        <div class="blog-hero">
+          <div class="blog-hero-title">From the Instructor</div>
+          <div class="blog-hero-sub">Tutorials · Updates · Announcements · Resources</div>
+        </div>
+        <div class="blog-controls">
+          <div class="blog-search">
+            <i class="ti ti-search"></i>
+            <input type="text" id="blog-search-input" placeholder="Search posts…" oninput="onBlogSearch(this.value)"/>
+            <button class="blog-search-clear hidden" id="blog-search-clear" onclick="clearBlogSearch()" title="Clear search"><i class="ti ti-x"></i></button>
+          </div>
+          <select id="blog-author-filter" onchange="onBlogAuthor(this.value)">
+            <option value="All">All authors</option>
+          </select>
+        </div>
+        <div class="blog-filter-bar" id="blog-filter-bar"></div>
+        <div class="blog-grid" id="blog-grid"></div>
+        <div class="blog-empty hidden" id="blog-empty">
+          <i class="ti ti-notebook"></i>
+          No posts yet — check back soon.
+        </div>
+      </div>
+    </div>
+    <!-- Single post view -->
+    <div id="blog-post-view" class="hidden">
+      <div class="post-view">
+        <button class="post-back" onclick="showBlogList()"><i class="ti ti-arrow-left"></i> Back to blog</button>
+        <div class="post-header">
+          <div class="post-title" id="post-title-el"></div>
+          <div class="post-meta"  id="post-meta-el"></div>
+        </div>
+        <div class="post-content" id="post-content-el"></div>
+        <div id="post-comments" class="post-comments" style="display:none"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── ASSIGNMENTS (student) ── -->
+  <div id="view-assignments" class="hidden">
+    <div class="assign-list" id="assign-student-list"></div>
+  </div>
+
+  <!-- ── EDITOR (admin) ── -->
+  <div id="view-editor" class="hidden">
+    <div class="editor-shell">
+      <div class="editor-top-tabs">
+        <button class="editor-top-tab active" onclick="showEdTab('problems',this)">Problems</button>
+        <button class="editor-top-tab"         onclick="showEdTab('topics',this)">Folders</button>
+        <button class="editor-top-tab"         onclick="showEdTab('assignments',this)">Assignments</button>
+        <button class="editor-top-tab"         onclick="showEdTab('blog',this)">Blog</button>
+        <button class="editor-top-tab"         onclick="showEdTab('categories',this);renderCategoryEditor()">Categories</button>
+        <button class="editor-top-tab"         onclick="showEdTab('labels',this)">Topic Labels</button>
+        <button class="editor-top-tab"         onclick="showEdTab('homepage',this)">Homepage</button>
+      </div>
+
+      <!-- Problems tab -->
+      <div class="editor-view active" id="etab-problems">
+        <div class="editor-two">
+          <div class="editor-main">
+            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px">
+              <div style="font-size:11px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.08em" id="form-mode-label">New problem</div>
+              <div style="display:flex;gap:8px">
+                <button class="btn btn-sm" onclick="resetForm()"><i class="ti ti-plus"></i> New problem</button>
+                <button class="btn btn-sm btn-accent" onclick="saveProblem()"><i class="ti ti-device-floppy"></i> Save</button>
+              </div>
+            </div>
+
+            <!-- Problem info -->
+            <div class="section-card">
+              <h4><i class="ti ti-info-circle"></i> Info</h4>
+              <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px">
+                <div class="field" style="margin:0"><label>Title</label><input type="text" id="e-title" placeholder="Find V across R2"/></div>
+                <div class="field" style="margin:0">
+                  <label>Topic label</label>
+                  <select id="e-topic-select" onchange="onTopicSelectChange(this.value)" style="margin-bottom:4px">
+                    <option value="">— select a topic —</option>
+                  </select>
+                  <input type="hidden" id="e-topic"/>
+                </div>
+              </div>
+              <div style="display:flex;align-items:center;gap:10px;padding:8px 0;border-top:0.5px solid var(--border)">
+                <span style="font-size:11px;color:var(--text3)">Visible in free practice:</span>
+                <div class="toggle-wrap" onclick="toggleFormEnable()">
+                  <div class="toggle-track on" id="form-toggle-track"><div class="toggle-thumb"></div></div>
+                  <span class="toggle-lbl" id="form-toggle-label">Enabled</span>
+                </div>
+              </div>
+            </div>
+
+            <!-- Question & variables -->
+            <div class="section-card">
+              <h4><i class="ti ti-variable"></i> Question &amp; variables</h4>
+              <div class="field" style="margin-bottom:4px">
+                <label>Question text</label>
+                <textarea id="e-question" rows="3" placeholder="R1, R2, R3 in series with {Vs} V. R1={R1} kΩ, R2={R2} kΩ. Find V across R2."></textarea>
+              </div>
+              <div class="syntax-tip">
+                Use <code>{VarName}</code> to substitute · plain text stays as-is
+                <div class="var-chips-row" id="var-insert-chips"></div>
+              </div>
+              <div style="margin-top:12px">
+                <div style="display:grid;grid-template-columns:80px 56px 62px 62px 70px 24px;gap:6px;margin-bottom:4px">
+                  <label>Name</label><label>Type</label><label>Min</label><label>Max</label><label>Display unit</label><label></label>
+                </div>
+                <div id="var-rows"></div>
+                <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:6px">
+                  <button class="add-var-btn" onclick="addVar('R')"><i class="ti ti-plus" style="font-size:11px"></i> Resistor</button>
+                  <button class="add-var-btn" onclick="addVar('V')"><i class="ti ti-plus" style="font-size:11px"></i> Voltage</button>
+                  <button class="add-var-btn" onclick="addVar('I')"><i class="ti ti-plus" style="font-size:11px"></i> Current</button>
+                  <button class="add-var-btn" onclick="addVar('C')"><i class="ti ti-plus" style="font-size:11px"></i> Cap/Ind</button>
+                </div>
+              </div>
+            </div>
+
+            <!-- Answer mode -->
+            <div class="section-card">
+              <h4><i class="ti ti-math-function"></i> Answer mode
+                <span class="answer-mode-tabs" id="answer-mode-tabs" style="margin-left:auto">
+                  <button class="answer-mode-tab active" id="amt-boxes" onclick="setAnswerMode('boxes')">
+                    <i class="ti ti-input-check"></i> Boxes
+                  </button>
+                  <button class="answer-mode-tab" id="amt-table" onclick="setAnswerMode('table')">
+                    <i class="ti ti-table"></i> Table
+                  </button>
+                  <button class="answer-mode-tab" id="amt-both" onclick="setAnswerMode('both')">
+                    <i class="ti ti-layout-rows"></i> Both
+                  </button>
+                </span>
+              </h4>
+
+              <!-- ── BOXES mode ── -->
+              <div id="answer-mode-boxes">
+                <p style="font-size:11px;color:var(--text3);margin-bottom:10px;line-height:1.6">
+                  Each box is a separate answer field students fill in. Use bare variable names (no braces) in formulas — e.g. <code style="font-family:var(--mono);color:var(--accent2);background:var(--bg4);padding:1px 5px;border-radius:3px">Vs*R2/(R1+R2+R3)</code>
+                </p>
+                <div id="answer-boxes-wrap"></div>
+                <button class="btn btn-sm" style="margin-top:6px;padding:4px 10px;font-size:11px" onclick="addAnswerBox()">
+                  <i class="ti ti-plus"></i> Add answer box
+                </button>
+              </div>
+
+              <!-- ── TABLE mode ── -->
+              <div id="answer-mode-table" style="display:none">
+                <p style="font-size:11px;color:var(--text3);margin-bottom:10px;line-height:1.6">
+                  Define rows and columns — each cell gets its own formula. Students see a grid of input boxes.
+                  Use bare variable names in formulas, e.g. <code style="font-family:var(--mono);color:var(--accent2);background:var(--bg4);padding:1px 5px;border-radius:3px">Vs/(R1+R2)</code>
+                </p>
+                <div id="table-editor-wrap"></div>
+                <div style="display:flex;gap:8px;margin-top:8px;flex-wrap:wrap">
+                  <button class="btn btn-sm" onclick="addTableRow()"><i class="ti ti-plus"></i> Add row</button>
+                  <button class="btn btn-sm" onclick="addTableCol()"><i class="ti ti-plus"></i> Add column</button>
+                </div>
+                <div class="field" style="margin-top:10px;max-width:160px">
+                  <label>Corner label <span style="font-weight:400;color:var(--text4)">(top-left cell)</span></label>
+                  <input type="text" id="tbl-corner" placeholder="e.g. Node" style="font-size:12px"
+                    oninput="window.S.editorTable.corner=this.value"/>
+                </div>
+                <div class="field" style="margin-top:6px;max-width:100px">
+                  <label>Tolerance %</label>
+                  <input type="number" id="tbl-tol" value="2" min="0.1" max="20" step="0.1" style="font-size:12px"
+                    oninput="window.S.editorTable.tol=this.value"/>
+                </div>
+              </div>
+
+              <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:12px;padding-top:12px;border-top:0.5px solid var(--border)">
+                <div class="field" style="margin:0"><label>Default pts (per problem)</label><input type="number" id="e-pts" value="10" min="1" max="100"/></div>
+                <div class="field" style="margin:0"><label>Max attempts (0 = unlimited)</label><input type="number" id="e-max-attempts" value="0" min="0" max="100"/></div>
+              </div>
+            </div>
+
+            <!-- Hint -->
+            <div class="section-card">
+              <h4><i class="ti ti-bulb"></i> Hint (optional)</h4>
+              <textarea id="e-hint" rows="2" placeholder="Use {VarName} here too — values will be substituted."></textarea>
+            </div>
+
+            <!-- Circuit diagram -->
+            <div class="section-card">
+              <h4><i class="ti ti-photo"></i> Circuit diagram</h4>
+              <div class="img-drop">
+                <input type="file" accept="image/*" onchange="handleImg(event)"/>
+                <i class="ti ti-upload" style="font-size:20px;display:block;margin-bottom:5px"></i>
+                Upload PNG / JPG (hand-drawn or LTspice export)
+                <div id="img-preview-wrap"></div>
+              </div>
+              <button class="btn btn-sm btn-red" style="margin-top:8px" onclick="clearImg()"><i class="ti ti-x"></i> Clear image</button>
+            </div>
+          </div>
+
+          <!-- Right: problem bank + preview -->
+          <div class="editor-side" id="editor-side-panel">
+            <!-- Bank header -->
+            <div style="display:flex;align-items:center;gap:6px;margin-bottom:8px">
+              <div style="font-size:11px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.08em">
+                Problem bank <span id="prob-count-badge" style="color:var(--text4);font-weight:400"></span>
+              </div>
+              <div style="font-size:10px;color:var(--text4);font-family:var(--mono);flex:1" id="enabled-count"></div>
+              <button class="btn btn-sm" id="pm-expand-btn" onclick="togglePmExpand()" title="Expand / collapse bank" style="padding:3px 7px;font-size:12px">
+                <i class="ti ti-arrows-horizontal"></i>
+              </button>
+            </div>
+
+            <!-- Search -->
+            <div style="position:relative;margin-bottom:6px">
+              <input type="text" id="pm-search" placeholder="Search by title…"
+                style="padding:6px 10px 6px 28px;font-size:12px"
+                oninput="renderPmList()"/>
+              <i class="ti ti-search" style="position:absolute;left:8px;top:50%;transform:translateY(-50%);font-size:13px;color:var(--text4);pointer-events:none"></i>
+            </div>
+
+            <!-- Tag filter -->
+            <div style="margin-bottom:8px">
+              <select id="pm-tag-filter" style="font-size:12px;padding:5px 8px" onchange="renderPmList()">
+                <option value="">All topics</option>
+              </select>
+            </div>
+
+            <div id="pm-list"></div>
+            <div id="pm-empty" style="text-align:center;padding:2rem;color:var(--text4);font-size:12px">No problems yet.</div>
+            <div id="pm-no-match" class="hidden" style="text-align:center;padding:1.5rem;color:var(--text4);font-size:12px">No problems match your search.</div>
+
+            <div style="margin-top:1.25rem;border-top:0.5px solid var(--border);padding-top:1.25rem">
+              <div style="font-size:11px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.08em;margin-bottom:10px">Live preview</div>
+              <div id="editor-preview-card" style="font-size:12px;color:var(--text4)">Save a problem to see a preview.</div>
+            </div>
+          </div>
+        </div>
+      </div><!-- /etab-problems -->
+
+      <!-- Folders tab -->
+      <div class="editor-view" id="etab-topics">
+        <div class="topic-manager">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px">
+            <div style="font-size:11px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.08em">Topic folders</div>
+            <div style="display:flex;gap:8px;align-items:center">
+              <input type="text" id="new-folder-name" placeholder="Folder name…" style="width:160px;padding:6px 10px;font-size:12px"/>
+              <button class="btn btn-sm btn-accent" onclick="createFolder()"><i class="ti ti-folder-plus"></i> Create</button>
+            </div>
+          </div>
+          <div id="folder-list"></div>
+          <div id="folder-empty" style="text-align:center;padding:3rem;color:var(--text4);font-size:12px">No folders yet. Create one above.</div>
+        </div>
+      </div>
+
+      <!-- Assignments tab -->
+      <div class="editor-view" id="etab-assignments">
+        <div class="assign-editor">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px">
+            <div style="font-size:11px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.08em">Assignments</div>
+            <button class="btn btn-sm btn-accent" onclick="newAssignment()"><i class="ti ti-plus"></i> New assignment</button>
+          </div>
+          <div class="assign-editor-two">
+            <div>
+              <div class="section-card">
+                <h4><i class="ti ti-calendar"></i> Assignment details</h4>
+                <div class="field"><label>Title</label><input type="text" id="as-title" placeholder="Homework 1 — KVL"/></div>
+                <div class="field"><label>Instructions (shown to students)</label><textarea id="as-instructions" rows="2" placeholder="Complete all problems below…"></textarea></div>
+                <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px">
+                  <div class="field" style="margin:0"><label>Opens</label><input type="datetime-local" id="as-open"/></div>
+                  <div class="field" style="margin:0"><label>Due</label><input type="datetime-local" id="as-due"/></div>
+                </div>
+                <div style="display:flex;align-items:center;gap:10px;padding:8px 0;border-top:0.5px solid var(--border);margin-bottom:12px">
+                  <label style="text-transform:none;letter-spacing:0;font-size:13px;cursor:pointer;display:flex;align-items:center;gap:8px;margin:0;color:var(--text2)">
+                    <input type="checkbox" id="as-allow-late" checked style="width:auto;cursor:pointer"/>
+                    Allow late submissions after due date
+                  </label>
+                </div>
+                <div class="field">
+                  <label>Problems — all selectable regardless of enabled state</label>
+                  <div class="assign-prob-picker" id="assign-prob-picker"></div>
+                </div>
+                <button class="btn btn-accent" onclick="saveAssignment()"><i class="ti ti-device-floppy"></i> Save assignment</button>
+                <div class="ok-msg hidden" id="as-ok"></div>
+              </div>
+            </div>
+            <div>
+              <div style="font-size:11px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.08em;margin-bottom:10px">Saved assignments</div>
+              <div id="assign-admin-list"></div>
+              <div id="assign-admin-empty" style="color:var(--text4);font-size:12px">None yet.</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Blog editor tab -->
+      <div class="editor-view" id="etab-blog">
+        <div class="blog-editor">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px">
+            <div style="font-size:11px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.08em" id="blog-form-label">New post</div>
+            <div style="display:flex;gap:8px">
+              <button class="btn btn-sm" onclick="resetBlogForm()"><i class="ti ti-x"></i> Clear</button>
+              <button class="btn btn-sm btn-accent" onclick="saveBlogPost()"><i class="ti ti-send"></i> Publish</button>
+            </div>
+          </div>
+          <div class="blog-editor-two">
+            <div>
+              <!-- Post details -->
+              <div class="section-card">
+                <h4><i class="ti ti-pencil"></i> Post details</h4>
+                <div class="field"><label>Title</label><input type="text" id="bp-title" placeholder="KVL — A Complete Walkthrough"/></div>
+                <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;margin-bottom:12px">
+                  <div class="field" style="margin:0">
+                    <label>Category</label>
+                    <select id="bp-category" onchange="toggleCustomTag(this)">
+                      <option value="Tutorial">Tutorial</option>
+                      <option value="Update">Update</option>
+                      <option value="Announcement">Announcement</option>
+                      <option value="Resource">Resource</option>
+                      <option value="custom">Custom tag…</option>
+                    </select>
+                  </div>
+                  <div class="field" style="margin:0;display:none" id="bp-custom-wrap">
+                    <label>Custom tag</label>
+                    <input type="text" id="bp-custom-tag" placeholder="e.g. Exam prep"/>
+                  </div>
+                  <div class="field" style="margin:0">
+                    <label>Status</label>
+                    <select id="bp-status">
+                      <option value="published">Published</option>
+                      <option value="draft">Draft (admin only)</option>
+                    </select>
+                  </div>
+                </div>
+                <div class="field">
+                  <label>Excerpt (shown on blog card)</label>
+                  <textarea id="bp-excerpt" rows="2" placeholder="A short summary of what this post covers…"></textarea>
+                </div>
+              </div>
+
+              <!-- Rich text editor -->
+              <div class="section-card">
+                <h4><i class="ti ti-text-size"></i> Content</h4>
+                <div class="rte-toolbar">
+                  <select class="rte-select" onchange="rteBlock(this.value); this.value='p'">
+                    <option value="p">Paragraph</option>
+                    <option value="h1">Heading 1</option>
+                    <option value="h2">Heading 2</option>
+                    <option value="h3">Heading 3</option>
+                    <option value="blockquote">Quote</option>
+                  </select>
+                  <div class="rte-sep"></div>
+                  <button class="rte-btn" onclick="rteExec('bold')"      title="Bold">   <i class="ti ti-bold"></i></button>
+                  <button class="rte-btn" onclick="rteExec('italic')"    title="Italic"> <i class="ti ti-italic"></i></button>
+                  <button class="rte-btn" onclick="rteExec('underline')" title="Underline"><i class="ti ti-underline"></i></button>
+                  <div class="rte-sep"></div>
+                  <button class="rte-btn" onclick="rteExec('insertUnorderedList')" title="Bullet list">  <i class="ti ti-list"></i></button>
+                  <button class="rte-btn" onclick="rteExec('insertOrderedList')"   title="Numbered list"><i class="ti ti-list-numbers"></i></button>
+                  <div class="rte-sep"></div>
+                  <button class="rte-btn" onclick="rteExec('justifyLeft')"  title="Left">  <i class="ti ti-align-left"></i></button>
+                  <button class="rte-btn" onclick="rteExec('justifyCenter')" title="Center"><i class="ti ti-align-center"></i></button>
+                  <div class="rte-sep"></div>
+                  <button class="rte-btn" onclick="rteInsertCode()" title="Inline code"><i class="ti ti-code"></i></button>
+                  <button class="rte-btn" onclick="rteInsertHR()"   title="Divider">   <i class="ti ti-minus"></i></button>
+                  <div class="rte-sep"></div>
+                  <button class="rte-btn" onclick="rteExec('undo')" title="Undo"><i class="ti ti-arrow-back-up"></i></button>
+                  <button class="rte-btn" onclick="rteExec('redo')" title="Redo"><i class="ti ti-arrow-forward-up"></i></button>
+                </div>
+                <div id="rte-body" contenteditable="true" data-placeholder="Start writing your post…" spellcheck="true"></div>
+              </div>
+            </div>
+
+            <!-- Post list sidebar -->
+            <div>
+              <div style="font-size:11px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.08em;margin-bottom:10px">
+                Posts <span id="post-count" style="color:var(--text4);font-weight:400"></span>
+              </div>
+              <div id="blog-post-list"></div>
+              <div id="blog-post-list-empty" style="color:var(--text4);font-size:12px;padding:1rem 0">No posts yet.</div>
+            </div>
+          </div>
+        </div>
+      </div><!-- /etab-blog -->
+
+
+      <!-- Categories tab -->
+      <div class="editor-view" id="etab-categories">
+        <div style="padding:1.25rem;overflow-y:auto;flex:1;max-width:600px">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px">
+            <div style="font-size:11px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.08em">Blog categories</div>
+            <button class="btn btn-sm btn-accent" onclick="saveCategoryEditor()">
+              <i class="ti ti-device-floppy"></i> Save changes
+            </button>
+          </div>
+          <p style="font-size:12px;color:var(--text3);margin-bottom:16px;line-height:1.7">
+            These categories appear as filter chips on the blog page and as the category dropdown in the post editor.
+            Rename or recolour them here — changes apply everywhere immediately after saving.
+          </p>
+          <div class="err-msg hidden" id="cat-editor-err" style="margin-bottom:10px"><i class="ti ti-alert-circle"></i><span></span></div>
+          <div class="ok-msg hidden" id="cat-editor-ok" style="margin-bottom:12px">Saved!</div>
+          <div id="cat-editor-list" style="display:flex;flex-direction:column;gap:8px;margin-bottom:14px"></div>
+          <button class="btn btn-sm" onclick="addCategoryRow()"><i class="ti ti-plus"></i> Add category</button>
+          <div style="margin-top:16px">
+            <div style="font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.08em;margin-bottom:8px">Preview</div>
+            <div id="cat-editor-preview" style="display:flex;flex-wrap:wrap;gap:6px"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Topic Labels tab -->
+      <div class="editor-view" id="etab-labels">
+        <div style="padding:1.25rem;overflow-y:auto;flex:1">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px">
+            <div style="font-size:11px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.08em">Topic label master list</div>
+          </div>
+          <p style="font-size:12px;color:var(--text3);margin-bottom:16px;line-height:1.7">
+            These labels appear in the topic dropdown when creating problems. Students see them in the practice sidebar and on problem cards.
+          </p>
+          <div style="display:flex;gap:8px;margin-bottom:16px;align-items:flex-end">
+            <div style="flex:1"><label>New label name</label><input type="text" id="new-topic-input" placeholder="e.g. Op-Amps" onkeydown="if(event.key==='Enter')addTopic()"/></div>
+            <button class="btn btn-accent" onclick="addTopic()"><i class="ti ti-plus"></i> Add label</button>
+          </div>
+          <div id="topic-label-list" style="display:flex;flex-direction:column;gap:6px"></div>
+          <div id="topic-label-empty" style="color:var(--text4);font-size:12px;padding:1rem 0">No labels yet. Add one above.</div>
+        </div>
+      </div>
+
+      <!-- Homepage editor tab -->
+      <div class="editor-view" id="etab-homepage">
+        <div style="padding:1.25rem;overflow-y:auto;flex:1;max-width:700px">
+          <div style="font-size:11px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.08em;margin-bottom:16px">Homepage editor</div>
+
+          <!-- Banner -->
+          <div class="section-card">
+            <h4><i class="ti ti-speakerphone"></i> Announcement banner</h4>
+            <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px">
+              <div class="toggle-wrap" onclick="document.getElementById('hp-banner-enabled').click()">
+                <div class="toggle-track on" id="hp-banner-enabled-track"><div class="toggle-thumb"></div></div>
+                <span class="toggle-lbl" id="hp-banner-enabled-lbl">Enabled</span>
+              </div>
+            </div>
+            <input type="checkbox" id="hp-banner-enabled" style="display:none" checked onchange="
+              const on=this.checked;
+              document.getElementById('hp-banner-enabled-track').classList.toggle('on',on);
+              document.getElementById('hp-banner-enabled-lbl').textContent=on?'Enabled':'Disabled';
+              updateBannerPreview()"/>
+            <div class="field" style="margin-bottom:8px">
+              <label>Banner text (shown at top of homepage)</label>
+              <textarea id="hp-banner" rows="2" placeholder="e.g. Exam 2 is next Friday — check Assignments for practice sets." oninput="updateBannerPreview()"></textarea>
+            </div>
+            <div id="hp-banner-preview" style="display:none;margin-top:8px"></div>
+          </div>
+
+          <div style="display:flex;gap:8px;align-items:center">
+            <button class="btn btn-accent" onclick="saveHomepageEditor()"><i class="ti ti-device-floppy"></i> Save homepage</button>
+            <div class="ok-msg hidden" id="hp-ok">Saved!</div>
+          </div>
+          <p style="font-size:11px;color:var(--text3);margin-top:12px;line-height:1.7">
+            Recent blog posts and upcoming assignments are pulled in automatically — no manual editing needed.
+          </p>
+        </div>
+      </div>
+
+    </div><!-- /editor-shell -->
+  </div><!-- /view-editor -->
+
+  <!-- ── ADMIN ── -->
+  <div id="view-admin" class="hidden">
+    <div class="admin-area">
+      <div style="font-family:var(--font-display);font-size:16px;letter-spacing:.08em;color:var(--accent2);margin-bottom:1rem">Admin Panel</div>
+      <div class="admin-tabs">
+        <button class="admin-tab active" onclick="showAdminTab('analytics',this)">Analytics</button>
+        <button class="admin-tab"        onclick="showAdminTab('grades',this)">Assignment grades</button>
+        <button class="admin-tab"        onclick="showAdminTab('problem-analysis',this)"><i class="ti ti-chart-dots" style="font-size:11px"></i> Problem analysis</button>
+        <button class="admin-tab"        onclick="showAdminTab('coursegrades',this)"><i class="ti ti-report-analytics" style="font-size:11px"></i> Course grades</button>
+        <button class="admin-tab"        onclick="showAdminTab('users',this)">User management</button>
+        <button class="admin-tab"        onclick="showAdminTab('sections',this)"><i class="ti ti-users-group" style="font-size:11px"></i> Sections</button>
+        <button class="admin-tab"        onclick="showAdminTab('account',this);showAccountTab()">My account</button>
+        <button class="admin-tab"        onclick="showAdminTab('gradebook',this)"><i class="ti ti-calculator" style="font-size:11px"></i> Gradebook</button>
+        <button class="admin-tab"        onclick="showAdminTab('notifications',this)"><i class="ti ti-bell" style="font-size:11px"></i> Notifications</button>
+        <button class="admin-tab" onclick="showAdminTab('auditlog',this)"><i class="ti ti-shield-check" style="font-size:11px"></i> Audit log</button>
+        <button class="admin-tab" onclick="showAdminTab('reported-comments',this)"><i class="ti ti-flag" style="font-size:11px"></i> Reported comments</button>
+        <button class="admin-tab" onclick="showAdminTab('solver',this)"><i class="ti ti-circuit-resistor" style="font-size:11px"></i> Circuit Solver</button>
+      </div>
+
+      <!-- Analytics -->
+      <div class="admin-subtab active" id="atab-analytics">
+        <div class="dash-grid" id="dash-metrics"></div>
+        <div class="dash-section">
+          <div class="dash-head" style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px">
+            <span><i class="ti ti-users"></i> Students</span>
+            <div style="display:flex;align-items:center;gap:8px">
+              <label style="font-size:11px;color:var(--text3);text-transform:uppercase;letter-spacing:.08em;margin:0">Section:</label>
+              <select id="analytics-section-filter" style="padding:4px 8px;font-size:12px;width:auto" onchange="onAnalyticsSection(this.value)">
+                <option value="">All sections</option>
+              </select>
+            </div>
+          </div>
+          <table class="dash-table">
+            <thead id="dt-students-head">
+              <tr>
+                <th onclick="analyticsSort('name')"     style="cursor:pointer">Username<span id="an-arrow-name"></span></th>
+                <th onclick="analyticsSort('section')"  style="cursor:pointer">Section<span id="an-arrow-section"></span></th>
+                <th onclick="analyticsSort('attempted')" style="cursor:pointer">Attempted<span id="an-arrow-attempted"></span></th>
+                <th onclick="analyticsSort('correct')"   style="cursor:pointer">Correct<span id="an-arrow-correct"></span></th>
+                <th onclick="analyticsSort('wrong')"     style="cursor:pointer">Wrong<span id="an-arrow-wrong"></span></th>
+                <th onclick="analyticsSort('accuracy')"  style="cursor:pointer">Accuracy<span id="an-arrow-accuracy"></span></th>
+                <th onclick="analyticsSort('streak')"    style="cursor:pointer">Streak<span id="an-arrow-streak"></span></th>
+                <th>Role</th>
+              </tr>
+            </thead>
+            <tbody id="dt-students"></tbody>
+          </table>
+        </div>
+        <div class="dash-section">
+          <div class="dash-head"><span><i class="ti ti-chart-bar"></i> Topic accuracy</span></div>
+          <table class="dash-table">
+            <thead><tr><th>Topic</th><th>Attempts</th><th>Correct</th><th>Wrong</th><th>Accuracy</th></tr></thead>
+            <tbody id="dt-topics"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- Grades -->
+      <div class="admin-subtab" id="atab-grades">
+        <div style="display:flex;align-items:center;gap:12px;margin-bottom:12px;flex-wrap:wrap">
+          <div style="font-size:12px;color:var(--text3)">Select an assignment to view grades:</div>
+          <div style="display:flex;align-items:center;gap:8px;margin-left:auto">
+            <label style="font-size:11px;color:var(--text3);text-transform:uppercase;letter-spacing:.08em;margin:0">Section:</label>
+            <select id="grade-section-filter" style="font-size:12px;padding:5px 8px;width:auto" onchange="refreshGradeView()">
+              <option value="">All students</option>
+            </select>
+          </div>
+        </div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px" id="grade-assign-btns"></div>
+        <div id="grade-table-wrap"></div>
+      </div>
+
+      <!-- Problem Analysis -->
+      <div class="admin-subtab" id="atab-problem-analysis">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;flex-wrap:wrap;gap:8px">
+          <div style="font-size:11px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.08em">
+            <i class="ti ti-chart-dots" style="font-size:13px"></i> Problem analysis
+          </div>
+          <button class="btn btn-sm" onclick="renderProblemAnalysis()"><i class="ti ti-refresh"></i> Refresh</button>
+        </div>
+        <div class="dash-grid" id="pa-metrics" style="margin-bottom:14px"></div>
+        <div id="pa-wrap">
+          <div style="color:var(--text4);font-size:12px;padding:2rem;text-align:center">
+            <i class="ti ti-chart-dots" style="font-size:32px;display:block;margin-bottom:10px;color:var(--border2)"></i>
+            Click a tab above to load problem analysis data.
+          </div>
+        </div>
+      </div>
+
+      <!-- Course Grades -->
+      <div class="admin-subtab" id="atab-coursegrades">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;flex-wrap:wrap;gap:8px">
+          <div style="font-size:11px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.08em">
+            <i class="ti ti-report-analytics" style="font-size:13px"></i> Course grades
+          </div>
+          <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+            <label style="font-size:11px;color:var(--text3);text-transform:uppercase;letter-spacing:.08em;margin:0">Section:</label>
+            <select id="cg-section-filter" style="font-size:12px;padding:5px 8px;width:auto" onchange="onCourseGradeSection()">
+              <option value="">All students</option>
+            </select>
+            <button class="btn btn-sm" onclick="refreshCourseGrades()"><i class="ti ti-refresh"></i> Refresh</button>
+            <button class="btn btn-sm" onclick="exportCourseGradesCSV()"><i class="ti ti-table-export"></i> CSV</button>
+            <button class="btn btn-sm" onclick="exportCourseGradesPDF()"><i class="ti ti-file-type-pdf"></i> PDF</button>
+          </div>
+        </div>
+        <div id="cg-content">
+          <div style="color:var(--text4);font-size:12px;padding:2rem;text-align:center">
+            <i class="ti ti-report-analytics" style="font-size:32px;display:block;margin-bottom:10px;color:var(--border2)"></i>
+            Click a tab above to load course grade data.
+          </div>
+        </div>
+      </div>
+     <!-- Audit log -->
+<div class="admin-subtab" id="atab-auditlog">
+  <div class="dash-section">
+    <div class="dash-head" style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">
+      <span><i class="ti ti-shield-check"></i> Admin audit log</span>
+      <span id="auditlog-count" style="font-size:11px;color:var(--text4);font-weight:400;margin-right:auto"></span>
+      <input type="search" id="auditlog-search" placeholder="Search…"
+        style="font-size:12px;padding:4px 10px;width:200px"
+        oninput="auditLogSearch(this.value)"/>
+      <button class="btn btn-sm" onclick="renderAuditLog()"><i class="ti ti-refresh"></i> Refresh</button>
+      <span id="auditlog-spinner" style="display:none;align-items:center;gap:4px;font-size:11px;color:var(--text3)">
+        <i class="ti ti-loader" style="animation:spin 1s linear infinite"></i> Loading
+      </span>
+    </div>
+    <div id="auditlog-pills" style="display:flex;gap:6px;flex-wrap:wrap;padding:10px 14px 4px"></div>
+    <div id="auditlog-list" style="padding:0 14px 14px"></div>
+  </div>
+</div>
+      <!-- Sections -->
+      <div class="admin-subtab" id="atab-sections">
+        <div style="display:grid;grid-template-columns:300px 1fr;gap:20px;min-height:400px">
+
+          <!-- Left: create + list sections -->
+          <div>
+            <div style="font-size:11px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.08em;margin-bottom:12px">Sections</div>
+            <div style="display:flex;gap:6px;margin-bottom:12px">
+              <input type="text" id="new-section-name" placeholder="e.g. Section 009D"
+                style="font-size:12px" onkeydown="if(event.key==='Enter')createSection()"/>
+              <button class="btn btn-sm btn-accent" onclick="createSection()"><i class="ti ti-plus"></i></button>
+            </div>
+            <div id="section-list"></div>
+            <div id="section-list-empty" style="color:var(--text4);font-size:12px">No sections yet.</div>
+          </div>
+
+          <!-- Right: manage selected section -->
+          <div id="section-detail" style="display:none">
+            <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px">
+              <div style="font-size:14px;font-weight:600;color:var(--accent2)" id="section-detail-name"></div>
+              <button class="btn btn-sm btn-red" onclick="deleteSection()" style="margin-left:auto">
+                <i class="ti ti-trash"></i> Delete section
+              </button>
+            </div>
+
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
+              <!-- Students in this section -->
+              <div>
+                <div style="font-size:11px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.08em;margin-bottom:8px">
+                  In this section <span id="section-member-count" style="font-weight:400;color:var(--text4)"></span>
+                </div>
+                <div id="section-members" style="display:flex;flex-direction:column;gap:4px"></div>
+              </div>
+              <!-- Students not in this section -->
+              <div>
+                <div style="font-size:11px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.08em;margin-bottom:8px">Add students</div>
+                <input type="text" id="section-student-search" placeholder="Search by username…"
+                  style="font-size:12px;margin-bottom:8px" oninput="renderSectionAvailable()"/>
+                <div id="section-available" style="display:flex;flex-direction:column;gap:4px;max-height:300px;overflow-y:auto"></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Users -->
+      <div class="admin-subtab" id="atab-users">
+        <div class="dash-section">
+          <div class="dash-head">
+            <span><i class="ti ti-users"></i> Registered users</span>
+            <button class="btn btn-sm" onclick="renderUserMgmt()"><i class="ti ti-refresh"></i> Refresh</button>
+          </div>
+          <div style="padding:4px 14px 14px" id="user-mgmt-list"></div>
+        </div>
+        <div class="section-card" style="max-width:520px">
+          <h4><i class="ti ti-user-plus"></i> Create account manually</h4>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px">
+            <div class="field" style="margin:0"><label>Display name / username</label><input type="text" id="mu-user" placeholder="e.g. JSmith"/></div>
+            <div class="field" style="margin:0"><label>Student email</label><input type="email" id="mu-email" placeholder="student@uconn.edu"/></div>
+          </div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px">
+            <div class="field" style="margin:0"><label>Temp password (6+ chars)</label><input type="password" id="mu-pass" placeholder="they can change it later"/></div>
+            <div class="field" style="margin:0"><label>Your admin password</label><input type="password" id="mu-admin-pass" placeholder="to re-sign you in after"/></div>
+          </div>
+          <div style="display:flex;align-items:center;gap:10px">
+            <label style="display:flex;align-items:center;gap:6px;text-transform:none;letter-spacing:0;font-size:12px;cursor:pointer">
+              <input type="checkbox" id="mu-admin" style="width:auto"/> Grant admin
+            </label>
+            <button class="btn btn-sm btn-accent" onclick="adminCreateUser()"><i class="ti ti-plus"></i> Create</button>
+          </div>
+          <div class="err-msg hidden" id="mu-err"><i class="ti ti-alert-circle"></i><span></span></div>
+          <div class="ok-msg hidden" id="mu-ok"></div>
+        </div>
+
+        <!-- Batch account creation -->
+        <div class="section-card" style="max-width:520px;margin-top:16px">
+          <h4><i class="ti ti-table-import"></i> Batch create accounts (CSV)</h4>
+          <p style="font-size:11px;color:var(--text3);margin-bottom:10px;line-height:1.6">
+            Paste a CSV with columns: <code style="color:var(--accent2)">Name,Email</code> (one student per line, no header needed).
+          </p>
+          <textarea id="batch-csv" rows="5" placeholder="Alice Smith,asmith@uconn.edu&#10;Bob Jones,bjones@uconn.edu" style="font-family:var(--mono);font-size:11px;width:100%;box-sizing:border-box"></textarea>
+          <div class="field" style="margin:8px 0">
+            <label>Your admin password (required to re-sign in after each creation)</label>
+            <input type="password" id="batch-admin-pass" placeholder="your password"/>
+          </div>
+          <div style="display:flex;gap:8px;margin-top:8px">
+            <button class="btn btn-sm" onclick="batchPreviewCSV()"><i class="ti ti-eye"></i> Preview</button>
+          </div>
+          <div class="err-msg hidden" id="batch-err" style="margin-top:8px"><i class="ti ti-alert-circle"></i><span></span></div>
+          <div id="batch-preview"></div>
+          <div id="batch-log" style="display:none;max-height:160px;overflow-y:auto;background:var(--bg4);border:0.5px solid var(--border);border-radius:var(--r);padding:8px;margin-top:10px;font-family:var(--mono);font-size:11px"></div>
+          <div id="batch-results"></div>
+        </div>
+      </div>
+
+      <!-- Account -->
+      <div class="admin-subtab" id="atab-account">
+        <div id="notif-settings-wrap"></div>
+        <div class="section-card" style="max-width:400px;margin-top:16px">
+          <h4><i class="ti ti-key"></i> Change password</h4>
+          <div class="field"><label>New password</label><input type="password" id="cp-new"/></div>
+          <div class="field" style="margin-bottom:10px"><label>Confirm new password</label><input type="password" id="cp-new2"/></div>
+          <button class="btn btn-sm btn-accent" onclick="changePassword()"><i class="ti ti-check"></i> Update password</button>
+          <div class="err-msg hidden" id="cp-err"><i class="ti ti-alert-circle"></i><span></span></div>
+          <div class="ok-msg hidden" id="cp-ok"></div>
+        </div>
+      </div>
+
+      <!-- Notifications subtab -->
+      <div class="admin-subtab" id="atab-notifications">
+        <div style="padding:1.25rem;max-width:700px">
+          <div style="font-size:11px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.08em;margin-bottom:16px">Email notifications</div>
+          <p style="font-size:12px;color:var(--text3);margin-bottom:14px;line-height:1.7">
+            Send a manual notification to all subscribed students, or configure automatic notifications.
+            Requires <a href="https://www.emailjs.com" target="_blank" style="color:var(--accent2)">EmailJS</a> setup — see <code style="font-size:11px;color:var(--accent2)">js/notifications.js</code> for instructions.
+          </p>
+          <div id="admin-notif-wrap"></div>
+        </div>
+      </div>
+
+      <!-- Gradebook subtab -->
+      <div class="admin-subtab" id="atab-gradebook">
+        <div style="display:grid;grid-template-columns:290px 1fr;gap:0;min-height:500px;border:0.5px solid var(--border);border-radius:var(--r2);overflow:hidden;background:var(--bg2)">
+
+          <!-- Left panel -->
+          <div style="border-right:0.5px solid var(--border);padding:16px;display:flex;flex-direction:column;gap:14px;background:var(--bg2)">
+
+            <div class="gb-step-label"><i class="ti ti-upload" style="font-size:11px"></i> 1 — Upload gradebook</div>
+            <div class="gb-drop-zone" id="gb-drop-zone"
+              ondragover="event.preventDefault();this.classList.add('gb-drag-over')"
+              ondragleave="this.classList.remove('gb-drag-over')"
+              ondrop="gbHandleDrop(event)">
+              <input type="file" accept=".xls,.xlsx,.csv,.txt" onchange="gbHandleFile(event)" style="position:absolute;inset:0;opacity:0;cursor:pointer;width:100%;height:100%"/>
+              <i class="ti ti-file-spreadsheet" style="font-size:24px;display:block;margin-bottom:6px;color:var(--accent3)"></i>
+              Drop HuskyCT .xls export<br/>
+              <span style="font-size:11px;color:var(--text4)">or click to browse</span>
+            </div>
+            <div id="gb-upload-status" style="font-size:11px;color:var(--text3);font-family:var(--mono);min-height:16px"></div>
+
+            <div id="gb-section-cats" class="hidden">
+              <div class="gb-step-label"><i class="ti ti-tags" style="font-size:11px"></i> 2 — Categories &amp; weights</div>
+              <div id="gb-cat-list" style="margin-bottom:6px"></div>
+              <div id="gb-weight-sum" style="font-size:11px;font-family:var(--mono);padding:5px 8px;border-radius:var(--r);text-align:center;margin-bottom:6px;border:0.5px solid var(--border)"></div>
+              <button class="btn btn-sm" onclick="gbAddCategory()" style="width:100%;justify-content:center;font-size:11px"><i class="ti ti-plus"></i> Add category</button>
+            </div>
+
+            <div id="gb-section-assign" class="hidden">
+              <div class="gb-step-label"><i class="ti ti-link" style="font-size:11px"></i> 3 — Assign columns</div>
+              <div style="font-size:11px;color:var(--text3);margin-bottom:8px;line-height:1.5">Click a category, then click columns to assign. Right-click a column to skip it.</div>
+              <div id="gb-cat-btns" style="display:flex;flex-wrap:wrap;gap:4px;margin-bottom:8px"></div>
+              <div id="gb-col-chips" style="display:flex;flex-wrap:wrap;gap:3px;max-height:180px;overflow-y:auto"></div>
+              <div style="font-size:10px;color:var(--text4);margin-top:5px"><span style="color:var(--accent2)">■</span> assigned &nbsp; <span style="opacity:.35">■</span> skipped</div>
+            </div>
+
+            <div id="gb-section-scale" class="hidden">
+              <div class="gb-step-label"><i class="ti ti-award" style="font-size:11px"></i> 4 — Grading scale</div>
+              <div style="display:grid;grid-template-columns:44px 1fr 1fr 20px;gap:4px;margin-bottom:4px">
+                <span style="font-size:9px;color:var(--text4);text-transform:uppercase">Grade</span>
+                <span style="font-size:9px;color:var(--text4);text-transform:uppercase">Min%</span>
+                <span style="font-size:9px;color:var(--text4);text-transform:uppercase">Max%</span>
+                <span></span>
+              </div>
+              <div id="gb-scale-rows" style="max-height:180px;overflow-y:auto"></div>
+              <div style="display:flex;gap:5px;margin-top:6px">
+                <button class="btn btn-sm" onclick="gbAddScaleRow()" style="flex:1;justify-content:center;font-size:11px"><i class="ti ti-plus"></i> Add</button>
+                <button class="btn btn-sm" onclick="gbResetScale()" title="Reset to standard" style="font-size:11px"><i class="ti ti-refresh"></i></button>
+              </div>
+            </div>
+
+            <div id="gb-section-calc" class="hidden" style="margin-top:auto;padding-top:8px">
+              <button class="btn btn-accent" onclick="gbCalculate()" style="width:100%;justify-content:center">
+                <i class="ti ti-calculator"></i> Calculate final grades
+              </button>
+            </div>
+          </div>
+
+          <!-- Right content -->
+          <div id="gb-content" style="padding:18px;overflow-y:auto">
+            <div id="gb-placeholder" style="display:flex;flex-direction:column;align-items:center;justify-content:center;height:100%;color:var(--text4);text-align:center;gap:10px;padding:2rem">
+              <i class="ti ti-table-import" style="font-size:40px;color:var(--border2)"></i>
+              <div>
+                <div style="font-family:var(--font-display);font-size:14px;color:var(--text3);letter-spacing:.06em;margin-bottom:5px">Upload a HuskyCT gradebook export</div>
+                <div style="font-size:11px">Assign columns to weighted categories, then calculate final grades</div>
+              </div>
+            </div>
+            <div id="gb-results" class="hidden"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Reported Comments subtab -->
+      <div class="admin-subtab" id="atab-reported-comments">
+        <div style="padding:1.25rem;max-width:760px">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px">
+            <div style="font-size:11px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.08em">Reported comments</div>
+            <button class="btn btn-sm" onclick="renderReportedComments()"><i class="ti ti-refresh"></i> Refresh</button>
+          </div>
+          <div id="reported-comments-list"></div>
+        </div>
+      </div>
+
+      <!-- ── Circuit Solver (embedded, no iframe) ── -->
+      <div class="admin-subtab" id="atab-solver" style="display:none;flex-direction:column;height:calc(100vh - 140px)">
+        <div class="slv-main">
+
+          <!-- Left: netlist editor -->
+          <div class="slv-left">
+            <div class="slv-head"><h2 class="slv-h2">Netlist</h2></div>
+
+            <div class="slv-preset-row" id="slv-preset-row">
+              <div class="slv-preset-group">Independent</div>
+              <button class="slv-pbtn" data-preset="vdiv">Voltage divider</button>
+              <button class="slv-pbtn" data-preset="cdiv">Current divider</button>
+              <button class="slv-pbtn" data-preset="rlc">Series RLC</button>
+              <div class="slv-preset-group">Op-amp (ideal)</div>
+              <button class="slv-pbtn" data-preset="inv">Inverting</button>
+              <button class="slv-pbtn" data-preset="noninv">Non-inverting</button>
+              <button class="slv-pbtn" data-preset="sum">Summing</button>
+              <button class="slv-pbtn" data-preset="diff">Difference</button>
+              <button class="slv-pbtn" data-preset="integrator">Integrator</button>
+              <button class="slv-pbtn" data-preset="follower">Follower</button>
+              <div class="slv-preset-group">Dependent sources</div>
+              <button class="slv-pbtn" data-preset="fet">FET (VCCS)</button>
+              <button class="slv-pbtn" data-preset="bjt">BJT (VCCS)</button>
+              <button class="slv-pbtn" data-preset="transres">Transresistance (CCVS)</button>
+              <button class="slv-pbtn" data-preset="mirror">Current mirror (CCCS)</button>
+              <button class="slv-pbtn" data-preset="vcvs">Finite-gain amp (VCVS)</button>
+              <div class="slv-preset-group">Time-domain (step response)</div>
+              <button class="slv-pbtn" data-preset="rc_step">RC charging</button>
+              <button class="slv-pbtn" data-preset="rl_step">RL step</button>
+              <button class="slv-pbtn" data-preset="rlc_step">RLC step</button>
+              <button class="slv-pbtn" data-preset="rc_opamp">RC integrator</button>
+            </div>
+
+            <div class="slv-ta-wrap">
+              <textarea id="slv-netlist" spellcheck="false" placeholder="# LTSpice or original format&#10;# LTSpice example (voltage divider):&#10;V1 N001 0 V&#10;R1 N001 Answer R&#10;R2 Answer 0 R&#10;&#10;# Original format also works:&#10;# V Vs 1 0&#10;# R R1 1 2&#10;# R R2 2 0"></textarea>
+            </div>
+
+            <div class="slv-syntax">
+              <span style="color:var(--accent2);font-weight:600">LTSpice:</span> R1 N001 N002 R &nbsp; V1 N001 0 V &nbsp; C1 N+ N– C &nbsp; L1 N+ N– L<br/>
+              <span class="slv-kw">O</span>1 vp vm vout &nbsp;<span class="slv-kw">E</span>1 n+ n– nc+ nc– <span class="slv-cm"># VCVS</span> &nbsp;<span class="slv-kw">G</span>1 n+ n– nc+ nc– <span class="slv-cm"># VCCS</span><br/>
+              <span style="color:var(--text4)">Original also works: R name n+ n– / V name n+ n–</span>
+            </div>
+
+            <div class="slv-solve-row">
+              <button class="slv-btn-solve" id="slv-solve-btn" onclick="slvSolve()" disabled>
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polyline></svg>
+                Solve
+              </button>
+              <button class="slv-btn-clear" onclick="slvClear()">Clear</button>
+            </div>
+
+            <div id="slv-pyodide-status" style="display:flex;align-items:center;gap:10px;padding:10px 20px;border-top:0.5px solid var(--border);font-family:var(--mono);font-size:10px;color:var(--text4);flex-shrink:0">
+              <div style="width:8px;height:8px;border-radius:50%;border:1.5px solid var(--text4);border-top-color:var(--accent);animation:spin .7s linear infinite;flex-shrink:0"></div>
+              Loading Python / SymPy… first load ~10s
+            </div>
+          </div>
+
+          <!-- Right: results -->
+          <div class="slv-right">
+            <div class="slv-results-head">
+              <h2 class="slv-h2">Formula Output</h2>
+              <button class="slv-copy-all" id="slv-copy-all" onclick="slvCopyAll()" style="display:none">Copy all</button>
+            </div>
+            <div id="slv-results-scroll">
+              <div id="slv-empty" style="display:flex;flex-direction:column;align-items:center;justify-content:center;height:100%;gap:16px;color:var(--text4);text-align:center;padding:40px">
+                <div style="font-size:48px;opacity:.3">⚡</div>
+                <p style="font-family:var(--mono);font-size:12px;max-width:260px;line-height:1.8">Enter a netlist and click Solve to get symbolic formulas ready to paste into answer boxes.</p>
+              </div>
+              <div id="slv-loading" style="display:none;flex-direction:column;align-items:center;justify-content:center;height:100%;gap:20px">
+                <div class="spinner"></div>
+                <p style="font-family:var(--mono);font-size:12px;color:var(--text3)">Solving symbolically…</p>
+              </div>
+              <div id="slv-error" style="display:none;background:rgba(248,113,113,.08);border:0.5px solid rgba(248,113,113,.3);border-radius:var(--r2);padding:14px 16px;margin-bottom:16px;font-family:var(--mono);font-size:12px;color:var(--red);line-height:1.7"></div>
+              <div id="slv-results"></div>
+            </div>
+          </div>
+
+        </div>
+      </div>
+
+    </div>
+  </div><!-- /view-admin -->
+
+
+
+  <!-- ── PROGRESS ── -->
+  <div id="view-progress" class="hidden">
+    <div style="max-width:900px;margin:0 auto;padding:2rem 1.5rem">
+      <div style="font-family:var(--font-display);font-size:20px;letter-spacing:.08em;color:var(--accent2);margin-bottom:20px">Your Progress</div>
+      <div id="progress-content"></div>
+    </div>
+  </div>
+
+  <!-- ── CALENDAR ── -->
+  <div id="view-calendar" class="hidden">
+    <div style="max-width:1000px;margin:0 auto;padding:2rem 1.5rem">
+      <div style="display:flex;align-items:center;gap:12px;margin-bottom:20px;flex-wrap:wrap">
+        <div style="font-family:var(--font-display);font-size:20px;letter-spacing:.08em;color:var(--accent2)">Calendar</div>
+        <div style="margin-left:auto;display:flex;align-items:center;gap:8px">
+          <button class="btn btn-sm" onclick="calNav(-1)"><i class="ti ti-chevron-left"></i></button>
+          <span id="cal-month-label" style="font-size:13px;font-weight:600;color:var(--text);min-width:130px;text-align:center"></span>
+          <button class="btn btn-sm" onclick="calNav(1)"><i class="ti ti-chevron-right"></i></button>
+          <button class="btn btn-sm" onclick="calGoToday()">Today</button>
+          <button class="btn btn-sm btn-accent" id="cal-add-btn" onclick="calOpenEventForm()" style="display:none"><i class="ti ti-plus"></i> Add event</button>
+        </div>
+      </div>
+      <div id="calendar-grid"></div>
+      <div id="cal-event-list" style="margin-top:20px"></div>
+    </div>
+
+    <!-- Event form modal (admin only) -->
+    <div id="cal-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:100;align-items:center;justify-content:center">
+      <div style="background:var(--bg2);border:0.5px solid var(--border);border-radius:var(--r2);padding:24px;width:420px;max-width:95vw">
+        <div style="font-size:13px;font-weight:700;color:var(--text);margin-bottom:16px" id="cal-modal-title">Add event</div>
+        <div class="field"><label>Title</label><input type="text" id="cal-ev-title" placeholder="e.g. Office Hours"/></div>
+        <div class="field"><label>Type</label>
+          <select id="cal-ev-type">
+            <option value="office-hours">Office Hours</option>
+            <option value="exam">Exam</option>
+            <option value="deadline">Deadline</option>
+            <option value="lecture">Lecture</option>
+            <option value="other">Other</option>
+          </select>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+          <div class="field"><label>Start</label><input type="datetime-local" id="cal-ev-start"/></div>
+          <div class="field"><label>End (optional)</label><input type="datetime-local" id="cal-ev-end"/></div>
+        </div>
+        <div class="field"><label>Location / notes</label><input type="text" id="cal-ev-notes" placeholder="e.g. Room 301 or Zoom link"/></div>
+        <div class="field">
+          <label style="display:flex;align-items:center;gap:8px;cursor:pointer;text-transform:none;letter-spacing:0;font-size:13px;color:var(--text2)">
+            <input type="checkbox" id="cal-ev-recurring" style="width:auto" onchange="calToggleRecurring()"/>
+            Repeating event
+          </label>
+        </div>
+        <div id="cal-recurring-opts" style="display:none;margin-bottom:10px">
+          <div class="field" style="margin-bottom:8px"><label>Repeat every</label>
+            <select id="cal-ev-repeat">
+              <option value="weekly">Week (same day/time)</option>
+              <option value="biweekly">2 weeks</option>
+              <option value="daily">Day</option>
+            </select>
+          </div>
+          <div class="field"><label>Until</label><input type="date" id="cal-ev-until"/></div>
+        </div>
+        <div style="display:flex;gap:8px;margin-top:8px">
+          <button class="btn btn-accent" onclick="calSaveEvent()" style="flex:1;justify-content:center"><i class="ti ti-check"></i> Save</button>
+          <button class="btn" onclick="calCloseModal()">Cancel</button>
+          <button class="btn btn-red" id="cal-delete-btn" onclick="calDeleteEvent()" style="display:none"><i class="ti ti-trash"></i></button>
+        </div>
+        <div class="err-msg hidden" id="cal-err" style="margin-top:8px"><i class="ti ti-alert-circle"></i><span></span></div>
+      </div>
+    </div>
+  </div>
+
+
+  <!-- ── PROFILE ── -->
+  <div id="view-profile" class="hidden">
+    <div style="max-width:500px;margin:0 auto;padding:2rem 1.5rem;display:flex;flex-direction:column;gap:16px">
+      <div style="font-family:var(--font-display);font-size:20px;letter-spacing:.08em;color:var(--accent2)">Profile</div>
+
+      <!-- Who am I -->
+      <div style="background:var(--bg2);border:0.5px solid var(--border);border-radius:var(--r2);padding:18px;display:flex;align-items:center;gap:14px">
+        <div id="profile-av" style="width:48px;height:48px;border-radius:50%;background:linear-gradient(135deg,var(--accent3),var(--accent));display:flex;align-items:center;justify-content:center;font-family:var(--font-display);font-size:18px;color:#fff;flex-shrink:0"></div>
+        <div>
+          <div id="profile-name" style="font-size:16px;font-weight:600;color:var(--text);margin-bottom:2px"></div>
+          <div id="profile-role" style="font-size:11px;color:var(--text3);text-transform:uppercase;letter-spacing:.1em"></div>
+        </div>
+      </div>
+
+      <!-- Notification preferences -->
+      <div style="background:var(--bg2);border:0.5px solid var(--border);border-radius:var(--r2);overflow:hidden">
+        <div style="padding:10px 16px;border-bottom:0.5px solid var(--border);background:var(--bg3);font-size:11px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.08em;display:flex;align-items:center;gap:6px">
+          <i class="ti ti-bell" style="font-size:13px"></i> Email notifications
+        </div>
+        <div style="padding:16px">
+          <p style="font-size:12px;color:var(--text3);margin-bottom:14px;line-height:1.7">
+            Enter your email address to receive notifications when new posts or announcements are published.
+          </p>
+          <div class="field">
+            <label>Email address</label>
+            <input type="email" id="profile-email" placeholder="you@example.com"/>
+          </div>
+          <div style="display:flex;flex-direction:column;gap:10px;margin-bottom:14px">
+            <label style="display:flex;align-items:center;gap:10px;cursor:pointer;margin:0;text-transform:none;letter-spacing:0;font-size:13px;color:var(--text2);font-weight:400">
+              <input type="checkbox" id="notif-posts" style="width:auto;cursor:pointer"/>
+              Notify me when a new blog post is published
+            </label>
+            <label style="display:flex;align-items:center;gap:10px;cursor:pointer;margin:0;text-transform:none;letter-spacing:0;font-size:13px;color:var(--text2);font-weight:400">
+              <input type="checkbox" id="notif-announcements" style="width:auto;cursor:pointer"/>
+              Notify me about class announcements (banner updates)
+            </label>
+            <label style="display:flex;align-items:center;gap:10px;cursor:pointer;margin:0;text-transform:none;letter-spacing:0;font-size:13px;color:var(--text2);font-weight:400">
+              <input type="checkbox" id="notif-assignments" style="width:auto;cursor:pointer"/>
+              Notify me when a new assignment is posted
+            </label>
+          </div>
+          <button class="btn btn-sm btn-accent" onclick="saveNotifPrefs()">
+            <i class="ti ti-device-floppy"></i> Save preferences
+          </button>
+          <div class="ok-msg hidden" id="notif-ok" style="margin-top:8px">Preferences saved!</div>
+        </div>
+      </div>
+
+      <!-- Change password -->
+      <div style="background:var(--bg2);border:0.5px solid var(--border);border-radius:var(--r2);overflow:hidden">
+        <div style="padding:10px 16px;border-bottom:0.5px solid var(--border);background:var(--bg3);font-size:11px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.08em;display:flex;align-items:center;gap:6px">
+          <i class="ti ti-key" style="font-size:13px"></i> Change password
+        </div>
+        <div style="padding:16px">
+          <div class="field"><label>New password</label><input type="password" id="profile-pw-new" placeholder="at least 6 characters"/></div>
+          <div class="field" style="margin-bottom:12px"><label>Confirm new password</label><input type="password" id="profile-pw-new2" placeholder="repeat password"/></div>
+          <button class="btn btn-sm btn-accent" onclick="profileChangePassword()">
+            <i class="ti ti-check"></i> Update password
+          </button>
+          <div class="err-msg hidden" id="profile-pw-err" style="margin-top:8px"><i class="ti ti-alert-circle"></i><span></span></div>
+          <div class="ok-msg hidden" id="profile-pw-ok" style="margin-top:8px">Password updated!</div>
+        </div>
+      </div>
+
+      <!-- Sign out -->
+      <button class="btn btn-red" onclick="doLogout()" style="justify-content:center">
+        <i class="ti ti-logout"></i> Sign out
+      </button>
+    </div>
+  </div>
+
+  <!-- ── EMAIL MIGRATION MODAL ── -->
+  <!-- Shown once to legacy (username-only) accounts so they can attach a real email
+       for password reset + notifications. Triggered by maybePromptEmailMigration(). -->
+  <div id="email-migrate-modal" class="hidden" style="position:fixed;inset:0;background:rgba(0,0,0,.65);z-index:200;display:flex;align-items:center;justify-content:center">
+    <div style="background:var(--bg2);border:0.5px solid var(--border);border-radius:var(--r2);padding:26px;width:420px;max-width:94vw;box-shadow:0 8px 40px rgba(0,0,0,.5)">
+      <div style="font-family:var(--font-display);font-size:14px;letter-spacing:.07em;color:var(--accent2);margin-bottom:6px">
+        <i class="ti ti-mail"></i> Add your email address
+      </div>
+      <p style="font-size:12px;color:var(--text3);margin-bottom:16px;line-height:1.7">
+        Add a real email so you can reset your password and receive notifications.
+        This is optional — you can skip for now and do it later in your Profile.
+      </p>
+      <div class="field">
+        <label>Email address</label>
+        <input type="email" id="em-email" placeholder="you@uconn.edu" autocomplete="email"/>
+      </div>
+      <div class="ok-msg hidden" id="em-ok" style="margin-bottom:10px;font-size:12px"></div>
+      <div class="err-msg hidden" id="em-err" style="margin-bottom:10px"><i class="ti ti-alert-circle"></i><span></span></div>
+      <div style="display:flex;gap:8px;margin-top:4px">
+        <button class="btn btn-accent" style="flex:1;justify-content:center" onclick="submitEmailMigration()">
+          <i class="ti ti-check"></i> Save email
+        </button>
+        <button class="btn" onclick="skipEmailMigrate()">Skip for now</button>
+      </div>
+    </div>
+  </div>
+
+</div><!-- /screen-app -->
+
+<!-- ════════════════════════════════════════════
+     SCRIPTS
+     firebase.js is a module (uses ES imports).
+     All others are plain scripts that run after.
+     ════════════════════════════════════════════ -->
+<!-- MathJax for LaTeX rendering in problem text -->
+<script>
+window.MathJax = {
+  tex: { inlineMath: [['$','$'],['\\(','\\)']], displayMath: [['$$','$$'],['\\[','\\]']] },
+  options: { skipHtmlTags: ['script','noscript','style','textarea','pre'] },
+  startup: { ready() { MathJax.startup.defaultReady(); } }
+};
+</script>
+<script async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-chtml.js"></script>
+<script>
+// Thin shims so inline onclick="" handlers work even if the module
+// hasn't finished loading yet. The real implementations are set on
+// window.* by firebase.js / app.js once the module resolves.
+function doLogin()    { window.doLogin?.()    ?? console.warn('doLogin not ready'); }
+function doLogout()   { window.doLogout?.()   ?? console.warn('doLogout not ready'); }
+function setAuthTab(t,el){ window.setAuthTab?.(t,el); }
+function toggleResetForm(){ window.toggleResetForm?.(); }
+function sendPasswordReset(){ window.sendPasswordReset?.(); }
+</script>
+<!-- Single entry point. main.js imports firebase.js then loads all other scripts in order. -->
+<script type="module" src="js/main.js"></script>
+
+<!-- ── Circuit Solver: Pyodide + scoped styles + JS ── -->
+<script src="https://cdn.jsdelivr.net/pyodide/v0.26.4/full/pyodide.js"></script>
+<style>
+/* Scoped solver styles — all prefixed slv- to avoid collisions */
+#atab-solver { background: var(--bg0); }
+.slv-main {
+  display: grid;
+  grid-template-columns: 400px 1fr;
+  height: 100%;
+  overflow: hidden;
+}
+.slv-left {
+  display: flex;
+  flex-direction: column;
+  background: var(--bg1);
+  border-right: 0.5px solid var(--border);
+  overflow: hidden;
+}
+.slv-right {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  background: var(--bg0);
+}
+.slv-head, .slv-results-head {
+  padding: 14px 20px 10px;
+  border-bottom: 0.5px solid var(--border);
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: var(--bg1);
+}
+.slv-h2 {
+  font-family: var(--font-display);
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--text3);
+  letter-spacing: .1em;
+  text-transform: uppercase;
+  margin: 0;
+}
+.slv-preset-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  padding: 10px 16px;
+  border-bottom: 0.5px solid var(--border);
+  flex-shrink: 0;
+  overflow-y: auto;
+  max-height: 160px;
+}
+.slv-preset-group {
+  width: 100%;
+  font-family: var(--mono);
+  font-size: 9px;
+  letter-spacing: .1em;
+  text-transform: uppercase;
+  color: var(--text4);
+  padding: 3px 0 1px;
+}
+.slv-pbtn {
+  font-family: var(--mono);
+  font-size: 10px;
+  padding: 3px 9px;
+  border-radius: 20px;
+  border: 0.5px solid var(--border);
+  background: var(--bg2);
+  color: var(--text3);
+  cursor: pointer;
+  transition: all .15s;
+  white-space: nowrap;
+}
+.slv-pbtn:hover, .slv-pbtn.active {
+  border-color: var(--accent);
+  color: var(--accent2);
+  background: rgba(157,125,232,.1);
+}
+.slv-ta-wrap {
+  flex: 1;
+  overflow: hidden;
+  display: flex;
+}
+#slv-netlist {
+  flex: 1;
+  width: 100%;
+  background: var(--bg0);
+  color: var(--text2);
+  font-family: var(--mono);
+  font-size: 12px;
+  line-height: 1.7;
+  border: none;
+  outline: none;
+  resize: none;
+  padding: 14px 16px;
+  tab-size: 2;
+}
+#slv-netlist:focus { background: #0f0c18; }
+#slv-netlist::placeholder { color: var(--text4); }
+.slv-syntax {
+  padding: 8px 16px;
+  border-top: 0.5px solid var(--border);
+  font-family: var(--mono);
+  font-size: 10px;
+  color: var(--text4);
+  line-height: 1.8;
+  flex-shrink: 0;
+  background: var(--bg1);
+}
+.slv-kw  { color: var(--accent); }
+.slv-cm  { color: var(--text4); font-style: italic; }
+.slv-solve-row {
+  display: flex;
+  gap: 8px;
+  padding: 12px 16px;
+  border-top: 0.5px solid var(--border);
+  flex-shrink: 0;
+}
+.slv-btn-solve {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 10px;
+  background: var(--accent3);
+  border: none;
+  border-radius: var(--r2);
+  color: #fff;
+  font-family: var(--font-display);
+  font-size: 12px;
+  font-weight: 500;
+  letter-spacing: .06em;
+  cursor: pointer;
+  transition: all .15s;
+}
+.slv-btn-solve:hover:not(:disabled) { background: var(--accent); }
+.slv-btn-solve:disabled { opacity: .4; cursor: not-allowed; }
+.slv-btn-clear {
+  padding: 10px 14px;
+  background: var(--bg3);
+  border: 0.5px solid var(--border);
+  border-radius: var(--r2);
+  color: var(--text3);
+  font-family: var(--mono);
+  font-size: 11px;
+  cursor: pointer;
+}
+.slv-btn-clear:hover { border-color: var(--red); color: var(--red); }
+.slv-copy-all {
+  margin-left: auto;
+  font-family: var(--mono);
+  font-size: 11px;
+  padding: 4px 12px;
+  border-radius: 20px;
+  border: 0.5px solid var(--border);
+  background: transparent;
+  color: var(--text3);
+  cursor: pointer;
+}
+.slv-copy-all:hover { border-color: var(--green); color: var(--green); }
+#slv-results-scroll {
+  flex: 1;
+  overflow-y: auto;
+  padding: 18px 20px;
+}
+.slv-card {
+  background: var(--bg2);
+  border: 0.5px solid var(--border);
+  border-radius: var(--r2);
+  padding: 12px 14px;
+  margin-bottom: 8px;
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 10px;
+  align-items: center;
+}
+.slv-card-label   { font-size: 12px; font-weight: 600; color: var(--text2); margin-bottom: 3px; }
+.slv-card-formula { font-family: var(--mono); font-size: 12px; color: var(--accent2); word-break: break-all; }
+.slv-card-unit    { font-family: var(--mono); font-size: 10px; color: var(--text4); margin-top: 2px; }
+.slv-sec-label {
+  font-family: var(--mono);
+  font-size: 10px;
+  font-weight: 500;
+  color: var(--text4);
+  letter-spacing: .1em;
+  text-transform: uppercase;
+  margin: 16px 0 8px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.slv-sec-label::after { content:''; flex:1; height:0.5px; background:var(--border); }
+.slv-copy-btn {
+  background: var(--bg3);
+  border: 0.5px solid var(--border);
+  border-radius: var(--r1);
+  color: var(--text3);
+  font-family: var(--mono);
+  font-size: 11px;
+  padding: 5px 10px;
+  cursor: pointer;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+.slv-copy-btn:hover { border-color: var(--accent); color: var(--accent2); }
+.slv-copy-btn.copied { border-color: var(--green); color: var(--green); background: rgba(74,222,128,.07); }
+</style>
+<script>
+// ── Circuit Solver — embedded (no iframe) ──────────────────────────────────────
+
+const SLV_PRESETS = {
+  vdiv:`V Vs 1 0\nR R1 1 2\nR R2 2 0`,
+  cdiv:`I Is 0 1\nR R1 1 0\nR R2 1 0`,
+  rlc:`V Vs 1 0\nR R1 1 2\nL L1 2 3\nC C1 3 0`,
+  inv:`V Vin 1 0\nR Rin 1 2\nR Rf 2 3\nO U1 0 2 3`,
+  noninv:`V Vin 1 0\nR R1 0 2\nR Rf 2 3\nO U1 1 2 3`,
+  sum:`V Va 1 0\nV Vb 2 0\nR Ra 1 3\nR Rb 2 3\nR Rf 3 4\nO U1 0 3 4`,
+  diff:`V Va 1 0\nV Vb 2 0\nR R1 1 3\nR R2 3 5\nR R3 2 4\nR R4 4 0\nO U1 4 3 5`,
+  integrator:`V Vin 1 0\nR Rin 1 2\nC Cf 2 3\nO U1 0 2 3`,
+  follower:`V Vin 1 0\nO U1 1 2 2`,
+  fet:`V Vin 1 0\nG Gm 2 0 1 0\nR RD 2 0`,
+  bjt:`V Vb 1 0\nR rpi 1 2\nG Gm 3 0 2 0\nR RC 3 0`,
+  transres:`I Is 0 1\nV Vsense 1 2\nR Rin 2 0\nH Hrm 3 0 Vsense\nR RL 3 0`,
+  mirror:`I Is 0 1\nV Vsense 1 2\nR R1 2 0\nF Fbeta 3 0 Vsense\nR RL 3 0`,
+  vcvs:`V Vin 1 0\nR R1 0 2\nR Rf 2 3\nE Eamp 3 0 1 2`,
+  rc_step:`V Vs 1 0\nR R1 1 2\nC C1 2 0`,
+  rl_step:`V Vs 1 0\nR R1 1 2\nL L1 2 0`,
+  rlc_step:`V Vs 1 0\nR R1 1 2\nL L1 2 3\nC C1 3 0`,
+  rc_opamp:`V Vin 1 0\nR Rin 1 2\nC Cf 2 3\nO U1 0 2 3`,
+};
+
+document.getElementById('slv-preset-row').addEventListener('click', e => {
+  const btn = e.target.closest('.slv-pbtn');
+  if (!btn) return;
+  const v = SLV_PRESETS[btn.dataset.preset];
+  if (!v) return;
+  document.getElementById('slv-netlist').value = v;
+  document.querySelectorAll('.slv-pbtn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+});
+
+document.getElementById('slv-netlist').addEventListener('keydown', e => {
+  if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') { e.preventDefault(); slvSolve(); }
+});
+
+// ── Pyodide ───────────────────────────────────────────────────────────────────
+let _slvPyodide = null, _slvReady = false, _slvLastResults = null;
+
+const SLV_PY = `
+import json
+from sympy import symbols, Symbol, simplify, factor, zeros, inverse_laplace_transform, apart, exp, cancel
+
+def parse_netlist(text):
+    """
+    Accepts both formats:
+      LTSpice:  R1 N001 Answer R      (element-name  n+  n-  value)
+                V1 N001 0 V
+                C1 N001 N002 C
+                O1 0 Answer Out        (op-amp: 4 tokens after name: vp vm vout — detect by 'O' prefix)
+      Original: R name n+ n-          (type  name  n+  n-)
+    Detection: if first token length > 1 AND first char is a known element type,
+    treat as LTSpice (element name first, value last).
+    """
+    import re
+    elements = []
+    LTSPICE_TYPES = set('RCLVIOEFGHF')
+
+    def is_ltspice_line(parts):
+        # LTSpice: first token is like R1, V1, C2, L1, O1, E1, G1, H1, F1
+        # Original: first token is single letter R, V, C, L, O, E, G, H, F
+        return len(parts[0]) > 1 and parts[0][0].upper() in LTSPICE_TYPES
+
+    for raw in text.strip().splitlines():
+        # Strip LTSpice comments (;) and SPICE comments (*)
+        line = raw.split(';')[0].split('*')[0].strip()
+        if not line or line.startswith('.'): continue
+        parts = line.split()
+        if len(parts) < 3: continue
+
+        if is_ltspice_line(parts):
+            # ── LTSpice format ─────────────────────────────────────────
+            full = parts[0]          # R1, V1, C2, L3, O1 …
+            etype = full[0].upper()
+            # Always use the full element name as the SymPy symbol
+            sym = full               # R1, V1, C2 → unique per element
+
+            if etype == 'O':
+                # O1 vp vm vout  (4 nodes, no value token)
+                if len(parts) < 5: continue
+                elements.append({'type':'O','name':sym,
+                                 'vp':parts[1],'vm':parts[2],'vout':parts[3],
+                                 'np':parts[1],'nm':parts[2]})
+            elif etype in ('E','G'):
+                # E1 n+ n- nc+ nc- value
+                if len(parts) < 6: continue
+                elements.append({'type':etype,'name':f'gain_{sym}',
+                                 'np':parts[1],'nm':parts[2],
+                                 'ncp':parts[3],'ncm':parts[4]})
+            elif etype in ('H','F'):
+                # H1 n+ n- Vsense value
+                if len(parts) < 5: continue
+                elements.append({'type':etype,'name':f'gain_{sym}',
+                                 'np':parts[1],'nm':parts[2],
+                                 'vsense':parts[3]})
+            else:
+                # R1 n+ n- value  /  V1 n+ n- value  / C1 n+ n- value
+                if len(parts) < 4: continue
+                elements.append({'type':etype,'name':sym,
+                                 'np':parts[1],'nm':parts[2]})
+
+        else:
+            # ── Original format ────────────────────────────────────────
+            etype = parts[0].upper()
+            if etype == 'O':
+                if len(parts) < 5: continue
+                elements.append({'type':'O','name':parts[1],
+                                 'vp':parts[2],'vm':parts[3],'vout':parts[4],
+                                 'np':parts[2],'nm':parts[3]})
+            elif etype in ('E','G'):
+                if len(parts) < 6: continue
+                elements.append({'type':etype,'name':parts[1],
+                                 'np':parts[2],'nm':parts[3],
+                                 'ncp':parts[4],'ncm':parts[5]})
+            elif etype in ('H','F'):
+                if len(parts) < 5: continue
+                elements.append({'type':etype,'name':parts[1],
+                                 'np':parts[2],'nm':parts[3],
+                                 'vsense':parts[4]})
+            else:
+                if len(parts) < 4: continue
+                elements.append({'type':etype,'name':parts[1],
+                                 'np':parts[2],'nm':parts[3]})
+
+    sym_names = set()
+    for e in elements:
+        if e['type'] in ('R','C','L','V','I'):
+            sym_names.add(e['name'])
+        elif e['type'] in ('E','G','H','F'):
+            prefix = {'E':'gain','G':'gm','H':'rm','F':'beta'}[e['type']]
+            sym_names.add(f"{prefix}_{e['name']}")
+    return elements, sym_names
+
+def build_mna(elements, sym_names):
+    node_set = []
+    def _add(n):
+        if n != '0' and n not in node_set: node_set.append(n)
+    for e in elements:
+        _add(e['np']); _add(e['nm'])
+        if e['type'] == 'O': _add(e['vout'])
+        if e['type'] in ('E','G'): _add(e.get('ncp','')); _add(e.get('ncm',''))
+    n_nodes = len(node_set)
+    vsrcs = [e for e in elements if e['type']=='V']
+    opamps= [e for e in elements if e['type']=='O']
+    vcvs  = [e for e in elements if e['type']=='E']
+    ccvs  = [e for e in elements if e['type']=='H']
+    extra = vsrcs+opamps+vcvs+ccvs
+    size  = n_nodes+len(extra)
+    syms  = {n: Symbol(n, positive=True) for n in sym_names}
+    syms['s'] = Symbol('s')
+    for n in sym_names:
+        if any(n.startswith(p) for p in ('gain_','gm_','rm_','beta_')): syms[n]=Symbol(n)
+    def ni(n): return node_set.index(n) if n in node_set else -1
+    eidx = {}
+    for k,e in enumerate(extra): eidx[(e['type'],e['name'])] = n_nodes+k
+    def vcol(vn): return eidx.get(('V',vn),None)
+    A=zeros(size,size); b=zeros(size,1)
+    for e in elements:
+        t=e['type']; nm=e['name']; pi=ni(e['np']); mi=ni(e['nm'])
+        if t in ('R','C','L'):
+            s=syms[nm]; g=(1/s if t=='R' else syms['s']*s if t=='C' else 1/(syms['s']*s))
+            if pi>=0: A[pi,pi]+=g
+            if mi>=0: A[mi,mi]+=g
+            if pi>=0 and mi>=0: A[pi,mi]-=g; A[mi,pi]-=g
+        elif t=='V':
+            vi=eidx[('V',nm)]
+            if pi>=0: A[pi,vi]+=1
+            if mi>=0: A[mi,vi]-=1
+            if pi>=0: A[vi,pi]+=1
+            if mi>=0: A[vi,mi]-=1
+            b[vi]+=syms[nm]
+        elif t=='I':
+            if pi>=0: b[pi]+=syms[nm]
+            if mi>=0: b[mi]-=syms[nm]
+        elif t=='O':
+            vpi=ni(e['vp']); vmi=ni(e['vm']); voi=ni(e['vout']); oi=eidx[('O',nm)]
+            if voi>=0: A[voi,oi]+=1
+            if vpi>=0: A[oi,vpi]+=1
+            if vmi>=0: A[oi,vmi]-=1
+        elif t=='E':
+            vi=eidx[('E',nm)]; g=syms[f'gain_{nm}']; cp=ni(e['ncp']); cm=ni(e['ncm'])
+            if pi>=0: A[pi,vi]+=1
+            if mi>=0: A[mi,vi]-=1
+            if pi>=0: A[vi,pi]+=1
+            if mi>=0: A[vi,mi]-=1
+            if cp>=0: A[vi,cp]-=g
+            if cm>=0: A[vi,cm]+=g
+        elif t=='G':
+            g=syms[f'gm_{nm}']; cp=ni(e['ncp']); cm=ni(e['ncm'])
+            if pi>=0 and cp>=0: A[pi,cp]+=g
+            if pi>=0 and cm>=0: A[pi,cm]-=g
+            if mi>=0 and cp>=0: A[mi,cp]-=g
+            if mi>=0 and cm>=0: A[mi,cm]+=g
+        elif t=='H':
+            vi=eidx[('H',nm)]; r=syms[f'rm_{nm}']; vc=vcol(e['vsense'])
+            if pi>=0: A[pi,vi]+=1
+            if mi>=0: A[mi,vi]-=1
+            if pi>=0: A[vi,pi]+=1
+            if mi>=0: A[vi,mi]-=1
+            if vc is not None: A[vi,vc]-=r
+        elif t=='F':
+            bt=syms[f'beta_{nm}']; vc=vcol(e['vsense'])
+            if vc is None: continue
+            if pi>=0: A[pi,vc]+=bt
+            if mi>=0: A[mi,vc]-=bt
+    unknowns=([Symbol(f'V_{n}') for n in node_set]+[Symbol(f'I_{e["name"]}') for e in vsrcs]+
+              [Symbol(f'I_{e["name"]}') for e in opamps]+[Symbol(f'I_{e["name"]}') for e in vcvs]+
+              [Symbol(f'I_{e["name"]}') for e in ccvs])
+    return A,b,unknowns,node_set,vsrcs,opamps,vcvs,ccvs,syms
+
+def has_s(expr): return expr.has(Symbol('s'))
+
+def fix_exp_args(e):
+    """Factor polynomial arguments of exp() to catch perfect-square cancellations."""
+    return e.replace(exp, lambda a: exp(simplify(cancel(factor(a)))))
+
+def to_td(expr_s):
+    s=Symbol('s'); t=Symbol('t',positive=True)
+    try:
+        # apart() decomposes into partial fractions, then ILT each term separately.
+        # This prevents SymPy's simplify() from recombining clean exponential terms
+        # back into ugly (exp(x)-1)*exp(-x) forms.
+        pf=apart(expr_s/s, s)
+        # ILT each term independently
+        from sympy import Add
+        ilt_terms=[inverse_laplace_transform(term,s,t) for term in pf.as_ordered_terms()]
+        r=Add(*ilt_terms)
+        # Clean up exponent arguments (e.g. factor (R1+R2)^2 cancellation)
+        # but do NOT call simplify() which would recombine the terms
+        r=fix_exp_args(r)
+        return r,None
+    except Exception as ex:
+        import traceback
+        return None, traceback.format_exc()
+
+def _lbl(k):
+    if k.startswith('V_'): return f"Voltage at node {k[2:]}"
+    if k.startswith('I_'):
+        n=k[2:]
+        if n and n[0].upper()=='V': return f"Current through source {n}"
+        return f"Current through {n}"
+    if k.startswith('P_'): return f"Power in {k[2:]}"
+    return k
+
+def _unit(k):
+    if k.startswith('V_'): return 'V'
+    if k.startswith('I_'): return 'mA'
+    if k.startswith('P_'): return 'mW'
+    return ''
+
+def _type(k):
+    if k.startswith('V_'): return 'voltage'
+    if k.startswith('I_'): return 'current'
+    if k.startswith('P_'): return 'power'
+    return 'other'
+
+def slv_solve(netlist_text):
+    from sympy import printing
+    try:
+        elements,sym_names=parse_netlist(netlist_text)
+        if not elements: return json.dumps({'error':'No elements parsed.'})
+        A,b,unknowns,node_list,vsrcs,opamps,vcvs,ccvs,syms=build_mna(elements,sym_names)
+        try: sol=A.solve(b)
+        except Exception as ex: return json.dumps({'error':f'MNA failed: {ex}'})
+        solution={}
+        for i,u in enumerate(unknowns): solution[str(u)]=simplify(factor(sol[i]))
+        for e in elements:
+            et=e['type']
+            if et not in ('R','C','L'): continue
+            Vp=solution.get(f'V_{e["np"]}',0) if e['np']!='0' else 0
+            Vm=solution.get(f'V_{e["nm"]}',0) if e['nm']!='0' else 0
+            sym=syms[e['name']]
+            if et=='R': Ib=(Vp-Vm)/sym
+            elif et=='C': Ib=(Vp-Vm)*syms['s']*sym
+            elif et=='L': Ib=(Vp-Vm)/(syms['s']*sym)
+            solution[f'I_{e["name"]}']=simplify(factor(Ib))
+        for e in elements:
+            if e['type']=='R':
+                I=solution.get(f'I_{e["name"]}')
+                if I is not None: solution[f'P_{e["name"]}']=simplify(factor(I**2*syms[e['name']]))
+        has_rc=any(e['type'] in ('C','L') for e in elements)
+        has_oa=any(e['type']=='O' for e in elements)
+        has_dep=any(e['type'] in ('E','G','H','F') for e in elements)
+        n=len(node_list)
+        if has_oa: topo='op-amp circuit'
+        elif has_dep: topo='circuit with dependent sources'
+        elif has_rc and n<=2: topo='first-order RC/RL circuit'
+        elif has_rc: topo='RLC circuit'
+        else: topo=f'{n}-node resistive circuit'
+        results=[]
+        if has_rc:
+            # Reactive circuit — time-domain for reactive quantities, direct for DC quantities
+            for k,expr in solution.items():
+                if has_s(expr):
+                    # Convert to time domain
+                    r,err=to_td(expr)
+                    if r is not None and err is None:
+                        results.append({'key':k,'label':_lbl(k),'formula':printing.jscode(r),'unit':_unit(k),'type':_type(k)})
+                    else:
+                        # Show the error so it's visible in the UI
+                        results.append({'key':k,'label':f'[ILT error] {k}','formula':str(err)[:200],'unit':'','type':'other'})
+                else:
+                    # DC quantity (e.g. V_source node = V1) — output directly
+                    results.append({'key':k,'label':_lbl(k),'formula':printing.jscode(expr),'unit':_unit(k),'type':_type(k)})
+        else:
+            # Resistive circuit — plain symbolic results
+            for k,expr in solution.items():
+                results.append({'key':k,'label':_lbl(k),'formula':printing.jscode(expr),'unit':_unit(k),'type':_type(k)})
+        return json.dumps({'topology':topo,'has_reactive':has_rc,'results':results})
+    except Exception as ex:
+        import traceback; return json.dumps({'error':f'{ex}\\n{traceback.format_exc()}'})
+`;
+
+(async () => {
+  const status = document.getElementById('slv-pyodide-status');
+  try {
+    _slvPyodide = await loadPyodide();
+    await _slvPyodide.loadPackage('sympy');
+    await _slvPyodide.runPythonAsync(SLV_PY);
+    _slvReady = true;
+    if (status) status.style.display = 'none';
+    const btn = document.getElementById('slv-solve-btn');
+    if (btn) btn.disabled = false;
+  } catch(err) {
+    if (status) status.innerHTML = `<span style="color:var(--red)">Failed to load SymPy: ${err.message}</span>`;
+  }
+})();
+
+function slvClear() {
+  document.getElementById('slv-netlist').value = '';
+  document.getElementById('slv-results').innerHTML = '';
+  document.getElementById('slv-empty').style.display = 'flex';
+  document.getElementById('slv-error').style.display = 'none';
+  document.getElementById('slv-copy-all').style.display = 'none';
+  document.querySelectorAll('.slv-pbtn').forEach(b => b.classList.remove('active'));
+  _slvLastResults = null;
+}
+
+async function slvSolve() {
+  if (!_slvReady) { slvShowErr('SymPy still loading — wait a moment.'); return; }
+  const netlist = document.getElementById('slv-netlist').value.trim();
+  if (!netlist) return;
+  const btn = document.getElementById('slv-solve-btn');
+  btn.disabled = true;
+  document.getElementById('slv-empty').style.display = 'none';
+  document.getElementById('slv-loading').style.display = 'flex';
+  document.getElementById('slv-results').innerHTML = '';
+  document.getElementById('slv-error').style.display = 'none';
+  document.getElementById('slv-copy-all').style.display = 'none';
+  try {
+    const esc = netlist.replace(/\\/g,'\\\\').replace(/'/g,"\\'");
+    const raw = await _slvPyodide.runPythonAsync(`slv_solve('''${esc}''')`);
+    const data = JSON.parse(raw);
+    if (data.error) throw new Error(data.error);
+    _slvLastResults = data;
+    slvRender(data);
+  } catch(err) {
+    slvShowErr(err.message);
+  } finally {
+    btn.disabled = false;
+    document.getElementById('slv-loading').style.display = 'none';
+  }
+}
+
+function slvRender(data) {
+  const c = document.getElementById('slv-results');
+  c.innerHTML = '';
+  if (!data.results?.length) { slvShowErr('No results. Check netlist syntax.'); return; }
+
+  if (data.topology) {
+    const t = document.createElement('div');
+    t.style.cssText = 'font-family:var(--mono);font-size:11px;color:var(--text3);margin-bottom:16px;padding:8px 12px;background:var(--bg2);border-radius:var(--r2);border:0.5px solid var(--border)';
+    t.innerHTML = `<span style="color:var(--text4)">Topology: </span>${slvEsc(data.topology)}`;
+    c.appendChild(t);
+  }
+
+  // Show t [ms] hint for reactive circuits
+  if (data.has_reactive) {
+    const hint = document.createElement('div');
+    hint.style.cssText = 'font-family:var(--mono);font-size:10px;color:var(--text4);background:rgba(74,222,128,.04);border:0.5px solid rgba(74,222,128,.15);border-radius:var(--r2);padding:7px 12px;margin-bottom:14px';
+    hint.innerHTML = 'Add <span style="color:var(--green);font-weight:600">t</span> as a Var (unit: ms). R[kΩ] × C[μF] = τ[ms].';
+    c.appendChild(hint);
+  }
+
+  // Group all results by type, render flat
+  const groups = { voltage:[], current:[], power:[], other:[] };
+  data.results.forEach(r => (groups[r.type] || groups.other).push(r));
+  const cats = [{k:'voltage',l:'Voltages'},{k:'current',l:'Currents'},{k:'power',l:'Power'},{k:'other',l:'Other'}];
+  cats.forEach(({k,l}) => { const items=groups[k]; if(!items.length)return; slvSection(c,l,items); });
+
+  document.getElementById('slv-copy-all').style.display = 'block';
+}
+
+function slvSection(c, label, items) {
+  const sec = document.createElement('div');
+  const lbl = document.createElement('div');
+  lbl.className = 'slv-sec-label';
+  lbl.textContent = label;
+  sec.appendChild(lbl);
+  items.forEach(r => {
+    const card = document.createElement('div');
+    card.className = 'slv-card';
+    card.innerHTML = `
+      <div>
+        <div class="slv-card-label">${slvEsc(r.label)}</div>
+        <div class="slv-card-formula">${slvEsc(r.formula)}</div>
+        <div class="slv-card-unit">${slvEsc(r.unit||'—')}</div>
+      </div>
+      <button class="slv-copy-btn" onclick="slvCopy(this,${JSON.stringify(r.formula)})">Copy</button>`;
+    sec.appendChild(card);
+  });
+  c.appendChild(sec);
+}
+
+function slvCopy(btn, formula) {
+  navigator.clipboard.writeText(formula).then(() => {
+    btn.textContent = '✓'; btn.classList.add('copied');
+    setTimeout(() => { btn.textContent = 'Copy'; btn.classList.remove('copied'); }, 1800);
+  });
+}
+
+function slvCopyAll() {
+  if (!_slvLastResults?.results?.length) return;
+  const txt = _slvLastResults.results.map(r=>`// ${r.label} [${r.unit}]\n${r.formula}`).join('\n\n');
+  navigator.clipboard.writeText(txt).then(() => {
+    const b = document.getElementById('slv-copy-all');
+    b.textContent = '✓ Copied'; setTimeout(()=>{ b.textContent='Copy all'; },2000);
+  });
+}
+
+function slvShowErr(msg) {
+  const el = document.getElementById('slv-error');
+  el.textContent = msg; el.style.display = 'block';
+}
+
+function slvEsc(s) {
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+</script>
+
+</body>
+</html>
