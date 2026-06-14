@@ -58,24 +58,11 @@ window.showAdminTab = function(t, el) {
   if(t==='account') window.renderNotificationSettings?.();
   if(t==='auditlog') renderAuditLog?.();
   if(t==='solver') {
-    // Load the solver iframe lazily on first click
-    const iframe = document.getElementById('solver-iframe');
-    if (iframe && !iframe.src.endsWith('circuit_solver_ui.html')) {
-      iframe.src = 'circuit_solver_ui.html';
-    }
-    // Override display:block from .admin-subtab.active → need flex for iframe height
     const panel = document.getElementById('atab-solver');
     if (panel) panel.style.display = 'flex';
-    // Suppress admin-area scrolling so the iframe gets proper focus/pointer events
-    const area = document.querySelector('.admin-area');
-    if (area) { area.style.overflow = 'hidden'; area.style.padding = '0'; }
   } else {
-    // Reset solver panel inline style so CSS display:none takes over when inactive
     const panel = document.getElementById('atab-solver');
     if (panel) panel.style.display = '';
-    // Restore admin-area scroll
-    const area = document.querySelector('.admin-area');
-    if (area) { area.style.overflow = ''; area.style.padding = ''; }
   }
 };
 
