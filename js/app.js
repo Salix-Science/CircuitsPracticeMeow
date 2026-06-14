@@ -66,10 +66,16 @@ window.showAdminTab = function(t, el) {
     // Override display:block from .admin-subtab.active → need flex for iframe height
     const panel = document.getElementById('atab-solver');
     if (panel) panel.style.display = 'flex';
+    // Suppress admin-area scrolling so the iframe gets proper focus/pointer events
+    const area = document.querySelector('.admin-area');
+    if (area) { area.style.overflow = 'hidden'; area.style.padding = '0'; }
   } else {
     // Reset solver panel inline style so CSS display:none takes over when inactive
     const panel = document.getElementById('atab-solver');
     if (panel) panel.style.display = '';
+    // Restore admin-area scroll
+    const area = document.querySelector('.admin-area');
+    if (area) { area.style.overflow = ''; area.style.padding = ''; }
   }
 };
 
