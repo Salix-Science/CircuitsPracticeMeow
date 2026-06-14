@@ -46,6 +46,12 @@ html, body {
   line-height: 1.6;
 }
 
+/* Hide header when embedded in iframe */
+@media (max-height: 900px) {
+  header { display: none; }
+  .shell { grid-template-rows: 1fr; }
+}
+
 /* ── Layout ─────────────────────────────────── */
 .shell {
   display: grid;
