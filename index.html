@@ -1431,66 +1431,90 @@ const SLV_PY = `
 import json
 from sympy import symbols, Symbol, simplify, factor, zeros, inverse_laplace_transform, apart, exp, cancel, expand, Add, fraction, solve, diff, pi, sin, cos
 
+def parse_value(token, etype):
+    """
+    Parse an LTSpice value token into a SymPy Float in editor units.
+    Returns (Float, True) for numeric, (None, False) for symbolic.
+    Editor units: R[kΩ], C[µF], L[mH], V[V], I[mA]
+    LTSpice values are in SI (Ω, F, H, V, A) — scale accordingly.
+    """
+    import re
+    # Pure alphabetic → symbolic (e.g. 'R', 'C', 'Vin')
+    if re.match(r'^[A-Za-z_][A-Za-z0-9_]*$', token):
+        return None, False
+    SI = {'T':1e12,'G':1e9,'Meg':1e6,'meg':1e6,'K':1e3,'k':1e3,
+          'm':1e-3,'u':1e-6,'µ':1e-6,'U':1e-6,'n':1e-9,'N':1e-9,
+          'p':1e-12,'P':1e-12,'f':1e-15}
+    # Editor unit scale factors (SI → editor units)
+    EDITOR = {'R':1e-3,'C':1e6,'L':1e3,'V':1,'I':1e3}
+    m = re.match(r'^([+-]?\d*\.?\d+)(Meg|meg|[TGKkmMuµUnNpPfFgG]?)$', token)
+    if m:
+        num = float(m.group(1))
+        suffix = m.group(2)
+        if suffix in SI: num *= SI[suffix]
+        scale = EDITOR.get(etype, 1)
+        return Float(num * scale), True
+    try:
+        num = float(token)
+        scale = EDITOR.get(etype, 1)
+        return Float(num * scale), True
+    except ValueError:
+        return None, False
+
 def parse_netlist(text):
     """
     Accepts both formats:
       LTSpice:  R1 N001 Answer R      (element-name  n+  n-  value)
-                V1 N001 0 V
-                C1 N001 N002 C
-                O1 0 Answer Out        (op-amp: 4 tokens after name: vp vm vout — detect by 'O' prefix)
+                V1 N001 0 10          (numeric value → substituted in SI→editor units)
+                C1 N001 N002 10µ      (SI prefix parsed and converted to µF)
       Original: R name n+ n-          (type  name  n+  n-)
-    Detection: if first token length > 1 AND first char is a known element type,
-    treat as LTSpice (element name first, value last).
+    Returns (elements, sym_names, numeric_subs) where numeric_subs maps
+    element name → Float value in editor units (kΩ/µF/mH/V/mA).
     """
     import re
     elements = []
+    numeric_subs = {}   # {element_name: Float in editor units}
     LTSPICE_TYPES = set('RCLVIOEFGHF')
 
     def is_ltspice_line(parts):
-        # LTSpice: first token is like R1, V1, C2, L1, O1, E1, G1, H1, F1
-        # Original: first token is single letter R, V, C, L, O, E, G, H, F
         return len(parts[0]) > 1 and parts[0][0].upper() in LTSPICE_TYPES
 
     for raw in text.strip().splitlines():
-        # Strip LTSpice comments (;) and SPICE comments (*)
         line = raw.split(';')[0].split('*')[0].strip()
         if not line or line.startswith('.'): continue
         parts = line.split()
         if len(parts) < 3: continue
 
         if is_ltspice_line(parts):
-            # ── LTSpice format ─────────────────────────────────────────
-            full = parts[0]          # R1, V1, C2, L3, O1 …
+            full = parts[0]
             etype = full[0].upper()
-            # Always use the full element name as the SymPy symbol
-            sym = full               # R1, V1, C2 → unique per element
+            sym = full
 
             if etype == 'O':
-                # O1 vp vm vout  (4 nodes, no value token)
                 if len(parts) < 5: continue
                 elements.append({'type':'O','name':sym,
                                  'vp':parts[1],'vm':parts[2],'vout':parts[3],
                                  'np':parts[1],'nm':parts[2]})
             elif etype in ('E','G'):
-                # E1 n+ n- nc+ nc- value
                 if len(parts) < 6: continue
                 elements.append({'type':etype,'name':f'gain_{sym}',
                                  'np':parts[1],'nm':parts[2],
                                  'ncp':parts[3],'ncm':parts[4]})
             elif etype in ('H','F'):
-                # H1 n+ n- Vsense value
                 if len(parts) < 5: continue
                 elements.append({'type':etype,'name':f'gain_{sym}',
                                  'np':parts[1],'nm':parts[2],
                                  'vsense':parts[3]})
             else:
-                # R1 n+ n- value  /  V1 n+ n- value  / C1 n+ n- value
                 if len(parts) < 4: continue
+                val_token = parts[3]
+                num_val, is_num = parse_value(val_token, etype)
+                if is_num:
+                    numeric_subs[sym] = num_val
                 elements.append({'type':etype,'name':sym,
                                  'np':parts[1],'nm':parts[2]})
 
         else:
-            # ── Original format ────────────────────────────────────────
             etype = parts[0].upper()
             if etype == 'O':
                 if len(parts) < 5: continue
@@ -1519,7 +1543,7 @@ def parse_netlist(text):
         elif e['type'] in ('E','G','H','F'):
             prefix = {'E':'gain','G':'gm','H':'rm','F':'beta'}[e['type']]
             sym_names.add(f"{prefix}_{e['name']}")
-    return elements, sym_names
+    return elements, sym_names, numeric_subs
 
 def build_mna(elements, sym_names):
     node_set = []
@@ -1678,8 +1702,10 @@ def _type(k):
 def slv_solve(netlist_text):
     from sympy import printing
     try:
-        elements,sym_names=parse_netlist(netlist_text)
+        elements,sym_names,numeric_subs=parse_netlist(netlist_text)
         if not elements: return json.dumps({'error':'No elements parsed.'})
+        # Build substitution dict: symbol name → Float value
+        subs={Symbol(k):v for k,v in numeric_subs.items()}
         A,b,unknowns,node_list,vsrcs,opamps,vcvs,ccvs,syms=build_mna(elements,sym_names)
         try: sol=A.solve(b)
         except Exception as ex: return json.dumps({'error':f'MNA failed: {ex}'})
@@ -1709,6 +1735,10 @@ def slv_solve(netlist_text):
         elif has_rc: topo='RLC circuit'
         else: topo=f'{n}-node resistive circuit'
         results=[]
+        def to_js(expr):
+            """Apply numeric subs then convert to JS string."""
+            e = expr.subs(subs) if subs else expr
+            return pretty_jscode(e)
         if has_rc:
             # Reactive circuit — time-domain for reactive quantities, direct for DC quantities
             for k,expr in solution.items():
@@ -1716,17 +1746,17 @@ def slv_solve(netlist_text):
                     # Convert to time domain
                     r,err=to_td(expr)
                     if r is not None and err is None:
-                        results.append({'key':k,'label':_lbl(k),'formula':pretty_jscode(r),'unit':_unit(k),'type':_type(k)})
+                        results.append({'key':k,'label':_lbl(k),'formula':to_js(r),'unit':_unit(k),'type':_type(k)})
                     else:
                         # Show the error so it's visible in the UI
                         results.append({'key':k,'label':f'[ILT error] {k}','formula':str(err)[:200],'unit':'','type':'other'})
                 else:
                     # DC quantity (e.g. V_source node = V1) — output directly
-                    results.append({'key':k,'label':_lbl(k),'formula':printing.jscode(expr),'unit':_unit(k),'type':_type(k)})
+                    results.append({'key':k,'label':_lbl(k),'formula':to_js(expr),'unit':_unit(k),'type':_type(k)})
         else:
             # Resistive circuit — plain symbolic results
             for k,expr in solution.items():
-                results.append({'key':k,'label':_lbl(k),'formula':printing.jscode(expr),'unit':_unit(k),'type':_type(k)})
+                results.append({'key':k,'label':_lbl(k),'formula':to_js(expr),'unit':_unit(k),'type':_type(k)})
         return json.dumps({'topology':topo,'has_reactive':has_rc,'results':results})
     except Exception as ex:
         import traceback; return json.dumps({'error':f'{ex}\\n{traceback.format_exc()}'})
