@@ -1600,10 +1600,17 @@ def build_mna(elements, sym_names):
 
 def has_s(expr): return expr.has(Symbol('s'))
 
+def fix_exp_args(e):
+    """Factor polynomial arguments of exp() to catch perfect-square cancellations."""
+    return e.replace(exp, lambda a: exp(simplify(cancel(factor(a)))))
+
 def to_td(expr_s):
     s=Symbol('s'); t=Symbol('t',positive=True)
     try:
-        r=simplify(inverse_laplace_transform(expr_s/s,s,t)); return r,None
+        r=inverse_laplace_transform(expr_s/s,s,t)
+        r=fix_exp_args(r)   # simplify exponent arguments before final simplify
+        r=simplify(r)
+        return r,None
     except Exception as ex: return None,str(ex)
 
 def _lbl(k):
