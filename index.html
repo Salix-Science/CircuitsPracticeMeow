@@ -895,12 +895,84 @@
         </div>
       </div>
 
-      <!-- Circuit Solver -->
-      <div class="admin-subtab" id="atab-solver" style="height:calc(100vh - 140px);display:none;flex-direction:column">
-        <iframe id="solver-iframe"
-          style="width:100%;flex:1;border:none;border-radius:var(--r2)"
-          src="about:blank">
-        </iframe>
+      <!-- ── Circuit Solver (embedded, no iframe) ── -->
+      <div class="admin-subtab" id="atab-solver" style="display:none;flex-direction:column;height:calc(100vh - 140px)">
+        <div class="slv-main">
+
+          <!-- Left: netlist editor -->
+          <div class="slv-left">
+            <div class="slv-head"><h2 class="slv-h2">Netlist</h2></div>
+
+            <div class="slv-preset-row" id="slv-preset-row">
+              <div class="slv-preset-group">Independent</div>
+              <button class="slv-pbtn" data-preset="vdiv">Voltage divider</button>
+              <button class="slv-pbtn" data-preset="cdiv">Current divider</button>
+              <button class="slv-pbtn" data-preset="rlc">Series RLC</button>
+              <div class="slv-preset-group">Op-amp (ideal)</div>
+              <button class="slv-pbtn" data-preset="inv">Inverting</button>
+              <button class="slv-pbtn" data-preset="noninv">Non-inverting</button>
+              <button class="slv-pbtn" data-preset="sum">Summing</button>
+              <button class="slv-pbtn" data-preset="diff">Difference</button>
+              <button class="slv-pbtn" data-preset="integrator">Integrator</button>
+              <button class="slv-pbtn" data-preset="follower">Follower</button>
+              <div class="slv-preset-group">Dependent sources</div>
+              <button class="slv-pbtn" data-preset="fet">FET (VCCS)</button>
+              <button class="slv-pbtn" data-preset="bjt">BJT (VCCS)</button>
+              <button class="slv-pbtn" data-preset="transres">Transresistance (CCVS)</button>
+              <button class="slv-pbtn" data-preset="mirror">Current mirror (CCCS)</button>
+              <button class="slv-pbtn" data-preset="vcvs">Finite-gain amp (VCVS)</button>
+              <div class="slv-preset-group">Time-domain (step response)</div>
+              <button class="slv-pbtn" data-preset="rc_step">RC charging</button>
+              <button class="slv-pbtn" data-preset="rl_step">RL step</button>
+              <button class="slv-pbtn" data-preset="rlc_step">RLC step</button>
+              <button class="slv-pbtn" data-preset="rc_opamp">RC integrator</button>
+            </div>
+
+            <div class="slv-ta-wrap">
+              <textarea id="slv-netlist" spellcheck="false" placeholder="# Enter netlist here&#10;# Example: voltage divider&#10;V Vs 1 0&#10;R R1 1 2&#10;R R2 2 0"></textarea>
+            </div>
+
+            <div class="slv-syntax">
+              <span class="slv-kw">V</span> n+ n– &nbsp;<span class="slv-kw">I</span> n+ n– &nbsp;<span class="slv-kw">R</span> n+ n– &nbsp;<span class="slv-kw">C</span> n+ n– &nbsp;<span class="slv-kw">L</span> n+ n– &nbsp;<span class="slv-kw">O</span> vp vm vout<br/>
+              <span class="slv-kw">E</span> n+ n– nc+ nc– <span class="slv-cm"># VCVS</span> &nbsp;<span class="slv-kw">G</span> n+ n– nc+ nc– <span class="slv-cm"># VCCS</span><br/>
+              <span class="slv-kw">H</span> n+ n– Vsense <span class="slv-cm"># CCVS</span> &nbsp;<span class="slv-kw">F</span> n+ n– Vsense <span class="slv-cm"># CCCS</span>
+            </div>
+
+            <div class="slv-solve-row">
+              <button class="slv-btn-solve" id="slv-solve-btn" onclick="slvSolve()" disabled>
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polyline></svg>
+                Solve
+              </button>
+              <button class="slv-btn-clear" onclick="slvClear()">Clear</button>
+            </div>
+
+            <div id="slv-pyodide-status" style="display:flex;align-items:center;gap:10px;padding:10px 20px;border-top:0.5px solid var(--border);font-family:var(--mono);font-size:10px;color:var(--text4);flex-shrink:0">
+              <div style="width:8px;height:8px;border-radius:50%;border:1.5px solid var(--text4);border-top-color:var(--accent);animation:spin .7s linear infinite;flex-shrink:0"></div>
+              Loading Python / SymPy… first load ~10s
+            </div>
+          </div>
+
+          <!-- Right: results -->
+          <div class="slv-right">
+            <div class="slv-results-head">
+              <h2 class="slv-h2">Formula Output</h2>
+              <button class="slv-copy-all" id="slv-copy-all" onclick="slvCopyAll()" style="display:none">Copy all</button>
+            </div>
+            <div id="slv-results-scroll">
+              <div id="slv-empty" style="display:flex;flex-direction:column;align-items:center;justify-content:center;height:100%;gap:16px;color:var(--text4);text-align:center;padding:40px">
+                <div style="font-size:48px;opacity:.3">⚡</div>
+                <p style="font-family:var(--mono);font-size:12px;max-width:260px;line-height:1.8">Enter a netlist and click Solve to get symbolic formulas ready to paste into answer boxes.</p>
+              </div>
+              <div id="slv-loading" style="display:none;flex-direction:column;align-items:center;justify-content:center;height:100%;gap:20px">
+                <div class="spinner"></div>
+                <p style="font-family:var(--mono);font-size:12px;color:var(--text3)">Solving symbolically…</p>
+              </div>
+              <div id="slv-error" style="display:none;background:rgba(248,113,113,.08);border:0.5px solid rgba(248,113,113,.3);border-radius:var(--r2);padding:14px 16px;margin-bottom:16px;font-family:var(--mono);font-size:12px;color:var(--red);line-height:1.7"></div>
+              <div id="slv-results"></div>
+            </div>
+          </div>
+
+        </div>
       </div>
 
     </div>
@@ -1105,6 +1177,576 @@ function sendPasswordReset(){ window.sendPasswordReset?.(); }
 </script>
 <!-- Single entry point. main.js imports firebase.js then loads all other scripts in order. -->
 <script type="module" src="js/main.js"></script>
+
+<!-- ── Circuit Solver: Pyodide + scoped styles + JS ── -->
+<script src="https://cdn.jsdelivr.net/pyodide/v0.26.4/full/pyodide.js"></script>
+<style>
+/* Scoped solver styles — all prefixed slv- to avoid collisions */
+#atab-solver { background: var(--bg0); }
+.slv-main {
+  display: grid;
+  grid-template-columns: 400px 1fr;
+  height: 100%;
+  overflow: hidden;
+}
+.slv-left {
+  display: flex;
+  flex-direction: column;
+  background: var(--bg1);
+  border-right: 0.5px solid var(--border);
+  overflow: hidden;
+}
+.slv-right {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  background: var(--bg0);
+}
+.slv-head, .slv-results-head {
+  padding: 14px 20px 10px;
+  border-bottom: 0.5px solid var(--border);
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: var(--bg1);
+}
+.slv-h2 {
+  font-family: var(--font-display);
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--text3);
+  letter-spacing: .1em;
+  text-transform: uppercase;
+  margin: 0;
+}
+.slv-preset-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  padding: 10px 16px;
+  border-bottom: 0.5px solid var(--border);
+  flex-shrink: 0;
+  overflow-y: auto;
+  max-height: 160px;
+}
+.slv-preset-group {
+  width: 100%;
+  font-family: var(--mono);
+  font-size: 9px;
+  letter-spacing: .1em;
+  text-transform: uppercase;
+  color: var(--text4);
+  padding: 3px 0 1px;
+}
+.slv-pbtn {
+  font-family: var(--mono);
+  font-size: 10px;
+  padding: 3px 9px;
+  border-radius: 20px;
+  border: 0.5px solid var(--border);
+  background: var(--bg2);
+  color: var(--text3);
+  cursor: pointer;
+  transition: all .15s;
+  white-space: nowrap;
+}
+.slv-pbtn:hover, .slv-pbtn.active {
+  border-color: var(--accent);
+  color: var(--accent2);
+  background: rgba(157,125,232,.1);
+}
+.slv-ta-wrap {
+  flex: 1;
+  overflow: hidden;
+  display: flex;
+}
+#slv-netlist {
+  flex: 1;
+  width: 100%;
+  background: var(--bg0);
+  color: var(--text2);
+  font-family: var(--mono);
+  font-size: 12px;
+  line-height: 1.7;
+  border: none;
+  outline: none;
+  resize: none;
+  padding: 14px 16px;
+  tab-size: 2;
+}
+#slv-netlist:focus { background: #0f0c18; }
+#slv-netlist::placeholder { color: var(--text4); }
+.slv-syntax {
+  padding: 8px 16px;
+  border-top: 0.5px solid var(--border);
+  font-family: var(--mono);
+  font-size: 10px;
+  color: var(--text4);
+  line-height: 1.8;
+  flex-shrink: 0;
+  background: var(--bg1);
+}
+.slv-kw  { color: var(--accent); }
+.slv-cm  { color: var(--text4); font-style: italic; }
+.slv-solve-row {
+  display: flex;
+  gap: 8px;
+  padding: 12px 16px;
+  border-top: 0.5px solid var(--border);
+  flex-shrink: 0;
+}
+.slv-btn-solve {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 10px;
+  background: var(--accent3);
+  border: none;
+  border-radius: var(--r2);
+  color: #fff;
+  font-family: var(--font-display);
+  font-size: 12px;
+  font-weight: 500;
+  letter-spacing: .06em;
+  cursor: pointer;
+  transition: all .15s;
+}
+.slv-btn-solve:hover:not(:disabled) { background: var(--accent); }
+.slv-btn-solve:disabled { opacity: .4; cursor: not-allowed; }
+.slv-btn-clear {
+  padding: 10px 14px;
+  background: var(--bg3);
+  border: 0.5px solid var(--border);
+  border-radius: var(--r2);
+  color: var(--text3);
+  font-family: var(--mono);
+  font-size: 11px;
+  cursor: pointer;
+}
+.slv-btn-clear:hover { border-color: var(--red); color: var(--red); }
+.slv-copy-all {
+  margin-left: auto;
+  font-family: var(--mono);
+  font-size: 11px;
+  padding: 4px 12px;
+  border-radius: 20px;
+  border: 0.5px solid var(--border);
+  background: transparent;
+  color: var(--text3);
+  cursor: pointer;
+}
+.slv-copy-all:hover { border-color: var(--green); color: var(--green); }
+#slv-results-scroll {
+  flex: 1;
+  overflow-y: auto;
+  padding: 18px 20px;
+}
+.slv-card {
+  background: var(--bg2);
+  border: 0.5px solid var(--border);
+  border-radius: var(--r2);
+  padding: 12px 14px;
+  margin-bottom: 8px;
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 10px;
+  align-items: center;
+}
+.slv-card-label   { font-size: 12px; font-weight: 600; color: var(--text2); margin-bottom: 3px; }
+.slv-card-formula { font-family: var(--mono); font-size: 12px; color: var(--accent2); word-break: break-all; }
+.slv-card-unit    { font-family: var(--mono); font-size: 10px; color: var(--text4); margin-top: 2px; }
+.slv-sec-label {
+  font-family: var(--mono);
+  font-size: 10px;
+  font-weight: 500;
+  color: var(--text4);
+  letter-spacing: .1em;
+  text-transform: uppercase;
+  margin: 16px 0 8px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.slv-sec-label::after { content:''; flex:1; height:0.5px; background:var(--border); }
+.slv-copy-btn {
+  background: var(--bg3);
+  border: 0.5px solid var(--border);
+  border-radius: var(--r1);
+  color: var(--text3);
+  font-family: var(--mono);
+  font-size: 11px;
+  padding: 5px 10px;
+  cursor: pointer;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+.slv-copy-btn:hover { border-color: var(--accent); color: var(--accent2); }
+.slv-copy-btn.copied { border-color: var(--green); color: var(--green); background: rgba(74,222,128,.07); }
+</style>
+<script>
+// ── Circuit Solver — embedded (no iframe) ──────────────────────────────────────
+
+const SLV_PRESETS = {
+  vdiv:`V Vs 1 0\nR R1 1 2\nR R2 2 0`,
+  cdiv:`I Is 0 1\nR R1 1 0\nR R2 1 0`,
+  rlc:`V Vs 1 0\nR R1 1 2\nL L1 2 3\nC C1 3 0`,
+  inv:`V Vin 1 0\nR Rin 1 2\nR Rf 2 3\nO U1 0 2 3`,
+  noninv:`V Vin 1 0\nR R1 0 2\nR Rf 2 3\nO U1 1 2 3`,
+  sum:`V Va 1 0\nV Vb 2 0\nR Ra 1 3\nR Rb 2 3\nR Rf 3 4\nO U1 0 3 4`,
+  diff:`V Va 1 0\nV Vb 2 0\nR R1 1 3\nR R2 3 5\nR R3 2 4\nR R4 4 0\nO U1 4 3 5`,
+  integrator:`V Vin 1 0\nR Rin 1 2\nC Cf 2 3\nO U1 0 2 3`,
+  follower:`V Vin 1 0\nO U1 1 2 2`,
+  fet:`V Vin 1 0\nG Gm 2 0 1 0\nR RD 2 0`,
+  bjt:`V Vb 1 0\nR rpi 1 2\nG Gm 3 0 2 0\nR RC 3 0`,
+  transres:`I Is 0 1\nV Vsense 1 2\nR Rin 2 0\nH Hrm 3 0 Vsense\nR RL 3 0`,
+  mirror:`I Is 0 1\nV Vsense 1 2\nR R1 2 0\nF Fbeta 3 0 Vsense\nR RL 3 0`,
+  vcvs:`V Vin 1 0\nR R1 0 2\nR Rf 2 3\nE Eamp 3 0 1 2`,
+  rc_step:`V Vs 1 0\nR R1 1 2\nC C1 2 0`,
+  rl_step:`V Vs 1 0\nR R1 1 2\nL L1 2 0`,
+  rlc_step:`V Vs 1 0\nR R1 1 2\nL L1 2 3\nC C1 3 0`,
+  rc_opamp:`V Vin 1 0\nR Rin 1 2\nC Cf 2 3\nO U1 0 2 3`,
+};
+
+document.getElementById('slv-preset-row').addEventListener('click', e => {
+  const btn = e.target.closest('.slv-pbtn');
+  if (!btn) return;
+  const v = SLV_PRESETS[btn.dataset.preset];
+  if (!v) return;
+  document.getElementById('slv-netlist').value = v;
+  document.querySelectorAll('.slv-pbtn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+});
+
+document.getElementById('slv-netlist').addEventListener('keydown', e => {
+  if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') { e.preventDefault(); slvSolve(); }
+});
+
+// ── Pyodide ───────────────────────────────────────────────────────────────────
+let _slvPyodide = null, _slvReady = false, _slvLastResults = null;
+
+const SLV_PY = `
+import json
+from sympy import symbols, Symbol, simplify, factor, zeros, inverse_laplace_transform
+
+def parse_netlist(text):
+    elements = []
+    for raw in text.strip().splitlines():
+        line = raw.split('#')[0].strip()
+        if not line: continue
+        parts = line.split()
+        etype = parts[0].upper()
+        if etype == 'O':
+            if len(parts) < 5: continue
+            elements.append({'type':'O','name':parts[1],'vp':parts[2],'vm':parts[3],'vout':parts[4],'np':parts[2],'nm':parts[3]})
+        elif etype in ('E','G'):
+            if len(parts) < 6: continue
+            elements.append({'type':etype,'name':parts[1],'np':parts[2],'nm':parts[3],'ncp':parts[4],'ncm':parts[5]})
+        elif etype in ('H','F'):
+            if len(parts) < 5: continue
+            elements.append({'type':etype,'name':parts[1],'np':parts[2],'nm':parts[3],'vsense':parts[4]})
+        else:
+            if len(parts) < 4: continue
+            elements.append({'type':etype,'name':parts[1],'np':parts[2],'nm':parts[3]})
+    sym_names = set()
+    for e in elements:
+        if e['type'] in ('R','C','L','V','I'): sym_names.add(e['name'])
+        elif e['type'] in ('E','G','H','F'):
+            sym_names.add({'E':'gain','G':'gm','H':'rm','F':'beta'}[e['type']] + '_' + e['name'])
+    return elements, sym_names
+
+def build_mna(elements, sym_names):
+    node_set = []
+    def _add(n):
+        if n != '0' and n not in node_set: node_set.append(n)
+    for e in elements:
+        _add(e['np']); _add(e['nm'])
+        if e['type'] == 'O': _add(e['vout'])
+        if e['type'] in ('E','G'): _add(e.get('ncp','')); _add(e.get('ncm',''))
+    n_nodes = len(node_set)
+    vsrcs = [e for e in elements if e['type']=='V']
+    opamps= [e for e in elements if e['type']=='O']
+    vcvs  = [e for e in elements if e['type']=='E']
+    ccvs  = [e for e in elements if e['type']=='H']
+    extra = vsrcs+opamps+vcvs+ccvs
+    size  = n_nodes+len(extra)
+    syms  = {n: Symbol(n, positive=True) for n in sym_names}
+    syms['s'] = Symbol('s')
+    for n in sym_names:
+        if any(n.startswith(p) for p in ('gain_','gm_','rm_','beta_')): syms[n]=Symbol(n)
+    def ni(n): return node_set.index(n) if n in node_set else -1
+    eidx = {}
+    for k,e in enumerate(extra): eidx[(e['type'],e['name'])] = n_nodes+k
+    def vcol(vn): return eidx.get(('V',vn),None)
+    A=zeros(size,size); b=zeros(size,1)
+    for e in elements:
+        t=e['type']; nm=e['name']; pi=ni(e['np']); mi=ni(e['nm'])
+        if t in ('R','C','L'):
+            s=syms[nm]; g=(1/s if t=='R' else syms['s']*s if t=='C' else 1/(syms['s']*s))
+            if pi>=0: A[pi,pi]+=g
+            if mi>=0: A[mi,mi]+=g
+            if pi>=0 and mi>=0: A[pi,mi]-=g; A[mi,pi]-=g
+        elif t=='V':
+            vi=eidx[('V',nm)]
+            if pi>=0: A[pi,vi]+=1
+            if mi>=0: A[mi,vi]-=1
+            if pi>=0: A[vi,pi]+=1
+            if mi>=0: A[vi,mi]-=1
+            b[vi]+=syms[nm]
+        elif t=='I':
+            if pi>=0: b[pi]+=syms[nm]
+            if mi>=0: b[mi]-=syms[nm]
+        elif t=='O':
+            vpi=ni(e['vp']); vmi=ni(e['vm']); voi=ni(e['vout']); oi=eidx[('O',nm)]
+            if voi>=0: A[voi,oi]+=1
+            if vpi>=0: A[oi,vpi]+=1
+            if vmi>=0: A[oi,vmi]-=1
+        elif t=='E':
+            vi=eidx[('E',nm)]; g=syms[f'gain_{nm}']; cp=ni(e['ncp']); cm=ni(e['ncm'])
+            if pi>=0: A[pi,vi]+=1
+            if mi>=0: A[mi,vi]-=1
+            if pi>=0: A[vi,pi]+=1
+            if mi>=0: A[vi,mi]-=1
+            if cp>=0: A[vi,cp]-=g
+            if cm>=0: A[vi,cm]+=g
+        elif t=='G':
+            g=syms[f'gm_{nm}']; cp=ni(e['ncp']); cm=ni(e['ncm'])
+            if pi>=0 and cp>=0: A[pi,cp]+=g
+            if pi>=0 and cm>=0: A[pi,cm]-=g
+            if mi>=0 and cp>=0: A[mi,cp]-=g
+            if mi>=0 and cm>=0: A[mi,cm]+=g
+        elif t=='H':
+            vi=eidx[('H',nm)]; r=syms[f'rm_{nm}']; vc=vcol(e['vsense'])
+            if pi>=0: A[pi,vi]+=1
+            if mi>=0: A[mi,vi]-=1
+            if pi>=0: A[vi,pi]+=1
+            if mi>=0: A[vi,mi]-=1
+            if vc is not None: A[vi,vc]-=r
+        elif t=='F':
+            bt=syms[f'beta_{nm}']; vc=vcol(e['vsense'])
+            if vc is None: continue
+            if pi>=0: A[pi,vc]+=bt
+            if mi>=0: A[mi,vc]-=bt
+    unknowns=([Symbol(f'V_{n}') for n in node_set]+[Symbol(f'I_{e["name"]}') for e in vsrcs]+
+              [Symbol(f'I_{e["name"]}') for e in opamps]+[Symbol(f'I_{e["name"]}') for e in vcvs]+
+              [Symbol(f'I_{e["name"]}') for e in ccvs])
+    return A,b,unknowns,node_set,vsrcs,opamps,vcvs,ccvs,syms
+
+def has_s(expr): return expr.has(Symbol('s'))
+
+def to_td(expr_s):
+    s=Symbol('s'); t=Symbol('t',positive=True)
+    try:
+        r=simplify(inverse_laplace_transform(expr_s/s,s,t)); return r,None
+    except Exception as ex: return None,str(ex)
+
+def _lbl(k):
+    if k.startswith('V_'): return f"Voltage at node {k[2:]}"
+    if k.startswith('I_'):
+        n=k[2:]
+        if n and n[0].upper()=='V': return f"Current through source {n}"
+        return f"Current through {n}"
+    if k.startswith('P_'): return f"Power in {k[2:]}"
+    return k
+
+def _unit(k):
+    if k.startswith('V_'): return 'V'
+    if k.startswith('I_'): return 'mA'
+    if k.startswith('P_'): return 'mW'
+    return ''
+
+def _type(k):
+    if k.startswith('V_'): return 'voltage'
+    if k.startswith('I_'): return 'current'
+    if k.startswith('P_'): return 'power'
+    return 'other'
+
+def slv_solve(netlist_text):
+    from sympy import printing
+    try:
+        elements,sym_names=parse_netlist(netlist_text)
+        if not elements: return json.dumps({'error':'No elements parsed.'})
+        A,b,unknowns,node_list,vsrcs,opamps,vcvs,ccvs,syms=build_mna(elements,sym_names)
+        try: sol=A.solve(b)
+        except Exception as ex: return json.dumps({'error':f'MNA failed: {ex}'})
+        solution={}
+        for i,u in enumerate(unknowns): solution[str(u)]=simplify(factor(sol[i]))
+        for e in elements:
+            et=e['type']
+            if et not in ('R','C','L'): continue
+            Vp=solution.get(f'V_{e["np"]}',0) if e['np']!='0' else 0
+            Vm=solution.get(f'V_{e["nm"]}',0) if e['nm']!='0' else 0
+            s=syms[e['name']]
+            if et=='R': Ib=(Vp-Vm)/s
+            elif et=='C': Ib=(Vp-Vm)*syms['s']*s
+            elif et=='L': Ib=(Vp-Vm)/(syms['s']*s)
+            solution[f'I_{e["name"]}']=simplify(factor(Ib))
+        for e in elements:
+            if e['type']=='R':
+                I=solution.get(f'I_{e["name"]}')
+                if I is not None: solution[f'P_{e["name"]}']=simplify(factor(I**2*syms[e['name']]))
+        has_rc=any(e['type'] in ('C','L') for e in elements)
+        td={}
+        if has_rc:
+            for k,expr in solution.items():
+                if has_s(expr):
+                    r,err=to_td(expr)
+                    if r is not None and err is None: td[f't_{k}']=r
+        has_oa=any(e['type']=='O' for e in elements)
+        has_dep=any(e['type'] in ('E','G','H','F') for e in elements)
+        n=len(node_list)
+        if has_oa: topo='op-amp circuit'
+        elif has_dep: topo='circuit with dependent sources'
+        elif has_rc and n<=2: topo='first-order RC/RL circuit'
+        elif has_rc: topo='RLC circuit'
+        else: topo=f'{n}-node resistive circuit'
+        results=[]
+        for k,expr in solution.items():
+            results.append({'key':k,'label':_lbl(k),'formula':printing.jscode(expr),'unit':_unit(k),'type':_type(k),'domain':'s'})
+        for k,expr in td.items():
+            orig=k[2:]
+            results.append({'key':k,'label':_lbl(orig)+' — step response v(t)','formula':printing.jscode(expr),'unit':_unit(orig),'type':_type(orig),'domain':'time'})
+        return json.dumps({'topology':topo,'has_reactive':has_rc,'results':results})
+    except Exception as ex:
+        import traceback; return json.dumps({'error':f'{ex}\\n{traceback.format_exc()}'})
+`;
+
+(async () => {
+  const status = document.getElementById('slv-pyodide-status');
+  try {
+    _slvPyodide = await loadPyodide();
+    await _slvPyodide.loadPackage('sympy');
+    await _slvPyodide.runPythonAsync(SLV_PY);
+    _slvReady = true;
+    if (status) status.style.display = 'none';
+    const btn = document.getElementById('slv-solve-btn');
+    if (btn) btn.disabled = false;
+  } catch(err) {
+    if (status) status.innerHTML = `<span style="color:var(--red)">Failed to load SymPy: ${err.message}</span>`;
+  }
+})();
+
+function slvClear() {
+  document.getElementById('slv-netlist').value = '';
+  document.getElementById('slv-results').innerHTML = '';
+  document.getElementById('slv-empty').style.display = 'flex';
+  document.getElementById('slv-error').style.display = 'none';
+  document.getElementById('slv-copy-all').style.display = 'none';
+  document.querySelectorAll('.slv-pbtn').forEach(b => b.classList.remove('active'));
+  _slvLastResults = null;
+}
+
+async function slvSolve() {
+  if (!_slvReady) { slvShowErr('SymPy still loading — wait a moment.'); return; }
+  const netlist = document.getElementById('slv-netlist').value.trim();
+  if (!netlist) return;
+  const btn = document.getElementById('slv-solve-btn');
+  btn.disabled = true;
+  document.getElementById('slv-empty').style.display = 'none';
+  document.getElementById('slv-loading').style.display = 'flex';
+  document.getElementById('slv-results').innerHTML = '';
+  document.getElementById('slv-error').style.display = 'none';
+  document.getElementById('slv-copy-all').style.display = 'none';
+  try {
+    const esc = netlist.replace(/\\/g,'\\\\').replace(/'/g,"\\'");
+    const raw = await _slvPyodide.runPythonAsync(`slv_solve('''${esc}''')`);
+    const data = JSON.parse(raw);
+    if (data.error) throw new Error(data.error);
+    _slvLastResults = data;
+    slvRender(data);
+  } catch(err) {
+    slvShowErr(err.message);
+  } finally {
+    btn.disabled = false;
+    document.getElementById('slv-loading').style.display = 'none';
+  }
+}
+
+function slvRender(data) {
+  const c = document.getElementById('slv-results');
+  c.innerHTML = '';
+  if (!data.results?.length) { slvShowErr('No results. Check netlist syntax.'); return; }
+
+  if (data.topology) {
+    const t = document.createElement('div');
+    t.style.cssText = 'font-family:var(--mono);font-size:11px;color:var(--text3);margin-bottom:16px;padding:8px 12px;background:var(--bg2);border-radius:var(--r2);border:0.5px solid var(--border)';
+    t.innerHTML = `<span style="color:var(--text4)">Topology: </span>${slvEsc(data.topology)}`;
+    c.appendChild(t);
+  }
+
+  const sRes = data.results.filter(r => r.domain !== 'time');
+  const tRes = data.results.filter(r => r.domain === 'time');
+  const groups = k => ({ voltage:[], current:[], power:[], other:[] });
+  const sg = groups(); sRes.forEach(r => (sg[r.type]||sg.other).push(r));
+  const tg = groups(); tRes.forEach(r => (tg[r.type]||tg.other).push(r));
+  const cats = [{k:'voltage',l:'Voltages'},{k:'current',l:'Currents'},{k:'power',l:'Power'},{k:'other',l:'Other'}];
+
+  const hdr = document.createElement('div');
+  hdr.className = 'slv-sec-label';
+  hdr.innerHTML = '<span style="color:var(--accent);opacity:.8">s-domain</span>';
+  c.appendChild(hdr);
+  cats.forEach(({k,l}) => { const items=sg[k]; if(!items.length)return; slvSection(c,l,items,'s'); });
+
+  if (tRes.length) {
+    const th = document.createElement('div');
+    th.className = 'slv-sec-label';
+    th.innerHTML = '<span style="color:var(--green);opacity:.8">time-domain step response — add t [ms] as a Var</span>';
+    c.appendChild(th);
+    cats.forEach(({k,l}) => { const items=tg[k]; if(!items.length)return; slvSection(c,l,items,'time'); });
+  }
+
+  document.getElementById('slv-copy-all').style.display = 'block';
+}
+
+function slvSection(c, label, items, domain) {
+  const sec = document.createElement('div');
+  const lbl = document.createElement('div');
+  lbl.className = 'slv-sec-label';
+  lbl.textContent = label;
+  sec.appendChild(lbl);
+  items.forEach(r => {
+    const card = document.createElement('div');
+    card.className = 'slv-card';
+    if (domain==='time') card.style.borderColor = 'rgba(74,222,128,.2)';
+    card.innerHTML = `
+      <div>
+        <div class="slv-card-label">${slvEsc(r.label)}</div>
+        <div class="slv-card-formula">${slvEsc(r.formula)}</div>
+        <div class="slv-card-unit">${slvEsc(r.unit||'—')}</div>
+      </div>
+      <button class="slv-copy-btn" onclick="slvCopy(this,${JSON.stringify(r.formula)})">Copy</button>`;
+    sec.appendChild(card);
+  });
+  c.appendChild(sec);
+}
+
+function slvCopy(btn, formula) {
+  navigator.clipboard.writeText(formula).then(() => {
+    btn.textContent = '✓'; btn.classList.add('copied');
+    setTimeout(() => { btn.textContent = 'Copy'; btn.classList.remove('copied'); }, 1800);
+  });
+}
+
+function slvCopyAll() {
+  if (!_slvLastResults?.results?.length) return;
+  const txt = _slvLastResults.results.map(r=>`// ${r.label} [${r.unit}]\n${r.formula}`).join('\n\n');
+  navigator.clipboard.writeText(txt).then(() => {
+    const b = document.getElementById('slv-copy-all');
+    b.textContent = '✓ Copied'; setTimeout(()=>{ b.textContent='Copy all'; },2000);
+  });
+}
+
+function slvShowErr(msg) {
+  const el = document.getElementById('slv-error');
+  el.textContent = msg; el.style.display = 'block';
+}
+
+function slvEsc(s) {
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+</script>
 
 </body>
 </html>
