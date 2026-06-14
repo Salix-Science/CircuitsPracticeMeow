@@ -1646,6 +1646,14 @@ def to_td(expr_s):
         import traceback
         return None,traceback.format_exc()
 
+def pretty_jscode(expr):
+    """jscode with exp argument signs normalized: exp(t*(-a)) → exp(-t*a)."""
+    from sympy import printing
+    def fix_arg(a):
+        a_f=factor(a)
+        return -(-a_f) if a_f.could_extract_minus_sign() else a_f
+    return printing.jscode(expr.replace(exp, lambda a: exp(fix_arg(a))))
+
 def _lbl(k):
     if k.startswith('V_'): return f"Voltage at node {k[2:]}"
     if k.startswith('I_'):
@@ -1708,7 +1716,7 @@ def slv_solve(netlist_text):
                     # Convert to time domain
                     r,err=to_td(expr)
                     if r is not None and err is None:
-                        results.append({'key':k,'label':_lbl(k),'formula':printing.jscode(r),'unit':_unit(k),'type':_type(k)})
+                        results.append({'key':k,'label':_lbl(k),'formula':pretty_jscode(r),'unit':_unit(k),'type':_type(k)})
                     else:
                         # Show the error so it's visible in the UI
                         results.append({'key':k,'label':f'[ILT error] {k}','formula':str(err)[:200],'unit':'','type':'other'})
