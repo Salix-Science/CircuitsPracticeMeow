@@ -1605,18 +1605,46 @@ def fix_exp_args(e):
     return e.replace(exp, lambda a: exp(simplify(cancel(factor(a)))))
 
 def to_td(expr_s):
+    """
+    Compute step-response time-domain expression from s-domain transfer function.
+    Uses pole/residue decomposition rather than SymPy's inverse_laplace_transform
+    directly, which avoids SymPy recombining clean exp(-at) terms into ugly
+    (exp(at)-1)*exp(-at) forms via simplify().
+    Strategy:
+      1. apart() → partial fractions of H(s)/s
+      2. For each term A/(s-p): ILT = A*exp(p*t) (exact, no simplification needed)
+      3. For DC term C/s: ILT = C (constant)
+      4. Sum terms without calling simplify() to preserve clean form
+      5. Fall back to SymPy ILT for complex/repeated poles (RLC underdamped etc.)
+    """
+    from sympy import Add, fraction, solve as sym_solve, diff as sym_diff
     s=Symbol('s'); t=Symbol('t',positive=True)
     try:
-        # apart() decomposes into partial fractions first — critical for correct ILT
-        # when there are multiple poles (prevents spurious ramp/polynomial terms)
         pf=apart(expr_s/s, s)
-        r=inverse_laplace_transform(pf,s,t)
-        r=fix_exp_args(r)
-        r=simplify(r)
-        return r,None
+        result_terms=[]
+        for term in pf.as_ordered_terms():
+            numer,denom=fraction(simplify(term))
+            denom_exp=expand(denom)
+            if denom_exp==s:
+                # C/s → C (DC/constant term)
+                result_terms.append(numer)
+            elif s in denom.free_symbols:
+                poles=sym_solve(denom,s)
+                if len(poles)==1:
+                    # Simple pole: A/(s-p) → A*exp(p*t)
+                    pole=poles[0]
+                    residue=simplify(numer/sym_diff(denom,s))
+                    ilt=fix_exp_args(residue*exp(pole*t))
+                    result_terms.append(ilt)
+                else:
+                    # Complex/repeated poles (RLC) — fall back to SymPy ILT
+                    ilt_term=inverse_laplace_transform(term,s,t)
+                    result_terms.append(fix_exp_args(ilt_term))
+            # else: pure constant → impulse only, zero for t>0
+        return Add(*result_terms),None
     except Exception as ex:
         import traceback
-        return None, traceback.format_exc()
+        return None,traceback.format_exc()
 
 def _lbl(k):
     if k.startswith('V_'): return f"Voltage at node {k[2:]}"
