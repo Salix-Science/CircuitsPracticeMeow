@@ -929,13 +929,13 @@
             </div>
 
             <div class="slv-ta-wrap">
-              <textarea id="slv-netlist" spellcheck="false" placeholder="# Enter netlist here&#10;# Example: voltage divider&#10;V Vs 1 0&#10;R R1 1 2&#10;R R2 2 0"></textarea>
+              <textarea id="slv-netlist" spellcheck="false" placeholder="# LTSpice or original format&#10;# LTSpice example (voltage divider):&#10;V1 N001 0 V&#10;R1 N001 Answer R&#10;R2 Answer 0 R&#10;&#10;# Original format also works:&#10;# V Vs 1 0&#10;# R R1 1 2&#10;# R R2 2 0"></textarea>
             </div>
 
             <div class="slv-syntax">
-              <span class="slv-kw">V</span> n+ n– &nbsp;<span class="slv-kw">I</span> n+ n– &nbsp;<span class="slv-kw">R</span> n+ n– &nbsp;<span class="slv-kw">C</span> n+ n– &nbsp;<span class="slv-kw">L</span> n+ n– &nbsp;<span class="slv-kw">O</span> vp vm vout<br/>
-              <span class="slv-kw">E</span> n+ n– nc+ nc– <span class="slv-cm"># VCVS</span> &nbsp;<span class="slv-kw">G</span> n+ n– nc+ nc– <span class="slv-cm"># VCCS</span><br/>
-              <span class="slv-kw">H</span> n+ n– Vsense <span class="slv-cm"># CCVS</span> &nbsp;<span class="slv-kw">F</span> n+ n– Vsense <span class="slv-cm"># CCCS</span>
+              <span style="color:var(--accent2);font-weight:600">LTSpice:</span> R1 N001 N002 R &nbsp; V1 N001 0 V &nbsp; C1 N+ N– C &nbsp; L1 N+ N– L<br/>
+              <span class="slv-kw">O</span>1 vp vm vout &nbsp;<span class="slv-kw">E</span>1 n+ n– nc+ nc– <span class="slv-cm"># VCVS</span> &nbsp;<span class="slv-kw">G</span>1 n+ n– nc+ nc– <span class="slv-cm"># VCCS</span><br/>
+              <span style="color:var(--text4)">Original also works: R name n+ n– / V name n+ n–</span>
             </div>
 
             <div class="slv-solve-row">
@@ -1432,29 +1432,93 @@ import json
 from sympy import symbols, Symbol, simplify, factor, zeros, inverse_laplace_transform
 
 def parse_netlist(text):
+    """
+    Accepts both formats:
+      LTSpice:  R1 N001 Answer R      (element-name  n+  n-  value)
+                V1 N001 0 V
+                C1 N001 N002 C
+                O1 0 Answer Out        (op-amp: 4 tokens after name: vp vm vout — detect by 'O' prefix)
+      Original: R name n+ n-          (type  name  n+  n-)
+    Detection: if first token length > 1 AND first char is a known element type,
+    treat as LTSpice (element name first, value last).
+    """
+    import re
     elements = []
+    LTSPICE_TYPES = set('RCLVIOEFGHF')
+
+    def is_ltspice_line(parts):
+        # LTSpice: first token is like R1, V1, C2, L1, O1, E1, G1, H1, F1
+        # Original: first token is single letter R, V, C, L, O, E, G, H, F
+        return len(parts[0]) > 1 and parts[0][0].upper() in LTSPICE_TYPES
+
     for raw in text.strip().splitlines():
-        line = raw.split('#')[0].strip()
-        if not line: continue
+        # Strip LTSpice comments (;) and SPICE comments (*)
+        line = raw.split(';')[0].split('*')[0].strip()
+        if not line or line.startswith('.'): continue
         parts = line.split()
-        etype = parts[0].upper()
-        if etype == 'O':
-            if len(parts) < 5: continue
-            elements.append({'type':'O','name':parts[1],'vp':parts[2],'vm':parts[3],'vout':parts[4],'np':parts[2],'nm':parts[3]})
-        elif etype in ('E','G'):
-            if len(parts) < 6: continue
-            elements.append({'type':etype,'name':parts[1],'np':parts[2],'nm':parts[3],'ncp':parts[4],'ncm':parts[5]})
-        elif etype in ('H','F'):
-            if len(parts) < 5: continue
-            elements.append({'type':etype,'name':parts[1],'np':parts[2],'nm':parts[3],'vsense':parts[4]})
+        if len(parts) < 3: continue
+
+        if is_ltspice_line(parts):
+            # ── LTSpice format ─────────────────────────────────────────
+            full = parts[0]          # R1, V1, C2, L3, O1 …
+            etype = full[0].upper()
+            # Always use the full element name as the SymPy symbol
+            sym = full               # R1, V1, C2 → unique per element
+
+            if etype == 'O':
+                # O1 vp vm vout  (4 nodes, no value token)
+                if len(parts) < 5: continue
+                elements.append({'type':'O','name':sym,
+                                 'vp':parts[1],'vm':parts[2],'vout':parts[3],
+                                 'np':parts[1],'nm':parts[2]})
+            elif etype in ('E','G'):
+                # E1 n+ n- nc+ nc- value
+                if len(parts) < 6: continue
+                elements.append({'type':etype,'name':f'gain_{sym}',
+                                 'np':parts[1],'nm':parts[2],
+                                 'ncp':parts[3],'ncm':parts[4]})
+            elif etype in ('H','F'):
+                # H1 n+ n- Vsense value
+                if len(parts) < 5: continue
+                elements.append({'type':etype,'name':f'gain_{sym}',
+                                 'np':parts[1],'nm':parts[2],
+                                 'vsense':parts[3]})
+            else:
+                # R1 n+ n- value  /  V1 n+ n- value  / C1 n+ n- value
+                if len(parts) < 4: continue
+                elements.append({'type':etype,'name':sym,
+                                 'np':parts[1],'nm':parts[2]})
+
         else:
-            if len(parts) < 4: continue
-            elements.append({'type':etype,'name':parts[1],'np':parts[2],'nm':parts[3]})
+            # ── Original format ────────────────────────────────────────
+            etype = parts[0].upper()
+            if etype == 'O':
+                if len(parts) < 5: continue
+                elements.append({'type':'O','name':parts[1],
+                                 'vp':parts[2],'vm':parts[3],'vout':parts[4],
+                                 'np':parts[2],'nm':parts[3]})
+            elif etype in ('E','G'):
+                if len(parts) < 6: continue
+                elements.append({'type':etype,'name':parts[1],
+                                 'np':parts[2],'nm':parts[3],
+                                 'ncp':parts[4],'ncm':parts[5]})
+            elif etype in ('H','F'):
+                if len(parts) < 5: continue
+                elements.append({'type':etype,'name':parts[1],
+                                 'np':parts[2],'nm':parts[3],
+                                 'vsense':parts[4]})
+            else:
+                if len(parts) < 4: continue
+                elements.append({'type':etype,'name':parts[1],
+                                 'np':parts[2],'nm':parts[3]})
+
     sym_names = set()
     for e in elements:
-        if e['type'] in ('R','C','L','V','I'): sym_names.add(e['name'])
+        if e['type'] in ('R','C','L','V','I'):
+            sym_names.add(e['name'])
         elif e['type'] in ('E','G','H','F'):
-            sym_names.add({'E':'gain','G':'gm','H':'rm','F':'beta'}[e['type']] + '_' + e['name'])
+            prefix = {'E':'gain','G':'gm','H':'rm','F':'beta'}[e['type']]
+            sym_names.add(f"{prefix}_{e['name']}")
     return elements, sym_names
 
 def build_mna(elements, sym_names):
