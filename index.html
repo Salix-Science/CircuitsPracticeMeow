@@ -1607,8 +1607,11 @@ def fix_exp_args(e):
 def to_td(expr_s):
     s=Symbol('s'); t=Symbol('t',positive=True)
     try:
-        r=inverse_laplace_transform(expr_s/s,s,t)
-        r=fix_exp_args(r)   # simplify exponent arguments before final simplify
+        # apart() decomposes into partial fractions first — critical for correct ILT
+        # when there are multiple poles (prevents spurious ramp/polynomial terms)
+        pf=apart(expr_s/s, s)
+        r=inverse_laplace_transform(pf,s,t)
+        r=fix_exp_args(r)
         r=simplify(r)
         return r,None
     except Exception as ex: return None,str(ex)
@@ -1659,12 +1662,6 @@ def slv_solve(netlist_text):
                 I=solution.get(f'I_{e["name"]}')
                 if I is not None: solution[f'P_{e["name"]}']=simplify(factor(I**2*syms[e['name']]))
         has_rc=any(e['type'] in ('C','L') for e in elements)
-        td={}
-        if has_rc:
-            for k,expr in solution.items():
-                if has_s(expr):
-                    r,err=to_td(expr)
-                    if r is not None and err is None: td[f't_{k}']=r
         has_oa=any(e['type']=='O' for e in elements)
         has_dep=any(e['type'] in ('E','G','H','F') for e in elements)
         n=len(node_list)
@@ -1675,12 +1672,18 @@ def slv_solve(netlist_text):
         else: topo=f'{n}-node resistive circuit'
         results=[]
         if has_rc:
-            # Reactive circuit — output time-domain only, skip s-domain entirely
-            for k,expr in td.items():
-                orig=k[2:]  # strip 't_' prefix
-                results.append({'key':orig,'label':_lbl(orig),'formula':printing.jscode(expr),'unit':_unit(orig),'type':_type(orig)})
+            # Reactive circuit — time-domain for reactive quantities, direct for DC quantities
+            for k,expr in solution.items():
+                if has_s(expr):
+                    # Convert to time domain
+                    r,err=to_td(expr)
+                    if r is not None and err is None:
+                        results.append({'key':k,'label':_lbl(k),'formula':printing.jscode(r),'unit':_unit(k),'type':_type(k)})
+                else:
+                    # DC quantity (e.g. V_source node = V1) — output directly
+                    results.append({'key':k,'label':_lbl(k),'formula':printing.jscode(expr),'unit':_unit(k),'type':_type(k)})
         else:
-            # Resistive circuit — plain symbolic results, no s or time domain
+            # Resistive circuit — plain symbolic results
             for k,expr in solution.items():
                 results.append({'key':k,'label':_lbl(k),'formula':printing.jscode(expr),'unit':_unit(k),'type':_type(k)})
         return json.dumps({'topology':topo,'has_reactive':has_rc,'results':results})
