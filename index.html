@@ -1674,11 +1674,15 @@ def slv_solve(netlist_text):
         elif has_rc: topo='RLC circuit'
         else: topo=f'{n}-node resistive circuit'
         results=[]
-        for k,expr in solution.items():
-            results.append({'key':k,'label':_lbl(k),'formula':printing.jscode(expr),'unit':_unit(k),'type':_type(k),'domain':'s'})
-        for k,expr in td.items():
-            orig=k[2:]
-            results.append({'key':k,'label':_lbl(orig)+' — step response v(t)','formula':printing.jscode(expr),'unit':_unit(orig),'type':_type(orig),'domain':'time'})
+        if has_rc:
+            # Reactive circuit — output time-domain only, skip s-domain entirely
+            for k,expr in td.items():
+                orig=k[2:]  # strip 't_' prefix
+                results.append({'key':orig,'label':_lbl(orig),'formula':printing.jscode(expr),'unit':_unit(orig),'type':_type(orig)})
+        else:
+            # Resistive circuit — plain symbolic results, no s or time domain
+            for k,expr in solution.items():
+                results.append({'key':k,'label':_lbl(k),'formula':printing.jscode(expr),'unit':_unit(k),'type':_type(k)})
         return json.dumps({'topology':topo,'has_reactive':has_rc,'results':results})
     except Exception as ex:
         import traceback; return json.dumps({'error':f'{ex}\\n{traceback.format_exc()}'})
@@ -1747,31 +1751,24 @@ function slvRender(data) {
     c.appendChild(t);
   }
 
-  const sRes = data.results.filter(r => r.domain !== 'time');
-  const tRes = data.results.filter(r => r.domain === 'time');
-  const groups = k => ({ voltage:[], current:[], power:[], other:[] });
-  const sg = groups(); sRes.forEach(r => (sg[r.type]||sg.other).push(r));
-  const tg = groups(); tRes.forEach(r => (tg[r.type]||tg.other).push(r));
-  const cats = [{k:'voltage',l:'Voltages'},{k:'current',l:'Currents'},{k:'power',l:'Power'},{k:'other',l:'Other'}];
-
-  const hdr = document.createElement('div');
-  hdr.className = 'slv-sec-label';
-  hdr.innerHTML = '<span style="color:var(--accent);opacity:.8">s-domain</span>';
-  c.appendChild(hdr);
-  cats.forEach(({k,l}) => { const items=sg[k]; if(!items.length)return; slvSection(c,l,items,'s'); });
-
-  if (tRes.length) {
-    const th = document.createElement('div');
-    th.className = 'slv-sec-label';
-    th.innerHTML = '<span style="color:var(--green);opacity:.8">time-domain step response — add t [ms] as a Var</span>';
-    c.appendChild(th);
-    cats.forEach(({k,l}) => { const items=tg[k]; if(!items.length)return; slvSection(c,l,items,'time'); });
+  // Show t [ms] hint for reactive circuits
+  if (data.has_reactive) {
+    const hint = document.createElement('div');
+    hint.style.cssText = 'font-family:var(--mono);font-size:10px;color:var(--text4);background:rgba(74,222,128,.04);border:0.5px solid rgba(74,222,128,.15);border-radius:var(--r2);padding:7px 12px;margin-bottom:14px';
+    hint.innerHTML = 'Add <span style="color:var(--green);font-weight:600">t</span> as a Var (unit: ms). R[kΩ] × C[μF] = τ[ms].';
+    c.appendChild(hint);
   }
+
+  // Group all results by type, render flat
+  const groups = { voltage:[], current:[], power:[], other:[] };
+  data.results.forEach(r => (groups[r.type] || groups.other).push(r));
+  const cats = [{k:'voltage',l:'Voltages'},{k:'current',l:'Currents'},{k:'power',l:'Power'},{k:'other',l:'Other'}];
+  cats.forEach(({k,l}) => { const items=groups[k]; if(!items.length)return; slvSection(c,l,items); });
 
   document.getElementById('slv-copy-all').style.display = 'block';
 }
 
-function slvSection(c, label, items, domain) {
+function slvSection(c, label, items) {
   const sec = document.createElement('div');
   const lbl = document.createElement('div');
   lbl.className = 'slv-sec-label';
@@ -1780,7 +1777,6 @@ function slvSection(c, label, items, domain) {
   items.forEach(r => {
     const card = document.createElement('div');
     card.className = 'slv-card';
-    if (domain==='time') card.style.borderColor = 'rgba(74,222,128,.2)';
     card.innerHTML = `
       <div>
         <div class="slv-card-label">${slvEsc(r.label)}</div>
