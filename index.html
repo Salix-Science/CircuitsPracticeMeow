@@ -1614,7 +1614,9 @@ def to_td(expr_s):
         r=fix_exp_args(r)
         r=simplify(r)
         return r,None
-    except Exception as ex: return None,str(ex)
+    except Exception as ex:
+        import traceback
+        return None, traceback.format_exc()
 
 def _lbl(k):
     if k.startswith('V_'): return f"Voltage at node {k[2:]}"
@@ -1652,10 +1654,10 @@ def slv_solve(netlist_text):
             if et not in ('R','C','L'): continue
             Vp=solution.get(f'V_{e["np"]}',0) if e['np']!='0' else 0
             Vm=solution.get(f'V_{e["nm"]}',0) if e['nm']!='0' else 0
-            s=syms[e['name']]
-            if et=='R': Ib=(Vp-Vm)/s
-            elif et=='C': Ib=(Vp-Vm)*syms['s']*s
-            elif et=='L': Ib=(Vp-Vm)/(syms['s']*s)
+            sym=syms[e['name']]
+            if et=='R': Ib=(Vp-Vm)/sym
+            elif et=='C': Ib=(Vp-Vm)*syms['s']*sym
+            elif et=='L': Ib=(Vp-Vm)/(syms['s']*sym)
             solution[f'I_{e["name"]}']=simplify(factor(Ib))
         for e in elements:
             if e['type']=='R':
@@ -1679,6 +1681,9 @@ def slv_solve(netlist_text):
                     r,err=to_td(expr)
                     if r is not None and err is None:
                         results.append({'key':k,'label':_lbl(k),'formula':printing.jscode(r),'unit':_unit(k),'type':_type(k)})
+                    else:
+                        # Show the error so it's visible in the UI
+                        results.append({'key':k,'label':f'[ILT error] {k}','formula':str(err)[:200],'unit':'','type':'other'})
                 else:
                     # DC quantity (e.g. V_source node = V1) — output directly
                     results.append({'key':k,'label':_lbl(k),'formula':printing.jscode(expr),'unit':_unit(k),'type':_type(k)})
