@@ -382,6 +382,19 @@ label {
 .post-content code { font-family: var(--mono); font-size: 12px; background: var(--bg3); border: 0.5px solid var(--border); padding: 2px 6px; border-radius: 4px; color: var(--accent2); }
 .post-content hr { border: none; border-top: 0.5px solid var(--border); margin: 2rem 0; }
 
+/* ── Comments ── */
+#post-comments { margin-top: 2.5rem; padding-top: 2rem; border-top: 0.5px solid var(--border); }
+.comment-section-label { font-size: 11px; font-weight: 700; color: var(--text3); text-transform: uppercase; letter-spacing: .08em; margin-bottom: 1rem; display: flex; align-items: center; gap: 6px; }
+.comment-form-label { font-size: 11px; font-weight: 700; color: var(--text3); text-transform: uppercase; letter-spacing: .08em; margin: 1.5rem 0 .6rem; display: flex; align-items: center; gap: 6px; }
+.comment-row { background: var(--bg2); border: 0.5px solid var(--border); border-radius: var(--r2); padding: 12px 14px; margin-bottom: 10px; }
+.comment-header { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-bottom: 6px; }
+.comment-author { font-size: 12px; font-weight: 600; color: var(--text); }
+.comment-date { font-size: 11px; color: var(--text4); font-family: var(--mono); }
+.comment-actions { margin-left: auto; display: flex; gap: 4px; }
+.comment-body { font-size: 13px; color: var(--text2); line-height: 1.65; white-space: pre-wrap; word-break: break-word; }
+.comment-textarea { width: 100%; min-height: 90px; background: var(--bg2); border: 0.5px solid var(--border); border-radius: var(--r2); color: var(--text); font-family: var(--font); font-size: 13px; padding: 10px 12px; resize: vertical; box-sizing: border-box; }
+.comment-textarea:focus { outline: none; border-color: var(--accent3); }
+
 /* ── Rich text editor ── */
 .rte-toolbar { display: flex; gap: 3px; flex-wrap: wrap; padding: 8px 10px; background: var(--bg3); border: 0.5px solid var(--border); border-radius: var(--r) var(--r) 0 0; border-bottom: none; }
 .rte-btn {
@@ -686,37 +699,6 @@ label {
   border-radius: 99px;
   padding: 3px 12px;
   font-family: var(--mono);
-}
-
-/* ── Answer-mode segmented control (Boxes / Table / Both) ── */
-.answer-mode-tabs {
-  display: inline-flex;
-  border: 0.5px solid var(--border2);
-  border-radius: var(--r);
-  overflow: hidden;
-}
-.answer-mode-tab {
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  padding: 4px 10px;
-  font-size: 11px;
-  font-family: var(--font);
-  font-weight: 500;
-  color: var(--text3);
-  background: transparent;
-  border: none;
-  border-left: 0.5px solid var(--border2);
-  cursor: pointer;
-  transition: all .15s;
-  white-space: nowrap;
-}
-.answer-mode-tab:first-child { border-left: none; }
-.answer-mode-tab:hover { color: var(--text2); background: var(--bg4); }
-.answer-mode-tab.active {
-  background: var(--accent3);
-  color: var(--accent2);
-  font-weight: 600;
 }
 
 /* ── Multi-answer boxes ──────────────────────── */
