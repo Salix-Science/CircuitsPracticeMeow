@@ -290,7 +290,7 @@ window.reportComment = async function reportComment(postId, commentId) {
   if (!confirm('Report this comment for review?')) return;
   try {
     const { doc, updateDoc } = window._firestoreQuery;
-    await updateDoc(doc(window._getFirestoreDb(), 'posts', postId, 'comments', commentId), { reported: true });
+    await updateDoc(doc(window._getFirestoreDb(), 'posts', postId, 'comments', commentId), { reported: true, reportedAt: Date.now() });
     alert('Comment reported — thank you.');
   } catch (e) {
     alert('Failed to report: ' + e.message);
@@ -306,7 +306,7 @@ window.renderReportedComments = async function renderReportedComments() {
     const { collectionGroup, query, where, orderBy, getDocs } = window._firestoreQuery;
     const db   = window._getFirestoreDb();
     const snap = await getDocs(
-      query(collectionGroup(db, 'comments'), where('reported', '==', true), orderBy('createdAt', 'desc'))
+      query(collectionGroup(db, 'comments'), where('reported', '==', true), orderBy('reportedAt', 'desc'))
     );
     if (snap.empty) {
       el.innerHTML = '<div style="color:var(--text4);font-size:12px">No reported comments.</div>';
