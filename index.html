@@ -1453,11 +1453,11 @@ def parse_value(token, etype):
         suffix = m.group(2)
         if suffix in SI: num *= SI[suffix]
         scale = EDITOR.get(etype, 1)
-        return Float(num * scale), True
+        return float(num * scale), True
     try:
         num = float(token)
         scale = EDITOR.get(etype, 1)
-        return Float(num * scale), True
+        return float(num * scale), True
     except ValueError:
         return None, False
 
