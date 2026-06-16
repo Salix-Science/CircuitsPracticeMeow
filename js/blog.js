@@ -246,7 +246,7 @@ window.submitComment = async function submitComment(postId) {
 
   try {
     const { getFunctions, httpsCallable } = await import(
-      'https://www.gstatic.com/firebasejs/11.6.0/firebase-functions.js'
+      'https://www.gstatic.com/firebasejs/10.12.0/firebase-functions.js'
     );
     const fns  = getFunctions(window._firebaseApp, 'us-central1');
     const call = httpsCallable(fns, 'postComment');
@@ -261,9 +261,7 @@ window.submitComment = async function submitComment(postId) {
 window.deleteComment = async function deleteComment(postId, commentId) {
   if (!confirm('Delete this comment?')) return;
   try {
-    const { doc, deleteDoc } = await import(
-      'https://www.gstatic.com/firebasejs/11.6.0/firebase-firestore.js'
-    );
+    const { doc, deleteDoc } = window._firestoreQuery;
     await deleteDoc(doc(window._getFirestoreDb(), 'posts', postId, 'comments', commentId));
     await loadPostComments(postId);
   } catch (e) {
@@ -273,9 +271,7 @@ window.deleteComment = async function deleteComment(postId, commentId) {
 
 window.approveComment = async function approveComment(postId, commentId) {
   try {
-    const { doc, updateDoc } = await import(
-      'https://www.gstatic.com/firebasejs/11.6.0/firebase-firestore.js'
-    );
+    const { doc, updateDoc } = window._firestoreQuery;
     await updateDoc(doc(window._getFirestoreDb(), 'posts', postId, 'comments', commentId), { approved: true });
     // Refresh wherever we are — post view or admin panel
     const container = document.getElementById('post-comments');
@@ -293,9 +289,7 @@ window.approveComment = async function approveComment(postId, commentId) {
 window.reportComment = async function reportComment(postId, commentId) {
   if (!confirm('Report this comment for review?')) return;
   try {
-    const { doc, updateDoc } = await import(
-      'https://www.gstatic.com/firebasejs/11.6.0/firebase-firestore.js'
-    );
+    const { doc, updateDoc } = window._firestoreQuery;
     await updateDoc(doc(window._getFirestoreDb(), 'posts', postId, 'comments', commentId), { reported: true });
     alert('Comment reported — thank you.');
   } catch (e) {
@@ -309,9 +303,7 @@ window.renderReportedComments = async function renderReportedComments() {
   if (!el) return;
   el.innerHTML = '<div style="color:var(--text4);font-size:12px">Loading…</div>';
   try {
-    const { collectionGroup, query, where, orderBy, getDocs } = await import(
-      'https://www.gstatic.com/firebasejs/11.6.0/firebase-firestore.js'
-    );
+    const { collectionGroup, query, where, orderBy, getDocs } = window._firestoreQuery;
     const db   = window._getFirestoreDb();
     const snap = await getDocs(
       query(collectionGroup(db, 'comments'), where('reported', '==', true), orderBy('createdAt', 'desc'))

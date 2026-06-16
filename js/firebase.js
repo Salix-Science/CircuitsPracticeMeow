@@ -18,12 +18,14 @@ import {
   setDoc,
   updateDoc,
   collection,
+  collectionGroup,
   getDocs,
   deleteDoc,
   arrayUnion,
   addDoc,
   increment,
   query,
+  where,
   orderBy,
   limit,
   startAfter
@@ -55,7 +57,7 @@ const db        = getFirestore(app);
 window._firebaseApp = app;
 // Expose db + Firestore query helpers for adminlog.js
 window._getFirestoreDb = () => db;
-window._firestoreQuery = { query, collection, orderBy, limit, startAfter, getDocs };
+window._firestoreQuery = { query, collection, collectionGroup, where, doc, deleteDoc, updateDoc, orderBy, limit, startAfter, getDocs };
 
 // Analytics may fail in dev (localhost/file://) or if blocked by an ad blocker.
 // Wrap in try/catch so a failure here never prevents login from working.
