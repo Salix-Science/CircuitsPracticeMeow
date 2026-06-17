@@ -39,6 +39,11 @@ const ACTION_META = {
   create_section:       { icon:'ti-users-group',      color:'var(--accent2)',  label:'Create section' },
   delete_section:       { icon:'ti-users-minus',      color:'var(--red)',      label:'Delete section' },
   toggle_admin:         { icon:'ti-shield',           color:'var(--warn)',     label:'Toggle admin' },
+  add_grade_col:        { icon:'ti-column-insert-right', color:'var(--blue)',  label:'Add grade column' },
+  remove_grade_col:     { icon:'ti-column-remove',    color:'var(--red)',      label:'Remove grade column' },
+  save_grade_cols:      { icon:'ti-columns',          color:'var(--blue)',     label:'Save grade columns' },
+  enter_grade:          { icon:'ti-pencil-check',     color:'var(--green)',    label:'Enter grade' },
+  bulk_post_grades:     { icon:'ti-eye-check',        color:'var(--green)',    label:'Bulk post grades' },
 };
 
 function _meta(action) {

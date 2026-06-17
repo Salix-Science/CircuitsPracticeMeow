@@ -372,6 +372,11 @@ window.cgBulkPost = async function cgBulkPost(colId){
       u.manualGrades[colId] = updated;
       return window.saveManualGradeForUser(u.uid, colId, updated);
     }));
+    window.logAdminAction?.('bulk_post_grades', {
+      colId,
+      colName: col.name,
+      studentCount: targets.length,
+    });
     _drawDetail(colId);
   } catch(e){
     alert('Error posting grades: ' + (e.message||String(e)));
@@ -456,17 +461,21 @@ function _renderColList(){
 
 window.cgAddCol = function(){
   const cols = window.DB.manualGradeCols || [];
-  cols.push({ id:'col_'+Date.now().toString(36), name:'', maxScore:100, type:'Other', posted:false });
+  const newCol = { id:'col_'+Date.now().toString(36), name:'', maxScore:100, type:'Other', posted:false };
+  cols.push(newCol);
   window.DB.manualGradeCols = cols;
   _renderColList();
+  window.logAdminAction?.('add_grade_col', { colId: newCol.id });
 };
 
 window.cgRemoveCol = function(i){
   const cols = window.DB.manualGradeCols || [];
+  const removed = cols[i];
   if(!confirm(`Remove column "${cols[i]?.name||'this column'}"? Existing student grades for it are not deleted.`)) return;
   cols.splice(i,1);
   window.DB.manualGradeCols = cols;
   _renderColList();
+  window.logAdminAction?.('remove_grade_col', { colId: removed?.id, colName: removed?.name });
 };
 
 window.cgSaveCols = async function(){
@@ -480,6 +489,10 @@ window.cgSaveCols = async function(){
   const status = document.getElementById('cg-col-status');
   try {
     await window.saveManualGradeCols();
+    window.logAdminAction?.('save_grade_cols', {
+      colCount: cols.length,
+      cols: cols.map(c=>({ id:c.id, name:c.name, maxScore:c.maxScore, type:c.type, posted:c.posted })),
+    });
     if(status){ status.textContent='Saved!'; setTimeout(()=>{ if(status) status.textContent=''; },2000); }
     cgCloseColManager();
     _cgUsers = null;
@@ -570,6 +583,15 @@ window.cgSaveGradeEdit = async function(){
     // Mirror into cache
     const userObj = (_cgUsers||[]).find(u=>u.uid===uid);
     if(userObj){ if(!userObj.manualGrades) userObj.manualGrades={}; userObj.manualGrades[colId]=entry; }
+    window.logAdminAction?.('enter_grade', {
+      student:  name,
+      colId,
+      colName:  _cgEditCtx.col.name,
+      score:    entry.score,
+      maxScore: _cgEditCtx.col.maxScore,
+      hasComment: !!entry.comment,
+      posted:   entry.posted,
+    });
     if(status){ status.style.color='var(--green)'; status.textContent='Saved!'; }
     setTimeout(()=>{ cgCloseGradeEdit(); _drawDetail(colId); }, 600);
   } catch(e){
