@@ -74,11 +74,10 @@ function _computeRows(users, assigns, manualCols){
       const s = window.assignScoreForUser(a, u);
       return { id:a.id, title:a.title, ...s };
     });
-    const totalEarned = perAssign.reduce((s,p)=>s+p.earned, 0);
-    const totalMax    = perAssign.reduce((s,p)=>s+p.max, 0);
-    const overallPct  = totalMax ? Math.round(totalEarned/totalMax*100) : 0;
+    const assignEarned = perAssign.reduce((s,p)=>s+p.earned, 0);
+    const assignMax    = perAssign.reduce((s,p)=>s+p.max, 0);
 
-    // Manual grade columns
+    // Manual grade columns — only count columns where a score has been entered
     const perManual = manualCols.map(col => {
       const g = (u.manualGrades || {})[col.id];
       return {
@@ -91,6 +90,12 @@ function _computeRows(users, assigns, manualCols){
         pct:     (g?.score != null && col.maxScore > 0) ? Math.round(g.score / col.maxScore * 100) : null,
       };
     });
+    const manualEarned = perManual.reduce((s,m)=> s + (m.score !== null ? m.score : 0), 0);
+    const manualMax    = perManual.reduce((s,m)=> s + (m.score !== null ? m.max  : 0), 0);
+
+    const totalEarned = assignEarned + manualEarned;
+    const totalMax    = assignMax    + manualMax;
+    const overallPct  = totalMax ? Math.round(totalEarned/totalMax*100) : 0;
 
     return {
       name:      u.username || u.uid,
