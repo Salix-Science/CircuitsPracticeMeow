@@ -31,6 +31,7 @@ const featureScripts = [
   'js/profile.js',
   'js/notifications.js',
   'js/ratings.js',
+  'js/adminlog.js',
 ];
 
 function loadScript(src) {
