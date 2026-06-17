@@ -185,6 +185,23 @@ window.sanitizeUser = function(data) {
     }
   }
 
+  // manualGrades — { colId: { score: number, comment: string, posted: bool } }
+  // Written by admin only via dot-notation updateDoc in sitegrades.js.
+  // Students read these to display their own grades.
+  safe.manualGrades = {};
+  if (data.manualGrades && typeof data.manualGrades === 'object') {
+    for (const [k, v] of Object.entries(data.manualGrades)) {
+      if (typeof k !== 'string' || k.length > 100) continue;
+      if (!v || typeof v !== 'object') continue;
+      const score = parseFloat(v.score);
+      safe.manualGrades[k] = {
+        score:   Number.isFinite(score) ? score : null,
+        comment: typeof v.comment === 'string' ? v.comment.replace(/<[^>]*>/g, '').slice(0, 500) : '',
+        posted:  v.posted === true,
+      };
+    }
+  }
+
   return safe;
 };
 
@@ -319,6 +336,26 @@ async function loadSharedData() {
               '| assignments:', window.DB.assignments.length,
               '| posts:', window.DB.posts.length,
               '| sections:', window.DB.sections.length);
+
+  // Manual grade column definitions — stored at config/manualGradeCols
+  // { cols: [{ id, name, maxScore, type, posted }] }
+  window.DB.manualGradeCols = [];
+  try {
+    const mgcSnap = await getDoc(doc(db, 'config', 'manualGradeCols'));
+    if (mgcSnap.exists() && Array.isArray(mgcSnap.data().cols)) {
+      window.DB.manualGradeCols = mgcSnap.data().cols
+        .filter(c => c && typeof c.id === 'string' && typeof c.name === 'string')
+        .map(c => ({
+          id:       c.id.replace(/<[^>]*>/g, '').slice(0, 100),
+          name:     c.name.replace(/<[^>]*>/g, '').slice(0, 80),
+          maxScore: (typeof c.maxScore === 'number' && c.maxScore > 0) ? c.maxScore : 100,
+          type:     typeof c.type === 'string' ? c.type.replace(/<[^>]*>/g, '').slice(0, 40) : 'Other',
+          posted:   c.posted === true,
+        }));
+    }
+  } catch(e) {
+    console.warn('manualGradeCols read failed — using empty fallback:', e.code || e.message);
+  }
 
   // Blog categories — read separately and defensively. If this doc is missing
   // OR the Firestore rules deny reading it, we fall back to defaults instead of
@@ -543,6 +580,40 @@ window.addEventListener('beforeunload', () => {
 window.saveHomepage = async function() {
   if (window.DB.homepage) {
     await setDoc(doc(db, 'config', 'homepage'), window.DB.homepage, { merge: true });
+  }
+};
+
+// ── Manual grade column helpers (admin only) ──
+
+// Save the manual grade column definitions list to config/manualGradeCols
+window.saveManualGradeCols = async function() {
+  if (!window.S.isAdmin) { console.warn('[security] saveManualGradeCols blocked'); return; }
+  const cols = (window.DB.manualGradeCols || []).map(c => ({
+    id:       String(c.id || '').slice(0, 100),
+    name:     String(c.name || '').slice(0, 80),
+    maxScore: Number.isFinite(parseFloat(c.maxScore)) && parseFloat(c.maxScore) > 0 ? parseFloat(c.maxScore) : 100,
+    type:     String(c.type || 'Other').slice(0, 40),
+    posted:   c.posted === true,
+  }));
+  await setDoc(doc(db, 'config', 'manualGradeCols'), { cols }, { merge: false });
+};
+
+// Write a single manual grade entry for one user using dot-notation updateDoc.
+// This is atomic and will not overwrite sibling columns.
+// entry = { score: number|null, comment: string, posted: bool }
+window.saveManualGradeForUser = async function(targetUid, colId, entry) {
+  if (!window.S.isAdmin) { console.warn('[security] saveManualGradeForUser blocked'); return; }
+  const key = `manualGrades.${colId}`;
+  const val = {
+    score:   entry.score != null && Number.isFinite(parseFloat(entry.score)) ? parseFloat(entry.score) : null,
+    comment: typeof entry.comment === 'string' ? entry.comment.slice(0, 500) : '',
+    posted:  entry.posted === true,
+  };
+  try {
+    await updateDoc(doc(db, 'users', targetUid), { [key]: val });
+  } catch(e) {
+    // If the doc doesn't have the field yet, updateDoc can fail — fall back to setDoc merge
+    await setDoc(doc(db, 'users', targetUid), { manualGrades: { [colId]: val } }, { merge: true });
   }
 };
 
