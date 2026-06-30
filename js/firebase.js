@@ -212,7 +212,7 @@ window.escHtml = function(str) {
 // Stored in Firestore at config/blogCategories as { list:[{name,color}] }.
 window.DEFAULT_CATEGORIES = [
   { name:'Tutorial',     color:'#4fa3e0' },
-  { name:'Update',       color:'#9d7de8' },
+  { name:'Update',       color:'#cf8a45' },
   { name:'Announcement', color:'#e07c4f' },
   { name:'Resource',     color:'#4fba7c' },
 ];
@@ -228,7 +228,7 @@ window.categoryPill = function(cat, categories) {
   const color = match?.color || null;
   const style = color
     ? `background:rgba(${window.hexToRgb(color)},.12);color:${color};border:0.5px solid rgba(${window.hexToRgb(color)},.30)`
-    : 'background:rgba(157,125,232,.08);color:var(--text3);border:0.5px solid var(--border)';
+    : 'background:rgba(207,138,69,.08);color:var(--text3);border:0.5px solid var(--border)';
   return `<span class="pill" style="${style}">${window.escHtml(cat)}</span>`;
 };
 
@@ -336,7 +336,7 @@ async function loadSharedData() {
         .filter(c => c && typeof c.name === 'string')
         .map(c => ({
           name:  c.name.replace(/<[^>]*>/g, '').slice(0, 40),
-          color: (typeof c.color === 'string' && /^#[0-9a-fA-F]{3,6}$/.test(c.color.trim())) ? c.color.trim() : '#9d7de8',
+          color: (typeof c.color === 'string' && /^#[0-9a-fA-F]{3,6}$/.test(c.color.trim())) ? c.color.trim() : '#cf8a45',
         }));
     }
   } catch(e) {
@@ -582,8 +582,8 @@ window._addMailDoc = async function(to, subject, bodyText) {
   const cfUnsubUrl = `https://us-central1-circuitspractice-b4cb0.cloudfunctions.net/unsubscribe?token=${token}`;
   const profileUrl = 'https://circuitspractice.org/?tab=profile';
   const footerHtml = `<div style="font-size:11px;color:#888;text-align:center;padding:16px;border-top:1px solid #333;margin-top:16px">
-    <a href="${profileUrl}" style="color:#9d7de8;text-decoration:none">Manage notifications</a> &nbsp;&middot;&nbsp;
-    <a href="${unsubUrl}" style="color:#9d7de8;text-decoration:none">Unsubscribe</a>
+    <a href="${profileUrl}" style="color:#cf8a45;text-decoration:none">Manage notifications</a> &nbsp;&middot;&nbsp;
+    <a href="${unsubUrl}" style="color:#cf8a45;text-decoration:none">Unsubscribe</a>
   </div>`;
 
   const isPrebuiltHtml = /^[\s\S]{0,10}<!DOCTYPE/i.test(bodyText) || /^[\s\S]{0,10}<html/i.test(bodyText);
@@ -605,14 +605,14 @@ window._addMailDoc = async function(to, subject, bodyText) {
 <html><body style="margin:0;padding:0;background:#0f0f1a;font-family:sans-serif">
 <div style="max-width:580px;margin:32px auto;background:#1a1a2e;border:1px solid #2a2a4a;border-radius:8px;overflow:hidden">
   <div style="padding:20px 28px;border-bottom:1px solid #2a2a4a;background:#12122a">
-    <span style="font-size:13px;font-weight:700;letter-spacing:.1em;color:#9d7de8">CIRCUITS PRACTICE</span>
+    <span style="font-size:13px;font-weight:700;letter-spacing:.1em;color:#cf8a45">CIRCUITS PRACTICE</span>
   </div>
   <div style="padding:24px 28px;font-size:14px;line-height:1.8;color:#c8c8d8">${safeBody}</div>
   <div style="padding:16px 28px;border-top:1px solid #2a2a4a;font-size:11px;color:#555577;line-height:1.7">
     You're receiving this because you subscribed to notifications on
-    <a href="https://circuitspractice.org" style="color:#9d7de8;text-decoration:none">circuitspractice.org</a>.<br>
-    <a href="${profileUrl}" style="color:#9d7de8;text-decoration:none">Manage notification preferences</a> &middot;
-    <a href="${unsubUrl}" style="color:#9d7de8;text-decoration:none">Unsubscribe from all emails</a>
+    <a href="https://circuitspractice.org" style="color:#cf8a45;text-decoration:none">circuitspractice.org</a>.<br>
+    <a href="${profileUrl}" style="color:#cf8a45;text-decoration:none">Manage notification preferences</a> &middot;
+    <a href="${unsubUrl}" style="color:#cf8a45;text-decoration:none">Unsubscribe from all emails</a>
   </div>
 </div>
 </body></html>`;
