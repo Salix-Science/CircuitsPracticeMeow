@@ -7,7 +7,7 @@
 
 <!-- Fonts -->
 <link rel="preconnect" href="https://fonts.googleapis.com"/>
-<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=IBM+Plex+Sans:ital,wght@0,300;0,400;0,500;0,600;1,300&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;500;600&family=Raleway:ital,wght@0,300;0,400;0,500;0,600;1,300&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet"/>
 <!-- Icons -->
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@latest/tabler-icons.min.css"/>
 <!-- Styles -->
@@ -52,15 +52,46 @@
       </div>
     </div>
 
-    <!-- Register (disabled — accounts are admin-created) -->
+    <!-- Register -->
     <div id="auth-register" class="hidden">
-      <div style="text-align:center;padding:1.5rem 0.5rem;color:var(--text3);font-size:13px;line-height:1.7">
-        <i class="ti ti-lock" style="font-size:28px;display:block;margin-bottom:10px;color:var(--text4)"></i>
-        Self-registration is disabled.<br/>
-        Contact your instructor for an account.
-      </div>
+      <div class="field"><label>Username</label><input type="text" id="r-user" autocomplete="username" placeholder="choose a username"/></div>
+      <div class="field"><label>Email address</label><input type="email" id="r-email" autocomplete="email" placeholder="you@example.com"/></div>
+      <div class="field"><label>Password</label><input type="password" id="r-pass" autocomplete="new-password" placeholder="••••••••"/></div>
+      <div class="field"><label>Confirm password</label><input type="password" id="r-pass2" autocomplete="new-password" placeholder="••••••••"/></div>
+      <button class="btn btn-accent" style="width:100%;justify-content:center" onclick="doRegister()"><i class="ti ti-user-plus"></i> Create account</button>
       <div class="err-msg hidden" id="r-err"><i class="ti ti-alert-circle"></i><span></span></div>
       <div class="ok-msg hidden" id="r-ok"></div>
+    </div>
+  </div>
+</div>
+
+<!-- ════════════════════════════════════════════
+     EMAIL VERIFICATION SCREEN
+     Shown after self-registration until the user clicks
+     the verification link sent to their inbox.
+     ════════════════════════════════════════════ -->
+<div id="screen-verify" class="hidden">
+  <div class="wordmark">Circuits Practice</div>
+  <div class="auth-card">
+    <div style="text-align:center;padding:0.5rem 0.5rem 1.25rem;color:var(--text3);font-size:13px;line-height:1.7">
+      <i class="ti ti-mail-opened" style="font-size:28px;display:block;margin-bottom:10px;color:var(--accent2)"></i>
+      <div style="font-family:var(--font-display);font-size:14px;letter-spacing:.06em;color:var(--text);margin-bottom:8px">Verify your email</div>
+      We sent a verification link to<br/>
+      <strong id="verify-email-addr" style="color:var(--text)"></strong><br/>
+      Click the link, then come back here and continue.
+    </div>
+    <button class="btn btn-accent" style="width:100%;justify-content:center;margin-bottom:8px" onclick="checkVerificationAndContinue()">
+      <i class="ti ti-refresh"></i> I've verified — Continue
+    </button>
+    <button class="btn" style="width:100%;justify-content:center" onclick="resendVerificationEmail()">
+      <i class="ti ti-send"></i> Resend verification email
+    </button>
+    <div class="ok-msg hidden" id="verify-resend-ok" style="margin-top:10px;font-size:12px"></div>
+    <div class="err-msg hidden" id="verify-resend-err" style="margin-top:10px"><i class="ti ti-alert-circle"></i><span></span></div>
+    <div style="text-align:center;margin-top:14px">
+      <button class="btn btn-sm" style="font-size:11px;color:var(--text3);background:none;border:none;padding:0;cursor:pointer" onclick="verifySignOutAndReturn()">
+        Use a different account
+      </button>
     </div>
   </div>
 </div>
@@ -1254,7 +1285,7 @@ function sendPasswordReset(){ window.sendPasswordReset?.(); }
 .slv-pbtn:hover, .slv-pbtn.active {
   border-color: var(--accent);
   color: var(--accent2);
-  background: rgba(207,138,69,.1);
+  background: rgba(157,125,232,.1);
 }
 .slv-ta-wrap {
   flex: 1;
