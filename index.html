@@ -7,7 +7,7 @@
 
 <!-- Fonts -->
 <link rel="preconnect" href="https://fonts.googleapis.com"/>
-<link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;500;600&family=Raleway:ital,wght@0,300;0,400;0,500;0,600;1,300&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=IBM+Plex+Sans:ital,wght@0,300;0,400;0,500;0,600;1,300&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet"/>
 <!-- Icons -->
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@latest/tabler-icons.min.css"/>
 <!-- Styles -->
@@ -926,10 +926,6 @@
               <button class="slv-pbtn" data-preset="rl_step">RL step</button>
               <button class="slv-pbtn" data-preset="rlc_step">RLC step</button>
               <button class="slv-pbtn" data-preset="rc_opamp">RC integrator</button>
-              <div class="slv-preset-group">Initial conditions</div>
-              <button class="slv-pbtn" data-preset="rc_ic">RC discharge</button>
-              <button class="slv-pbtn" data-preset="rl_ic">RL decay</button>
-              <button class="slv-pbtn" data-preset="lc_ic">LC tank</button>
             </div>
 
             <div class="slv-ta-wrap">
@@ -1258,7 +1254,7 @@ function sendPasswordReset(){ window.sendPasswordReset?.(); }
 .slv-pbtn:hover, .slv-pbtn.active {
   border-color: var(--accent);
   color: var(--accent2);
-  background: rgba(157,125,232,.1);
+  background: rgba(207,138,69,.1);
 }
 .slv-ta-wrap {
   flex: 1;
@@ -1412,9 +1408,6 @@ const SLV_PRESETS = {
   rl_step:`V Vs 1 0\nR R1 1 2\nL L1 2 0`,
   rlc_step:`V Vs 1 0\nR R1 1 2\nL L1 2 3\nC C1 3 0`,
   rc_opamp:`V Vin 1 0\nR Rin 1 2\nC Cf 2 3\nO U1 0 2 3`,
-  lc_ic:`# LC tank: C1 pre-charged to 5 V, no driving source\nC1 N001 0 C1 ic=5\nC2 N002 0 C2\nL1 N002 N001 L1`,
-  rc_ic:`# RC discharge: C pre-charged to V0 volts\nC C1 1 0 ic=5\nR R1 1 0`,
-  rl_ic:`# RL decay: inductor starts with I0 amps\nL L1 1 0 ic=2\nR R1 1 0`,
 };
 
 document.getElementById('slv-preset-row').addEventListener('click', e => {
@@ -1491,15 +1484,10 @@ def parse_netlist(text):
                                  'np':parts[1],'nm':parts[2],
                                  'vsense':parts[3]})
             else:
-                # R1 n+ n- value  /  V1 n+ n- value  / C1 n+ n- value  [ic=X]
+                # R1 n+ n- value  /  V1 n+ n- value  / C1 n+ n- value
                 if len(parts) < 4: continue
-                elem = {'type':etype,'name':sym,'np':parts[1],'nm':parts[2]}
-                if etype in ('C','L'):
-                    for tok in parts[3:]:
-                        if tok.lower().startswith('ic='):
-                            try: elem['ic'] = float(tok[3:])
-                            except ValueError: pass
-                elements.append(elem)
+                elements.append({'type':etype,'name':sym,
+                                 'np':parts[1],'nm':parts[2]})
 
         else:
             # ── Original format ────────────────────────────────────────
@@ -1521,13 +1509,8 @@ def parse_netlist(text):
                                  'vsense':parts[4]})
             else:
                 if len(parts) < 4: continue
-                elem = {'type':etype,'name':parts[1],'np':parts[2],'nm':parts[3]}
-                if etype in ('C','L'):
-                    for tok in parts[4:]:
-                        if tok.lower().startswith('ic='):
-                            try: elem['ic'] = float(tok[3:])
-                            except ValueError: pass
-                elements.append(elem)
+                elements.append({'type':etype,'name':parts[1],
+                                 'np':parts[2],'nm':parts[3]})
 
     sym_names = set()
     for e in elements:
@@ -1569,14 +1552,6 @@ def build_mna(elements, sym_names):
             if pi>=0: A[pi,pi]+=g
             if mi>=0: A[mi,mi]+=g
             if pi>=0 and mi>=0: A[pi,mi]-=g; A[mi,pi]-=g
-            # Initial condition: inject equivalent s-domain source into b
-            # C ic=V0: I(s)=sC·V(s)-C·V0  →  +C·V0 at n+, -C·V0 at n-
-            # L ic=I0: I(s)=V(s)/(sL)+I0/s →  +I0/s at n+, -I0/s at n-
-            ic=e.get('ic')
-            if ic and ic!=0:
-                src=(s*ic if t=='C' else ic/syms['s'])
-                if pi>=0: b[pi]+=src
-                if mi>=0: b[mi]-=src
         elif t=='V':
             vi=eidx[('V',nm)]
             if pi>=0: A[pi,vi]+=1
