@@ -8,6 +8,7 @@ import {
   createUserWithEmailAndPassword,
   signInWithEmailAndPassword,
   sendPasswordResetEmail,
+  sendEmailVerification,
   signOut,
   onAuthStateChanged
 } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
@@ -88,6 +89,9 @@ window.sanitizeUser = function(data) {
 
   // Boolean fields — must be exactly true or false
   safe.isAdmin = data.isAdmin === true;
+  // Marks accounts created via public self-registration (gates entry on
+  // Firebase Auth's emailVerified flag — see handleSignedInUser).
+  safe.selfRegistered = data.selfRegistered === true;
 
   // Numeric fields — must be a finite non-negative integer
   const safeInt = (v, max = 1e6) => {
@@ -208,7 +212,7 @@ window.escHtml = function(str) {
 // Stored in Firestore at config/blogCategories as { list:[{name,color}] }.
 window.DEFAULT_CATEGORIES = [
   { name:'Tutorial',     color:'#4fa3e0' },
-  { name:'Update',       color:'#cf8a45' },
+  { name:'Update',       color:'#9d7de8' },
   { name:'Announcement', color:'#e07c4f' },
   { name:'Resource',     color:'#4fba7c' },
 ];
@@ -224,7 +228,7 @@ window.categoryPill = function(cat, categories) {
   const color = match?.color || null;
   const style = color
     ? `background:rgba(${window.hexToRgb(color)},.12);color:${color};border:0.5px solid rgba(${window.hexToRgb(color)},.30)`
-    : 'background:rgba(207,138,69,.08);color:var(--text3);border:0.5px solid var(--border)';
+    : 'background:rgba(157,125,232,.08);color:var(--text3);border:0.5px solid var(--border)';
   return `<span class="pill" style="${style}">${window.escHtml(cat)}</span>`;
 };
 
@@ -332,7 +336,7 @@ async function loadSharedData() {
         .filter(c => c && typeof c.name === 'string')
         .map(c => ({
           name:  c.name.replace(/<[^>]*>/g, '').slice(0, 40),
-          color: (typeof c.color === 'string' && /^#[0-9a-fA-F]{3,6}$/.test(c.color.trim())) ? c.color.trim() : '#cf8a45',
+          color: (typeof c.color === 'string' && /^#[0-9a-fA-F]{3,6}$/.test(c.color.trim())) ? c.color.trim() : '#9d7de8',
         }));
     }
   } catch(e) {
@@ -578,8 +582,8 @@ window._addMailDoc = async function(to, subject, bodyText) {
   const cfUnsubUrl = `https://us-central1-circuitspractice-b4cb0.cloudfunctions.net/unsubscribe?token=${token}`;
   const profileUrl = 'https://circuitspractice.org/?tab=profile';
   const footerHtml = `<div style="font-size:11px;color:#888;text-align:center;padding:16px;border-top:1px solid #333;margin-top:16px">
-    <a href="${profileUrl}" style="color:#cf8a45;text-decoration:none">Manage notifications</a> &nbsp;&middot;&nbsp;
-    <a href="${unsubUrl}" style="color:#cf8a45;text-decoration:none">Unsubscribe</a>
+    <a href="${profileUrl}" style="color:#9d7de8;text-decoration:none">Manage notifications</a> &nbsp;&middot;&nbsp;
+    <a href="${unsubUrl}" style="color:#9d7de8;text-decoration:none">Unsubscribe</a>
   </div>`;
 
   const isPrebuiltHtml = /^[\s\S]{0,10}<!DOCTYPE/i.test(bodyText) || /^[\s\S]{0,10}<html/i.test(bodyText);
@@ -601,14 +605,14 @@ window._addMailDoc = async function(to, subject, bodyText) {
 <html><body style="margin:0;padding:0;background:#0f0f1a;font-family:sans-serif">
 <div style="max-width:580px;margin:32px auto;background:#1a1a2e;border:1px solid #2a2a4a;border-radius:8px;overflow:hidden">
   <div style="padding:20px 28px;border-bottom:1px solid #2a2a4a;background:#12122a">
-    <span style="font-size:13px;font-weight:700;letter-spacing:.1em;color:#cf8a45">CIRCUITS PRACTICE</span>
+    <span style="font-size:13px;font-weight:700;letter-spacing:.1em;color:#9d7de8">CIRCUITS PRACTICE</span>
   </div>
   <div style="padding:24px 28px;font-size:14px;line-height:1.8;color:#c8c8d8">${safeBody}</div>
   <div style="padding:16px 28px;border-top:1px solid #2a2a4a;font-size:11px;color:#555577;line-height:1.7">
     You're receiving this because you subscribed to notifications on
-    <a href="https://circuitspractice.org" style="color:#cf8a45;text-decoration:none">circuitspractice.org</a>.<br>
-    <a href="${profileUrl}" style="color:#cf8a45;text-decoration:none">Manage notification preferences</a> &middot;
-    <a href="${unsubUrl}" style="color:#cf8a45;text-decoration:none">Unsubscribe from all emails</a>
+    <a href="https://circuitspractice.org" style="color:#9d7de8;text-decoration:none">circuitspractice.org</a>.<br>
+    <a href="${profileUrl}" style="color:#9d7de8;text-decoration:none">Manage notification preferences</a> &middot;
+    <a href="${unsubUrl}" style="color:#9d7de8;text-decoration:none">Unsubscribe from all emails</a>
   </div>
 </div>
 </body></html>`;
@@ -846,14 +850,70 @@ window.submitEmailMigration = async function() {
 };
 
 window.doRegister = async function() {
-  console.warn('[security] public registration is disabled — accounts are admin-created only');
-  const err = document.getElementById('r-err');
-  if (err) {
-    const span = err.querySelector('span');
-    if (span) span.textContent = 'Registration is disabled. Contact your instructor for an account.';
-    err.classList.remove('hidden');
-  } else {
-    try { showAuthErr('l-err', 'Registration is disabled. Contact your instructor for an account.'); } catch(e) {}
+  hideAuthErr('r-err');
+  document.getElementById('r-ok').classList.add('hidden');
+
+  const username = document.getElementById('r-user').value.trim();
+  const email    = document.getElementById('r-email').value.trim().toLowerCase();
+  const pass     = document.getElementById('r-pass').value;
+  const pass2    = document.getElementById('r-pass2').value;
+
+  console.log('[doRegister] attempting registration — username:', username, '| email:', email);
+
+  if (!username || username.length < 3) { showAuthErr('r-err', 'Username needs at least 3 characters.'); return; }
+  if (!/^[a-zA-Z0-9 ._-]+$/.test(username)) { showAuthErr('r-err', 'Username can only contain letters, numbers, spaces, dots, dashes, and underscores.'); return; }
+  if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) { showAuthErr('r-err', 'Enter a valid email address.'); return; }
+  if (pass.length < 6) { showAuthErr('r-err', 'Password needs at least 6 characters.'); return; }
+  if (pass !== pass2) { showAuthErr('r-err', 'Passwords do not match.'); return; }
+
+  // Username uniqueness check (Firebase Auth already enforces unique emails)
+  try {
+    const existingSnap = await getDocs(collection(db, 'users'));
+    const taken = existingSnap.docs.some(d => (d.data().username || '').toLowerCase() === username.toLowerCase());
+    if (taken) { showAuthErr('r-err', 'That username is already taken.'); return; }
+  } catch(e) {
+    console.warn('[doRegister] username uniqueness check failed — continuing anyway:', e.code, e.message);
+  }
+
+  // Suppress the global auth observer while we create the Firebase Auth
+  // account + Firestore profile, since createUserWithEmailAndPassword fires
+  // the observer immediately (before the profile doc exists), which would
+  // otherwise read a missing profile and sign the brand-new user back out.
+  window._suppressAuthObserver = true;
+  try {
+    const cred = await createUserWithEmailAndPassword(auth, email, pass);
+    console.log('[doRegister] Firebase Auth account created — uid:', cred.user.uid);
+
+    await setDoc(doc(db, 'users', cred.user.uid), {
+      username, isAdmin: false, selfRegistered: true,
+      scores: {}, probScores: {}, streak: 0, assignSubmissions: {},
+      notifPrefs: { email, posts: true, announcements: true, assignments: true },
+    });
+    console.log('[doRegister] Firestore profile written — uid:', cred.user.uid);
+
+    await sendEmailVerification(cred.user);
+    console.log('[doRegister] verification email sent to:', email);
+
+    logAdminAction('self_register', { uid: cred.user.uid, username, email }).catch(() => {});
+
+    window._suppressAuthObserver = false;
+    // Manually run the same logic the auth observer would run — this will
+    // see selfRegistered === true + emailVerified === false and route to
+    // the "verify your email" screen.
+    await handleSignedInUser(cred.user);
+  } catch(e) {
+    window._suppressAuthObserver = false;
+    console.error('[doRegister] registration failed:', e.code, e.message);
+    if (e.code === 'auth/email-already-in-use') {
+      showAuthErr('r-err', 'An account with that email already exists.');
+    } else if (e.code === 'auth/invalid-email') {
+      showAuthErr('r-err', 'That email address looks invalid.');
+    } else if (e.code === 'auth/weak-password') {
+      showAuthErr('r-err', 'Password is too weak — try a different one.');
+    } else {
+      showAuthErr('r-err', e.message);
+    }
+    try { await signOut(auth); } catch(_e) {}
   }
 };
 
@@ -862,57 +922,128 @@ window.doLogout = async function() {
   // onAuthStateChanged handles UI reset
 };
 
+// ── Email verification gate (self-registered accounts) ───────
+window.showVerifyScreen = function(email) {
+  console.log('[showVerifyScreen] showing — email:', email);
+  document.getElementById('screen-app')?.classList.add('hidden');
+  document.getElementById('screen-auth')?.classList.add('hidden');
+  document.getElementById('screen-verify')?.classList.remove('hidden');
+  const addr = document.getElementById('verify-email-addr');
+  if (addr) addr.textContent = email || '';
+  document.getElementById('verify-resend-ok')?.classList.add('hidden');
+  document.getElementById('verify-resend-err')?.classList.add('hidden');
+};
+
+window.resendVerificationEmail = async function() {
+  const ok  = document.getElementById('verify-resend-ok');
+  const err = document.getElementById('verify-resend-err');
+  ok?.classList.add('hidden'); err?.classList.add('hidden');
+  if (!auth.currentUser) { console.warn('[resendVerificationEmail] no current user'); return; }
+  try {
+    await sendEmailVerification(auth.currentUser);
+    console.log('[resendVerificationEmail] sent to:', auth.currentUser.email);
+    if (ok) { ok.textContent = 'Verification email sent! Check your inbox (and spam folder).'; ok.classList.remove('hidden'); }
+  } catch(e) {
+    console.error('[resendVerificationEmail] failed:', e.code, e.message);
+    if (err) {
+      err.querySelector('span').textContent = e.code === 'auth/too-many-requests'
+        ? 'Too many requests — please wait a bit before trying again.'
+        : e.message;
+      err.classList.remove('hidden');
+    }
+  }
+};
+
+window.checkVerificationAndContinue = async function() {
+  const err = document.getElementById('verify-resend-err');
+  err?.classList.add('hidden');
+  if (!auth.currentUser) { console.warn('[checkVerificationAndContinue] no current user'); return; }
+  try {
+    await auth.currentUser.reload();
+    console.log('[checkVerificationAndContinue] reloaded — emailVerified:', auth.currentUser.emailVerified);
+    if (auth.currentUser.emailVerified) {
+      location.reload();
+    } else if (err) {
+      err.querySelector('span').textContent = 'Still not verified — click the link in your email first, then try again.';
+      err.classList.remove('hidden');
+    }
+  } catch(e) {
+    console.error('[checkVerificationAndContinue] failed:', e.code, e.message);
+  }
+};
+
+window.verifySignOutAndReturn = async function() {
+  await signOut(auth);
+  document.getElementById('screen-verify')?.classList.add('hidden');
+  document.getElementById('screen-auth')?.classList.remove('hidden');
+};
+
 // ── Auth state observer ───────────────────────
 window._suppressAuthObserver = false;
+
+// Shared by the observer below AND by doRegister (which calls this directly
+// after the Firestore profile is written, to avoid a race where the
+// observer fires before the profile doc exists).
+async function handleSignedInUser(firebaseUser) {
+  console.log('[authObserver] processing signed-in user — uid:', firebaseUser.uid, '| email:', firebaseUser.email);
+
+  // Load profile immediately regardless of app ready state
+  const profile = await loadUserProfile(firebaseUser.uid);
+  if (!profile) {
+    console.error('[authObserver] loadUserProfile returned null — signing out');
+    await signOut(auth);
+    return;
+  }
+
+  // Self-registered accounts must verify their email before entering.
+  // Admin-created accounts (selfRegistered is unset) skip this entirely.
+  if (profile.selfRegistered && !firebaseUser.emailVerified) {
+    console.warn('[authObserver] self-registered account not yet verified — blocking entry. email:', firebaseUser.email);
+    showVerifyScreen(firebaseUser.email);
+    return;
+  }
+
+  window.S.uid     = firebaseUser.uid;
+  window.S.user    = profile.username;
+  window.S.isAdmin = !!profile.isAdmin;
+  window.S.authEmail = firebaseUser.email || '';
+
+  console.log('[authObserver] window.S set — user:', window.S.user,
+              '| isAdmin:', window.S.isAdmin,
+              '| uid:', window.S.uid);
+
+  // Cache email → Firebase Auth address mapping for future logins.
+  const _contactEmail = profile.notifPrefs?.email || '';
+  if (_contactEmail && _contactEmail !== firebaseUser.email) {
+    localStorage.setItem('cp_legacy_' + _contactEmail.toLowerCase(), firebaseUser.email);
+  }
+
+  if (analytics) {
+    try {
+      setUserId(analytics, firebaseUser.uid);
+      setUserProperties(analytics, { is_admin: profile.isAdmin ? 'true' : 'false' });
+    } catch(e) {}
+  }
+  track('login', { method: 'username' });
+
+  console.log('[authObserver] calling loadSharedData…');
+  await loadSharedData();
+  console.log('[authObserver] loadSharedData complete — calling enterApp…');
+
+  // enterApp() is defined in app.js which loads after firebase.js.
+  const go = () => enterApp();
+  if (window._appReady) {
+    go();
+  } else {
+    window._pendingAuthUser = go;
+  }
+}
 
 onAuthStateChanged(auth, async (firebaseUser) => {
   if (window._suppressAuthObserver) return;
   if (firebaseUser) {
     console.log('[authObserver] user signed in — uid:', firebaseUser.uid, '| email:', firebaseUser.email);
-
-    // Load profile immediately regardless of app ready state
-    const profile = await loadUserProfile(firebaseUser.uid);
-    if (!profile) {
-      console.error('[authObserver] loadUserProfile returned null — signing out');
-      await signOut(auth);
-      return;
-    }
-
-    window.S.uid     = firebaseUser.uid;
-    window.S.user    = profile.username;
-    window.S.isAdmin = !!profile.isAdmin;
-    window.S.authEmail = firebaseUser.email || '';
-
-    console.log('[authObserver] window.S set — user:', window.S.user,
-                '| isAdmin:', window.S.isAdmin,
-                '| uid:', window.S.uid);
-
-    // Cache email → Firebase Auth address mapping for future logins.
-    const _contactEmail = profile.notifPrefs?.email || '';
-    if (_contactEmail && _contactEmail !== firebaseUser.email) {
-      localStorage.setItem('cp_legacy_' + _contactEmail.toLowerCase(), firebaseUser.email);
-    }
-
-    if (analytics) {
-      try {
-        setUserId(analytics, firebaseUser.uid);
-        setUserProperties(analytics, { is_admin: profile.isAdmin ? 'true' : 'false' });
-      } catch(e) {}
-    }
-    track('login', { method: 'username' });
-
-    console.log('[authObserver] calling loadSharedData…');
-    await loadSharedData();
-    console.log('[authObserver] loadSharedData complete — calling enterApp…');
-
-    // enterApp() is defined in app.js which loads after firebase.js.
-    const go = () => enterApp();
-    if (window._appReady) {
-      go();
-    } else {
-      window._pendingAuthUser = go;
-    }
-
+    await handleSignedInUser(firebaseUser);
   } else {
     console.log('[authObserver] user signed out');
     window.S.user    = null;
@@ -923,6 +1054,7 @@ onAuthStateChanged(auth, async (firebaseUser) => {
     try { if (analytics) setUserId(analytics, null); } catch(e) {}
     document.getElementById('screen-app').classList.add('hidden');
     document.getElementById('screen-auth').classList.remove('hidden');
+    document.getElementById('screen-verify')?.classList.add('hidden');
     ['l-user','l-pass'].forEach(id => document.getElementById(id).value = '');
     hideAuthErr('l-err');
   }
