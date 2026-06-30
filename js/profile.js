@@ -29,10 +29,13 @@ window.renderProfile = function renderProfile() {
   if (assEl)   assEl.checked    = !!prefs.assignments;
 
   // Clear any leftover ok/err messages
-  ['notif-ok','profile-pw-ok','profile-pw-err'].forEach(id => {
+  ['notif-ok','profile-pw-ok','profile-pw-err','profile-del-err'].forEach(id => {
     const el = document.getElementById(id);
     if (el) el.classList.add('hidden');
   });
+  document.getElementById('profile-del-confirm')?.classList.add('hidden');
+  const delPass = document.getElementById('profile-del-pass');
+  if (delPass) delPass.value = '';
 }
 
 // ── Save notification preferences ────────────
@@ -104,6 +107,75 @@ window.profileChangePassword = async function profileChangePassword() {
     if (err) { err.querySelector('span').textContent = msg; err.classList.remove('hidden'); }
   }
 }
+
+// ── Delete own account ─────────────────────────
+window.toggleDeleteAccountForm = function toggleDeleteAccountForm() {
+  const box = document.getElementById('profile-del-confirm');
+  if (!box) return;
+  const showing = !box.classList.contains('hidden');
+  box.classList.toggle('hidden', showing);
+  document.getElementById('profile-del-err')?.classList.add('hidden');
+  const pass = document.getElementById('profile-del-pass');
+  if (showing) {
+    if (pass) pass.value = '';
+  } else {
+    pass?.focus();
+  }
+};
+
+window.deleteOwnAccount = async function deleteOwnAccount() {
+  const pass = document.getElementById('profile-del-pass')?.value || '';
+  const err  = document.getElementById('profile-del-err');
+  err?.classList.add('hidden');
+
+  if (!pass) {
+    if (err) { err.querySelector('span').textContent = 'Enter your password to confirm.'; err.classList.remove('hidden'); }
+    return;
+  }
+
+  console.log('[deleteOwnAccount] starting self-delete — user:', window.S.user, '| uid:', window.S.uid);
+
+  try {
+    const {
+      getAuth, EmailAuthProvider, reauthenticateWithCredential, deleteUser: deleteAuthUser
+    } = await import('https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js');
+
+    const authUser = getAuth().currentUser;
+    if (!authUser) {
+      if (err) { err.querySelector('span').textContent = 'Not signed in — try refreshing.'; err.classList.remove('hidden'); }
+      return;
+    }
+
+    console.log('[deleteOwnAccount] reauthenticating —', authUser.email);
+    const cred = EmailAuthProvider.credential(authUser.email, pass);
+    await reauthenticateWithCredential(authUser, cred);
+    console.log('[deleteOwnAccount] reauthentication succeeded');
+
+    const uid      = window.S.uid;
+    const username = window.S.user;
+
+    // Audit log writes to a separate `adminLog` collection, so this is safe
+    // to fire even though the user's own profile doc is about to disappear.
+    logAdminAction('self_delete_account', { uid, username }).catch(() => {});
+
+    console.log('[deleteOwnAccount] deleting Firestore profile —', uid);
+    await window.deleteFromDB('users', uid);
+
+    console.log('[deleteOwnAccount] deleting Firebase Auth account —', uid);
+    await deleteAuthUser(authUser);
+    console.log('[deleteOwnAccount] account fully deleted');
+    // onAuthStateChanged (firebase.js) picks up the sign-out automatically
+    // and returns to the sign-in screen — no manual cleanup needed here.
+  } catch(e) {
+    console.error('[deleteOwnAccount] failed:', e.code, e.message);
+    const msg = e.code === 'auth/wrong-password' || e.code === 'auth/invalid-credential'
+      ? 'Incorrect password.'
+      : e.code === 'auth/too-many-requests'
+      ? 'Too many attempts — please wait a bit and try again.'
+      : e.message;
+    if (err) { err.querySelector('span').textContent = msg; err.classList.remove('hidden'); }
+  }
+};
 
 // ── Helper ────────────────────────────────────
 function isValidEmail(email) {
