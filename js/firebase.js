@@ -185,23 +185,6 @@ window.sanitizeUser = function(data) {
     }
   }
 
-  // manualGrades — { colId: { score: number, comment: string, posted: bool } }
-  // Written by admin only via dot-notation updateDoc in sitegrades.js.
-  // Students read these to display their own grades.
-  safe.manualGrades = {};
-  if (data.manualGrades && typeof data.manualGrades === 'object') {
-    for (const [k, v] of Object.entries(data.manualGrades)) {
-      if (typeof k !== 'string' || k.length > 100) continue;
-      if (!v || typeof v !== 'object') continue;
-      const score = parseFloat(v.score);
-      safe.manualGrades[k] = {
-        score:   Number.isFinite(score) ? score : null,
-        comment: typeof v.comment === 'string' ? v.comment.replace(/<[^>]*>/g, '').slice(0, 500) : '',
-        posted:  v.posted === true,
-      };
-    }
-  }
-
   return safe;
 };
 
@@ -225,7 +208,7 @@ window.escHtml = function(str) {
 // Stored in Firestore at config/blogCategories as { list:[{name,color}] }.
 window.DEFAULT_CATEGORIES = [
   { name:'Tutorial',     color:'#4fa3e0' },
-  { name:'Update',       color:'#9d7de8' },
+  { name:'Update',       color:'#cf8a45' },
   { name:'Announcement', color:'#e07c4f' },
   { name:'Resource',     color:'#4fba7c' },
 ];
@@ -241,7 +224,7 @@ window.categoryPill = function(cat, categories) {
   const color = match?.color || null;
   const style = color
     ? `background:rgba(${window.hexToRgb(color)},.12);color:${color};border:0.5px solid rgba(${window.hexToRgb(color)},.30)`
-    : 'background:rgba(157,125,232,.08);color:var(--text3);border:0.5px solid var(--border)';
+    : 'background:rgba(207,138,69,.08);color:var(--text3);border:0.5px solid var(--border)';
   return `<span class="pill" style="${style}">${window.escHtml(cat)}</span>`;
 };
 
@@ -337,26 +320,6 @@ async function loadSharedData() {
               '| posts:', window.DB.posts.length,
               '| sections:', window.DB.sections.length);
 
-  // Manual grade column definitions — stored at config/manualGradeCols
-  // { cols: [{ id, name, maxScore, type, posted }] }
-  window.DB.manualGradeCols = [];
-  try {
-    const mgcSnap = await getDoc(doc(db, 'config', 'manualGradeCols'));
-    if (mgcSnap.exists() && Array.isArray(mgcSnap.data().cols)) {
-      window.DB.manualGradeCols = mgcSnap.data().cols
-        .filter(c => c && typeof c.id === 'string' && typeof c.name === 'string')
-        .map(c => ({
-          id:       c.id.replace(/<[^>]*>/g, '').slice(0, 100),
-          name:     c.name.replace(/<[^>]*>/g, '').slice(0, 80),
-          maxScore: (typeof c.maxScore === 'number' && c.maxScore > 0) ? c.maxScore : 100,
-          type:     typeof c.type === 'string' ? c.type.replace(/<[^>]*>/g, '').slice(0, 40) : 'Other',
-          posted:   c.posted === true,
-        }));
-    }
-  } catch(e) {
-    console.warn('manualGradeCols read failed — using empty fallback:', e.code || e.message);
-  }
-
   // Blog categories — read separately and defensively. If this doc is missing
   // OR the Firestore rules deny reading it, we fall back to defaults instead of
   // letting the whole app fail to load.
@@ -369,7 +332,7 @@ async function loadSharedData() {
         .filter(c => c && typeof c.name === 'string')
         .map(c => ({
           name:  c.name.replace(/<[^>]*>/g, '').slice(0, 40),
-          color: (typeof c.color === 'string' && /^#[0-9a-fA-F]{3,6}$/.test(c.color.trim())) ? c.color.trim() : '#9d7de8',
+          color: (typeof c.color === 'string' && /^#[0-9a-fA-F]{3,6}$/.test(c.color.trim())) ? c.color.trim() : '#cf8a45',
         }));
     }
   } catch(e) {
@@ -583,40 +546,6 @@ window.saveHomepage = async function() {
   }
 };
 
-// ── Manual grade column helpers (admin only) ──
-
-// Save the manual grade column definitions list to config/manualGradeCols
-window.saveManualGradeCols = async function() {
-  if (!window.S.isAdmin) { console.warn('[security] saveManualGradeCols blocked'); return; }
-  const cols = (window.DB.manualGradeCols || []).map(c => ({
-    id:       String(c.id || '').slice(0, 100),
-    name:     String(c.name || '').slice(0, 80),
-    maxScore: Number.isFinite(parseFloat(c.maxScore)) && parseFloat(c.maxScore) > 0 ? parseFloat(c.maxScore) : 100,
-    type:     String(c.type || 'Other').slice(0, 40),
-    posted:   c.posted === true,
-  }));
-  await setDoc(doc(db, 'config', 'manualGradeCols'), { cols }, { merge: false });
-};
-
-// Write a single manual grade entry for one user using dot-notation updateDoc.
-// This is atomic and will not overwrite sibling columns.
-// entry = { score: number|null, comment: string, posted: bool }
-window.saveManualGradeForUser = async function(targetUid, colId, entry) {
-  if (!window.S.isAdmin) { console.warn('[security] saveManualGradeForUser blocked'); return; }
-  const key = `manualGrades.${colId}`;
-  const val = {
-    score:   entry.score != null && Number.isFinite(parseFloat(entry.score)) ? parseFloat(entry.score) : null,
-    comment: typeof entry.comment === 'string' ? entry.comment.slice(0, 500) : '',
-    posted:  entry.posted === true,
-  };
-  try {
-    await updateDoc(doc(db, 'users', targetUid), { [key]: val });
-  } catch(e) {
-    // If the doc doesn't have the field yet, updateDoc can fail — fall back to setDoc merge
-    await setDoc(doc(db, 'users', targetUid), { manualGrades: { [colId]: val } }, { merge: true });
-  }
-};
-
 // Append a record to the top-level `auditLog` collection in Firestore.
 window.logAdminAction = async function(action, details = {}) {
   try {
@@ -649,8 +578,8 @@ window._addMailDoc = async function(to, subject, bodyText) {
   const cfUnsubUrl = `https://us-central1-circuitspractice-b4cb0.cloudfunctions.net/unsubscribe?token=${token}`;
   const profileUrl = 'https://circuitspractice.org/?tab=profile';
   const footerHtml = `<div style="font-size:11px;color:#888;text-align:center;padding:16px;border-top:1px solid #333;margin-top:16px">
-    <a href="${profileUrl}" style="color:#9d7de8;text-decoration:none">Manage notifications</a> &nbsp;&middot;&nbsp;
-    <a href="${unsubUrl}" style="color:#9d7de8;text-decoration:none">Unsubscribe</a>
+    <a href="${profileUrl}" style="color:#cf8a45;text-decoration:none">Manage notifications</a> &nbsp;&middot;&nbsp;
+    <a href="${unsubUrl}" style="color:#cf8a45;text-decoration:none">Unsubscribe</a>
   </div>`;
 
   const isPrebuiltHtml = /^[\s\S]{0,10}<!DOCTYPE/i.test(bodyText) || /^[\s\S]{0,10}<html/i.test(bodyText);
@@ -672,14 +601,14 @@ window._addMailDoc = async function(to, subject, bodyText) {
 <html><body style="margin:0;padding:0;background:#0f0f1a;font-family:sans-serif">
 <div style="max-width:580px;margin:32px auto;background:#1a1a2e;border:1px solid #2a2a4a;border-radius:8px;overflow:hidden">
   <div style="padding:20px 28px;border-bottom:1px solid #2a2a4a;background:#12122a">
-    <span style="font-size:13px;font-weight:700;letter-spacing:.1em;color:#9d7de8">CIRCUITS PRACTICE</span>
+    <span style="font-size:13px;font-weight:700;letter-spacing:.1em;color:#cf8a45">CIRCUITS PRACTICE</span>
   </div>
   <div style="padding:24px 28px;font-size:14px;line-height:1.8;color:#c8c8d8">${safeBody}</div>
   <div style="padding:16px 28px;border-top:1px solid #2a2a4a;font-size:11px;color:#555577;line-height:1.7">
     You're receiving this because you subscribed to notifications on
-    <a href="https://circuitspractice.org" style="color:#9d7de8;text-decoration:none">circuitspractice.org</a>.<br>
-    <a href="${profileUrl}" style="color:#9d7de8;text-decoration:none">Manage notification preferences</a> &middot;
-    <a href="${unsubUrl}" style="color:#9d7de8;text-decoration:none">Unsubscribe from all emails</a>
+    <a href="https://circuitspractice.org" style="color:#cf8a45;text-decoration:none">circuitspractice.org</a>.<br>
+    <a href="${profileUrl}" style="color:#cf8a45;text-decoration:none">Manage notification preferences</a> &middot;
+    <a href="${unsubUrl}" style="color:#cf8a45;text-decoration:none">Unsubscribe from all emails</a>
   </div>
 </div>
 </body></html>`;

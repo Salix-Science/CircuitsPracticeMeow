@@ -855,7 +855,7 @@ function _drawCategoryEditor(){
   _catDraft.forEach((c,i)=>{
     const row = document.createElement('div');
     row.style.cssText = 'display:flex;align-items:center;gap:8px';
-    const safeColor = /^#[0-9a-fA-F]{6}$/.test(c.color) ? c.color : '#9d7de8';
+    const safeColor = /^#[0-9a-fA-F]{6}$/.test(c.color) ? c.color : '#cf8a45';
     row.innerHTML = `
       <input type="color" value="${safeColor}" title="Colour"
         style="width:40px;height:34px;padding:2px;background:var(--bg3);border:0.5px solid var(--border);border-radius:var(--r2);cursor:pointer"
@@ -877,7 +877,7 @@ window._catDraftSet = function(i, key, val){
 };
 
 window.addCategoryRow = function addCategoryRow(){
-  _catDraft.push({ name:'', color:'#9d7de8', _orig:null });
+  _catDraft.push({ name:'', color:'#cf8a45', _orig:null });
   _drawCategoryEditor();
   // Focus the new name input
   const last = document.getElementById('cat-name-'+(_catDraft.length-1));
@@ -893,7 +893,7 @@ function _updateCatPreview(){
   const prev = document.getElementById('cat-editor-preview');
   if(!prev) return;
   prev.innerHTML = _catDraft.map(c=>{
-    const color = /^#[0-9a-fA-F]{3,6}$/.test((c.color||'').trim()) ? c.color.trim() : '#9d7de8';
+    const color = /^#[0-9a-fA-F]{3,6}$/.test((c.color||'').trim()) ? c.color.trim() : '#cf8a45';
     const rgb = window.hexToRgb(color);
     return `<span class="pill" style="background:rgba(${rgb},.12);color:${color};border:0.5px solid rgba(${rgb},.30)">${escHtml(c.name||'Unnamed')}</span>`;
   }).join('') || '<span style="font-size:12px;color:var(--text4)">No categories yet.</span>';
@@ -911,7 +911,7 @@ window.saveCategoryEditor = async function saveCategoryEditor(){
   if(cleaned.some(c=>!c.name)){ showErr('Every category needs a name.'); return; }
   const lower = cleaned.map(c=>c.name.toLowerCase());
   if(new Set(lower).size !== lower.length){ showErr('Category names must be unique.'); return; }
-  cleaned.forEach(c=>{ if(!/^#[0-9a-fA-F]{6}$/.test(c.color)) c.color = '#9d7de8'; });
+  cleaned.forEach(c=>{ if(!/^#[0-9a-fA-F]{6}$/.test(c.color)) c.color = '#cf8a45'; });
 
   // Cascade renames onto existing posts so their pills keep the right colour
   let postsChanged = false;

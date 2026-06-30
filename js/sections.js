@@ -36,7 +36,7 @@ function _drawSectionList() {
       'display:flex;align-items:center;gap:8px;padding:9px 12px',
       'border-radius:var(--r);cursor:pointer;border:0.5px solid;margin-bottom:4px;transition:all .15s',
       _activeSectionId === s.id
-        ? 'background:rgba(157,125,232,.1);border-color:var(--accent)'
+        ? 'background:rgba(207,138,69,.1);border-color:var(--accent)'
         : 'background:var(--bg3);border-color:var(--border)'
     ].join(';');
 

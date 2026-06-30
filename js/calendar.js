@@ -14,7 +14,7 @@ const EVENT_COLORS = {
   'office-hours': { bg:'rgba(74,222,128,.12)',  border:'rgba(74,222,128,.4)',  text:'var(--green)',  label:'Office Hours' },
   'exam':         { bg:'rgba(248,113,113,.12)', border:'rgba(248,113,113,.4)', text:'var(--red)',    label:'Exam' },
   'deadline':     { bg:'rgba(251,191,36,.12)',  border:'rgba(251,191,36,.4)',  text:'var(--warn)',   label:'Deadline' },
-  'lecture':      { bg:'rgba(157,125,232,.12)', border:'rgba(157,125,232,.4)', text:'var(--accent2)',label:'Lecture' },
+  'lecture':      { bg:'rgba(207,138,69,.12)', border:'rgba(207,138,69,.4)', text:'var(--accent2)',label:'Lecture' },
   'other':        { bg:'rgba(96,165,250,.12)',  border:'rgba(96,165,250,.4)',  text:'var(--blue)',   label:'Other' },
 };
 
@@ -100,7 +100,7 @@ window.calDrawGrid = function calDrawGrid() {
     }).join('');
     const more = events.length > 3 ? `<div style="font-size:9px;color:var(--text4)">+${events.length-3} more</div>` : '';
 
-    html += `<div style="background:${isToday?'rgba(157,125,232,.08)':'var(--bg2)'};min-height:80px;padding:4px;${isToday?'outline:1.5px solid var(--accent);outline-offset:-1.5px':''}">
+    html += `<div style="background:${isToday?'rgba(207,138,69,.08)':'var(--bg2)'};min-height:80px;padding:4px;${isToday?'outline:1.5px solid var(--accent);outline-offset:-1.5px':''}">
       <div style="font-size:11px;font-weight:${isToday?'700':'400'};color:${isToday?'var(--accent2)':'var(--text3)'};margin-bottom:3px;font-family:var(--mono)">${day}</div>
       ${evDots}${more}
     </div>`;
