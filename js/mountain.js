@@ -23,6 +23,91 @@
   window._mtnSolved = window._mtnSolved || new Set();  // session solves
   window._fromMountain = window._fromMountain || false;
 
+  // ── Self-injected styles ────────────────────────────────────────────
+  // Injected once so there's no separate stylesheet to wire up. Colours/fonts
+  // come only from theme variables, so this tracks the live copper/graphite
+  // theme automatically.
+  const STYLE_ID = 'mtn-styles';
+  const CSS = `
+.mtn-wrap{padding:1.25rem 1rem 3rem;max-width:760px;margin:0 auto;}
+.mtn-header{position:sticky;top:0;z-index:4;background:linear-gradient(var(--bg) 70%,transparent);padding:0 0 12px;margin-bottom:6px;}
+.mtn-header-top{display:flex;align-items:flex-end;justify-content:space-between;gap:12px;}
+.mtn-h-title{font-family:var(--font-display);font-size:20px;font-weight:600;letter-spacing:.04em;color:var(--accent2);}
+.mtn-h-sub{font-size:12px;color:var(--text3);margin-top:2px;font-family:var(--mono);}
+.mtn-h-pct{font-family:var(--mono);font-size:26px;font-weight:700;color:var(--green);line-height:1;}
+.mtn-h-pct span{font-size:13px;color:var(--text4);margin-left:1px;}
+.mtn-bar{height:5px;border-radius:999px;background:var(--bg3);overflow:hidden;margin-top:10px;border:.5px solid var(--border);}
+.mtn-bar-fill{height:100%;border-radius:999px;background:linear-gradient(90deg,var(--accent3),var(--accent),var(--green));transition:width .5s cubic-bezier(.4,0,.2,1);}
+.mtn-trail{position:relative;padding:8px 0 0;}
+.mtn-spine{position:absolute;top:0;bottom:0;left:50%;width:3px;transform:translateX(-50%);background:repeating-linear-gradient(var(--border2) 0 8px,transparent 8px 15px);border-radius:3px;}
+.mtn-summit{position:relative;text-align:center;padding-top:8px;margin-bottom:10px;color:var(--text4);}
+.mtn-summit.is-solved{color:var(--green);}
+.mtn-summit-svg{width:118px;height:auto;display:inline-block;}
+.mtn-summit-label{font-family:var(--mono);font-size:10px;letter-spacing:.18em;text-transform:uppercase;color:currentColor;margin-top:4px;}
+.mtn-base{position:relative;text-align:center;padding-top:12px;margin-top:6px;}
+.mtn-base-dot{display:inline-block;width:14px;height:14px;border-radius:50%;background:var(--bg3);border:2px solid var(--border2);vertical-align:middle;}
+.mtn-base-label{display:block;font-family:var(--mono);font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:var(--text4);margin-top:6px;}
+.mtn-camp{position:relative;display:flex;align-items:center;gap:10px;margin:6px 0;z-index:2;}
+.mtn-camp-line{flex:1;height:.5px;background:var(--border);}
+.mtn-camp-label{display:inline-flex;align-items:center;gap:6px;font-family:var(--font-display);font-size:12px;font-weight:600;letter-spacing:.05em;color:var(--text2);background:var(--bg2);border:.5px solid var(--border);padding:5px 12px;border-radius:999px;white-space:nowrap;}
+.mtn-camp-label i{color:var(--accent);font-size:12px;}
+.mtn-camp-count{font-family:var(--mono);font-size:10px;color:var(--text4);font-weight:400;}
+.mtn-node{position:relative;z-index:3;display:flex;align-items:center;gap:12px;width:calc(50% - 4px);box-sizing:border-box;padding:11px 14px;margin:10px 0;background:var(--bg2);border:.5px solid var(--border);border-radius:var(--r2);cursor:pointer;text-align:left;font-family:var(--font);color:var(--text2);transition:transform .15s,border-color .2s,background .2s,box-shadow .2s;}
+.mtn-left{margin-right:auto;flex-direction:row;}
+.mtn-right{margin-left:auto;flex-direction:row-reverse;text-align:right;}
+.mtn-node:hover{transform:translateY(-1px);border-color:var(--border2);background:var(--bg3);}
+.mtn-node:focus-visible{outline:2px solid var(--accent);outline-offset:2px;}
+.mtn-branch{position:absolute;top:50%;height:2px;width:24px;background:var(--border2);transform:translateY(-50%);}
+.mtn-left .mtn-branch{right:-24px;}
+.mtn-right .mtn-branch{left:-24px;}
+.mtn-dot{position:absolute;top:50%;width:9px;height:9px;border-radius:50%;background:var(--bg);border:2px solid var(--border2);transform:translateY(-50%);}
+.mtn-left .mtn-dot{right:-28px;}
+.mtn-right .mtn-dot{left:-28px;}
+.mtn-marker{flex-shrink:0;width:30px;height:30px;border-radius:50%;display:grid;place-items:center;font-family:var(--mono);font-size:13px;font-weight:700;background:var(--bg3);border:1.5px solid var(--border2);color:var(--text3);}
+.mtn-body{display:flex;flex-direction:column;gap:2px;min-width:0;}
+.mtn-title{font-size:13px;font-weight:600;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.mtn-meta{font-family:var(--mono);font-size:10px;color:var(--text4);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.mtn-node.is-solved{border-color:var(--green-border);background:var(--green-bg);}
+.mtn-node.is-solved .mtn-marker{background:var(--green-bg);border-color:var(--green);color:var(--green);}
+.mtn-node.is-solved .mtn-dot,.mtn-node.is-solved .mtn-branch{background:var(--green);border-color:var(--green);}
+.mtn-node.is-solved .mtn-meta{color:var(--green);}
+.mtn-node.is-next{border-color:var(--gold,var(--warn));box-shadow:0 0 0 3px rgba(232,201,107,.12);}
+.mtn-node.is-next .mtn-marker{background:var(--bg3);border-color:var(--gold,var(--warn));color:var(--gold,var(--warn));animation:mtn-pulse 2s ease-in-out infinite;}
+.mtn-node.is-next .mtn-meta{color:var(--gold,var(--warn));}
+@keyframes mtn-pulse{0%,100%{box-shadow:0 0 0 0 rgba(232,201,107,.5);}50%{box-shadow:0 0 0 6px rgba(232,201,107,0);}}
+.mtn-toggle{display:flex;gap:4px;padding:4px;margin-bottom:10px;background:var(--bg3);border:.5px solid var(--border);border-radius:var(--r2);}
+.mtn-tg-btn{flex:1;display:inline-flex;align-items:center;justify-content:center;gap:5px;padding:6px 8px;border:none;border-radius:var(--r);background:transparent;color:var(--text3);cursor:pointer;font-family:var(--font);font-size:11px;font-weight:600;transition:all .2s;}
+.mtn-tg-btn i{font-size:13px;}
+.mtn-tg-btn:hover{color:var(--text2);}
+.mtn-tg-btn.active{background:var(--bg);color:var(--accent2);box-shadow:var(--glow);}
+.mtn-back{align-self:flex-start;margin-bottom:4px;}
+.mtn-empty{text-align:center;padding:4rem 1.5rem;color:var(--text3);}
+.mtn-empty-icon{font-size:40px;opacity:.6;}
+.mtn-empty-title{font-family:var(--font-display);font-size:18px;color:var(--text2);margin-top:10px;}
+.mtn-empty-sub{font-size:12px;color:var(--text4);margin-top:6px;max-width:340px;margin-inline:auto;}
+.mtn-list-hint{display:flex;align-items:center;gap:8px;justify-content:center;padding:3rem 1rem;color:var(--text4);font-size:12px;font-family:var(--mono);}
+@media(max-width:620px){
+  .mtn-spine{left:19px;}
+  .mtn-node{width:100%;margin-left:38px;flex-direction:row;text-align:left;}
+  .mtn-right{flex-direction:row;text-align:left;}
+  .mtn-left .mtn-branch,.mtn-right .mtn-branch{left:-19px;right:auto;width:19px;}
+  .mtn-left .mtn-dot,.mtn-right .mtn-dot{left:-23px;right:auto;}
+  .mtn-camp{margin-left:0;}
+}
+@media(prefers-reduced-motion:reduce){
+  .mtn-node,.mtn-bar-fill{transition:none;}
+  .mtn-node.is-next .mtn-marker{animation:none;}
+}`;
+
+  function injectStyles() {
+    if (document.getElementById(STYLE_ID)) return;
+    const el = document.createElement('style');
+    el.id = STYLE_ID;
+    el.textContent = CSS;
+    (document.head || document.documentElement).appendChild(el);
+    console.log(LOG, 'styles injected');
+  }
+
   // ── Mode persistence ────────────────────────────────────────────────
   function getMode() {
     let m = 'mountain';
@@ -74,18 +159,29 @@
       nodes.push({ kind: 'folder', folder: f, count: probs.length });
       probs.forEach(p => nodes.push({ kind: 'prob', prob: p, folder: f }));
     });
-    console.log(LOG, 'orderedNodes:', nodes.filter(n => n.kind === 'prob').length,
-      'problems across', folders.length, 'folders');
+    const probNodes = nodes.filter(n => n.kind === 'prob');
+    const counts = {};
+    probNodes.forEach(n => { counts[n.prob.id] = (counts[n.prob.id] || 0) + 1; });
+    const dups = Object.entries(counts).filter(([, c]) => c > 1);
+    console.log(LOG, 'orderedNodes:', probNodes.length, 'peaks across', folders.length, 'folders');
+    if (dups.length) {
+      console.log(LOG, dups.length + ' problem(s) appear in multiple folders — each shows once per folder:',
+        dups.map(([id, c]) => {
+          const t = window.DB.problems.find(p => p.id === id);
+          return `${t ? t.title : id} ×${c}`;
+        }));
+    }
     return nodes;
   }
 
-  // ── Summit SVG (uses currentColor so it inherits the peak state colour) ─
+  // ── Summit SVG — everything inside a positive viewBox, explicit size so it
+  //    can never balloon even before styles apply. ─────────────────────────
   function summitSVG() {
-    return `<svg class="mtn-summit-svg" viewBox="0 0 120 64" aria-hidden="true">
-      <polygon points="60,4 96,60 24,60" fill="var(--bg3)" stroke="var(--border2)" stroke-width="1.5"/>
-      <polygon points="60,4 74,26 60,20 46,26" fill="var(--bg5)"/>
-      <line x1="60" y1="4" x2="60" y2="-14" stroke="var(--gold, var(--warn))" stroke-width="2"/>
-      <polygon points="60,-14 60,-4 76,-9" fill="var(--gold, var(--warn))"/>
+    return `<svg class="mtn-summit-svg" width="120" height="80" viewBox="0 0 120 80" aria-hidden="true">
+      <polygon points="60,22 100,76 20,76" fill="var(--bg3)" stroke="var(--border2)" stroke-width="1.5"/>
+      <polygon points="60,22 74,44 60,38 46,44" fill="var(--bg5)"/>
+      <line x1="60" y1="22" x2="60" y2="6" stroke="var(--gold, var(--warn))" stroke-width="2"/>
+      <polygon points="60,6 60,17 79,11.5" fill="var(--gold, var(--warn))"/>
     </svg>`;
   }
 
@@ -110,19 +206,20 @@
       return;
     }
 
-    // "next" = the lowest-index unsolved problem = where the student is headed.
+    // Number problems 1..total by TRAIL POSITION (ascending). A problem can
+    // appear in several folders, so we number each occurrence by where it sits
+    // on the climb — NOT by problem id (that made later copies steal numbers).
+    let k = 0;
+    nodes.forEach(n => { if (n.kind === 'prob') { k += 1; n._num = k; } });
+
+    // "next" = the lowest-position unsolved occurrence = where the student is.
     const nextNode = probNodes.find(n => !solved.has(n.prob.id)) || null;
-    const nextId = nextNode ? nextNode.prob.id : null;
-    console.log(LOG, `render: ${done}/${total} solved · next =`,
-      nextNode ? nextNode.prob.title : '— (summit reached)');
+    const nextNum = nextNode ? nextNode._num : -1;
+    console.log(LOG, `render: ${done}/${total} solved · next = ` +
+      (nextNode ? `#${nextNum} ${nextNode.prob.title}` : '— (summit reached)'));
 
     // Build rows top→bottom visually, so reverse the ascending order.
     const visual = nodes.slice().reverse();
-
-    // Number problems 1..total in ascending order for stable markers.
-    const numById = {};
-    let k = 0;
-    nodes.forEach(n => { if (n.kind === 'prob') { k += 1; numById[n.prob.id] = k; } });
 
     const rowsHTML = visual.map(n => {
       if (n.kind === 'folder') {
@@ -136,16 +233,16 @@
         </div>`;
       }
       const p = n.prob;
-      const num = numById[p.id];
+      const num = n._num;
       const isSolved = solved.has(p.id);
-      const isNext = p.id === nextId;
+      const isNext = num === nextNum;
       const side = num % 2 === 0 ? 'right' : 'left';
       const stateCls = isSolved ? 'is-solved' : (isNext ? 'is-next' : 'is-todo');
       const marker = isSolved
         ? '<i class="ti ti-check"></i>'
         : (isNext ? '<i class="ti ti-hiking"></i>' : String(num));
       const meta = isSolved ? 'Cleared'
-        : (isNext ? 'You are here' : `Peak ${num}`);
+        : (isNext ? 'You are here' : escHtml(n.folder.name));
       return `<button type="button"
           class="mtn-node mtn-${side} ${stateCls}"
           data-fid="${escHtml(n.folder.id)}"
@@ -273,6 +370,7 @@
   // Called from app.js showView('practice').
   window.enterPracticeView = function enterPracticeView() {
     console.log(LOG, 'enterPracticeView');
+    injectStyles();
     injectToggle();
     applyMode();
   };
@@ -365,5 +463,6 @@
     setTimeout(waitForPractice, 50);
   })();
 
+  injectStyles();
   console.log(LOG, 'module loaded');
 })();
