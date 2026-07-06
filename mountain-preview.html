@@ -32,8 +32,7 @@ html,body{margin:0;background:var(--bg);color:var(--text);font-family:var(--font
 .btn-sm{font-size:11px;padding:5px 9px;}
 .practice-pane{padding:1.5rem;}
 </style>
-<!-- the real stylesheet under test -->
-<link rel="stylesheet" href="mountain.css"/>
+<!-- styles now self-inject from mountain.js — no separate stylesheet needed -->
 </head>
 <body>
 <div class="frame">
@@ -54,7 +53,7 @@ window.DB={
   folders:[
     {id:'f1',name:'DC Fundamentals',problemIds:['p1','p2','p3','p4']},
     {id:'f2',name:'Node & Mesh Analysis',problemIds:['p5','p6','p7']},
-    {id:'f3',name:'Thevenin / Norton',problemIds:['p8','p9']},
+    {id:'f3',name:'Thevenin / Norton',problemIds:['p8','p9','p1']},
     {id:'f4',name:'First-Order Transients',problemIds:['p10','p11','p12']},
   ],
   problems:[
