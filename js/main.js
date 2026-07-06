@@ -3,7 +3,7 @@
    scripts once Firebase is ready.
 
    Loading strategy:
-   - The first 14 feature scripts are fetched in parallel (Promise.all),
+   - The feature scripts are fetched in parallel (Promise.all),
      cutting the serial waterfall down to a single network round-trip.
    - app.js is loaded last and alone because it sets window._appReady = true,
      which signals firebase.js to hand off the pending auth state. It must
@@ -19,6 +19,7 @@ import './firebase.js';
 const featureScripts = [
   'js/home.js',
   'js/practice.js',
+  'js/mountain.js',
   'js/blog.js',
   'js/editor.js',
   'js/assignments.js',

@@ -33,6 +33,7 @@ window.showView = function(v) {
   if(v==='home')renderHomepage();
   if(v==='admin'){renderAnalytics();renderUserMgmt();renderGradeBtns();} // both async, fire-and-forget is fine here
   if(v==='editor'){showEdTab('problems',document.querySelector('.editor-top-tab'));renderPmList();renderFolderList();renderAssignAdmin();renderBlogPostList();}
+  if(v==='practice'){ console.log('[mountain] showView(practice) → enterPracticeView'); window.enterPracticeView?.(); }
   if(v==='assignments')renderStudentAssignments();
   if(v==='blog')renderBlogList();
   if(v==='progress')renderProgress();
