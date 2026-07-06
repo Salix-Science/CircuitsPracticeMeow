@@ -7,8 +7,6 @@ import {
   getAuth,
   createUserWithEmailAndPassword,
   signInWithEmailAndPassword,
-  sendPasswordResetEmail,
-  sendEmailVerification,
   signOut,
   onAuthStateChanged
 } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
@@ -64,6 +62,20 @@ window._firestoreQuery = { query, collection, collectionGroup, where, doc, delet
 // Wrap in try/catch so a failure here never prevents login from working.
 let analytics = null;
 try { analytics = getAnalytics(app); } catch(e) { console.info('Analytics unavailable:', e.message); }
+
+// ── Custom transactional email ────────────────
+// Firebase Auth's built-in verification/reset templates are locked, so we
+// call our own Cloud Functions instead. They generate the action link and
+// enqueue branded inline-HTML mail into the `mail` collection (delivered by
+// the Trigger Email extension). Lazily imports the functions SDK so it never
+// costs anything on pages that don't send mail.
+let _fns = null;
+async function _callable(name) {
+  const { getFunctions, httpsCallable } =
+    await import("https://www.gstatic.com/firebasejs/10.12.0/firebase-functions.js");
+  if (!_fns) _fns = getFunctions(app);   // default region: us-central1
+  return httpsCallable(_fns, name);
+}
 
 // ── User data sanitization ────────────────────
 // Called on every user object read from Firestore.
@@ -770,7 +782,7 @@ window.sendPasswordReset = async function() {
 
   if (!email || !email.includes('@')) { showErr('Enter the email address on your account.'); return; }
   try {
-    await sendPasswordResetEmail(auth, email);
+    await (await _callable('sendCustomPasswordReset'))({ email });
     showOk('If an account uses that email, a reset link is on its way. Check your inbox (and spam).');
   } catch(e) {
     if (e.code === 'auth/user-not-found' || e.code === 'auth/invalid-email') {
@@ -891,8 +903,8 @@ window.doRegister = async function() {
     });
     console.log('[doRegister] Firestore profile written — uid:', cred.user.uid);
 
-    await sendEmailVerification(cred.user);
-    console.log('[doRegister] verification email sent to:', email);
+    await (await _callable('sendCustomVerification'))();
+    console.log('[doRegister] custom verification email enqueued for:', email);
 
     logAdminAction('self_register', { uid: cred.user.uid, username, email }).catch(() => {});
 
@@ -940,8 +952,8 @@ window.resendVerificationEmail = async function() {
   ok?.classList.add('hidden'); err?.classList.add('hidden');
   if (!auth.currentUser) { console.warn('[resendVerificationEmail] no current user'); return; }
   try {
-    await sendEmailVerification(auth.currentUser);
-    console.log('[resendVerificationEmail] sent to:', auth.currentUser.email);
+    await (await _callable('sendCustomVerification'))();
+    console.log('[resendVerificationEmail] custom verification enqueued for:', auth.currentUser.email);
     if (ok) { ok.textContent = 'Verification email sent! Check your inbox (and spam folder).'; ok.classList.remove('hidden'); }
   } catch(e) {
     console.error('[resendVerificationEmail] failed:', e.code, e.message);
