@@ -3,6 +3,7 @@
 const { onCall, HttpsError } = require('firebase-functions/v2/https');
 const { initializeApp }      = require('firebase-admin/app');
 const { getFirestore, FieldValue } = require('firebase-admin/firestore');
+const { getAuth }                  = require('firebase-admin/auth');
 
 initializeApp();
 const db = getFirestore();
@@ -224,4 +225,114 @@ exports.postComment = onCall({ enforceAppCheck: false, cors: true }, async (requ
   const ref = await db.collection('posts').doc(postId).collection('comments').add(
     { uid, username, body: cleanBody, createdAt: now, approved: false });
   return { commentId: ref.id, createdAt: now };
+});
+
+
+/* ──────────────────────────────────────────────────────────────────────────
+   Custom transactional email (verification / password reset)
+   Firebase Auth's built-in templates are locked to a few fields, so instead we
+   generate the action link with the Admin SDK (which SENDS nothing) and enqueue
+   our own inline-HTML email into the `mail` collection. The Trigger Email
+   extension delivers it via Zoho. Full control of subject + HTML.
+   ────────────────────────────────────────────────────────────────────────── */
+
+// Where the user lands AFTER completing the action.
+// Must be listed under Auth → Settings → Authorized domains.
+const ACTION_CONTINUE_URL = 'https://circuitspractice.org';
+
+function esc(s) {
+  return String(s).replace(/[&<>"']/g, c =>
+    ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+}
+
+function emailShell(title, bodyHtml) {
+  return `<!DOCTYPE html>
+<html><body style="margin:0;padding:32px;background:#0f1115;font-family:'IBM Plex Sans',Arial,sans-serif">
+  <table role="presentation" width="100%" style="max-width:520px;margin:auto;background:#161a20;border:1px solid #2a2f3a;border-radius:12px;overflow:hidden">
+    <tr><td style="background:#b87333;height:4px"></td></tr>
+    <tr><td style="padding:32px">
+      <h1 style="margin:0 0 12px;color:#e8eaed;font-family:'Space Grotesk',sans-serif;font-size:22px">${esc(title)}</h1>
+      ${bodyHtml}
+    </td></tr>
+  </table>
+</body></html>`;
+}
+
+function ctaButton(href, label) {
+  return `<a href="${esc(href)}" style="display:inline-block;margin:8px 0 4px;background:#b87333;color:#0f1115;font-weight:600;text-decoration:none;padding:12px 24px;border-radius:8px">${esc(label)}</a>`;
+}
+
+function buildVerifyHtml(firstName, link) {
+  return emailShell('Verify your email', `
+      <p style="margin:0 0 20px;color:#aab1bd;font-size:15px;line-height:1.5">Hi ${esc(firstName)}, welcome to CircuitsPractice. Confirm your address to activate your account.</p>
+      ${ctaButton(link, 'Verify email')}
+      <p style="margin:20px 0 0;color:#6b7280;font-size:12px;word-break:break-all">If the button doesn't work, paste this link:<br>${esc(link)}</p>`);
+}
+
+function buildResetHtml(firstName, link) {
+  return emailShell('Reset your password', `
+      <p style="margin:0 0 20px;color:#aab1bd;font-size:15px;line-height:1.5">Hi ${esc(firstName)}, we received a request to reset your CircuitsPractice password. If this was you, click below. If not, you can safely ignore this email.</p>
+      ${ctaButton(link, 'Reset password')}
+      <p style="margin:20px 0 0;color:#6b7280;font-size:12px;word-break:break-all">If the button doesn't work, paste this link:<br>${esc(link)}</p>`);
+}
+
+async function firstNameFor(uid, email) {
+  try {
+    if (uid) {
+      const snap = await db.collection('users').doc(uid).get();
+      if (snap.exists) {
+        const u = snap.data();
+        return u.firstName || u.username || (email || 'there').split('@')[0];
+      }
+    }
+  } catch (_) { /* fall back to email local part */ }
+  return (email || 'there').split('@')[0];
+}
+
+// Verification — caller must be the signed-in, just-registered user.
+exports.sendCustomVerification = onCall({ enforceAppCheck: false, cors: true }, async (request) => {
+  if (!request.auth) throw new HttpsError('unauthenticated', 'You must be signed in.');
+  const uid   = request.auth.uid;
+  const email = request.auth.token.email;
+  if (!email) throw new HttpsError('failed-precondition', 'No email is set on this account.');
+
+  const link      = await getAuth().generateEmailVerificationLink(email, { url: ACTION_CONTINUE_URL });
+  const firstName = await firstNameFor(uid, email);
+
+  await db.collection('mail').add({
+    to: [email],
+    message: {
+      subject: 'Verify your CircuitsPractice email',
+      html: buildVerifyHtml(firstName, link),
+      text: `Hi ${firstName}, verify your CircuitsPractice account: ${link}`,
+    },
+  });
+  console.log('[sendCustomVerification] enqueued for', email);
+  return { ok: true };
+});
+
+// Password reset — unauthenticated by design (the user forgot their password).
+// Enumeration-safe: always returns { ok: true } and never reveals whether the
+// account exists.
+exports.sendCustomPasswordReset = onCall({ enforceAppCheck: false, cors: true }, async (request) => {
+  const email = String((request.data && request.data.email) || '').trim().toLowerCase();
+  if (!email || !email.includes('@')) throw new HttpsError('invalid-argument', 'A valid email is required.');
+
+  try {
+    const link      = await getAuth().generatePasswordResetLink(email, { url: ACTION_CONTINUE_URL });
+    const firstName = email.split('@')[0] || 'there';
+    await db.collection('mail').add({
+      to: [email],
+      message: {
+        subject: 'Reset your CircuitsPractice password',
+        html: buildResetHtml(firstName, link),
+        text: `Hi ${firstName}, reset your CircuitsPractice password: ${link}`,
+      },
+    });
+    console.log('[sendCustomPasswordReset] enqueued for', email);
+  } catch (e) {
+    // Stay silent on unknown accounts to prevent enumeration.
+    if (e.code !== 'auth/user-not-found') console.error('[sendCustomPasswordReset]', e);
+  }
+  return { ok: true };
 });
