@@ -997,6 +997,26 @@ onAuthStateChanged(auth, async (firebaseUser) => {
       return;
     }
 
+    // Gate self-registered accounts behind email verification. This check must
+    // live here (not just in doRegister) because Firebase Auth sessions persist
+    // across reloads — a user who closes/reloads the verify screen before
+    // clicking the email link would otherwise sail straight into the app.
+    if (profile.selfRegistered && !firebaseUser.emailVerified) {
+      console.warn('[authObserver] self-registered user NOT verified yet — uid:', firebaseUser.uid,
+                    '| redirecting to verify screen instead of entering app');
+      document.getElementById('screen-auth')?.classList.add('hidden');
+      document.getElementById('screen-app')?.classList.add('hidden');
+      const verifyScreen = document.getElementById('screen-verify');
+      if (verifyScreen) {
+        verifyScreen.classList.remove('hidden');
+        const addrEl = document.getElementById('verify-email-addr');
+        if (addrEl) addrEl.textContent = firebaseUser.email || '';
+      }
+      return;
+    }
+    console.log('[authObserver] verification check passed — selfRegistered:', !!profile.selfRegistered,
+                '| emailVerified:', firebaseUser.emailVerified);
+
     window.S.uid     = firebaseUser.uid;
     window.S.user    = profile.username;
     window.S.isAdmin = !!profile.isAdmin;
