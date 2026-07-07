@@ -10,7 +10,7 @@
 const { onCall, onRequest, HttpsError } = require('firebase-functions/v2/https');
 const { initializeApp }      = require('firebase-admin/app');
 const { getFirestore, FieldValue } = require('firebase-admin/firestore');
-
+const { getAuth }            = require('firebase-admin/auth');
 initializeApp();
 const db = getFirestore();
 
@@ -352,4 +352,55 @@ exports.unsubscribe = onRequest({ cors: true }, async (req, res) => {
     console.error('[unsubscribe] Firestore error:', e);
     res.status(500).send('Internal error.');
   }
+});
+exports.deleteUserAccount = onCall({ enforceAppCheck: false, cors: true }, async (request) => {
+  console.log('[deleteUserAccount] invoked — request.auth:', request.auth ? request.auth.uid : null,
+              'data:', JSON.stringify(request.data));
+
+  if (!request.auth) throw new HttpsError('unauthenticated', 'You must be signed in.');
+  const callerUid = request.auth.uid;
+
+  const { targetUid, targetUsername } = request.data || {};
+  if (typeof targetUid !== 'string' || !targetUid)
+    throw new HttpsError('invalid-argument', 'targetUid is required.');
+  if (targetUid === callerUid)
+    throw new HttpsError('invalid-argument', 'You cannot delete your own account from user management.');
+
+  // ── Verify caller is admin (admin status lives in Firestore, not custom claims) ──
+  const callerSnap = await db.collection('users').doc(callerUid).get();
+  console.log('[deleteUserAccount] caller doc exists:', callerSnap.exists,
+              'isAdmin:', callerSnap.exists ? callerSnap.data().isAdmin : null);
+  if (!callerSnap.exists || callerSnap.data().isAdmin !== true) {
+    console.warn('[deleteUserAccount] BLOCKED — caller is not admin:', callerUid);
+    throw new HttpsError('permission-denied', 'Only admins can delete user accounts.');
+  }
+
+  // ── Delete the Firestore profile doc ──
+  try {
+    await db.collection('users').doc(targetUid).delete();
+    console.log('[deleteUserAccount] Firestore doc deleted for uid:', targetUid);
+  } catch (e) {
+    console.error('[deleteUserAccount] Firestore delete FAILED for uid:', targetUid, '—', e.message);
+    throw new HttpsError('internal', 'Failed to delete user profile document.');
+  }
+
+  // ── Delete the Firebase Auth account ──
+  try {
+    await getAuth().deleteUser(targetUid);
+    console.log('[deleteUserAccount] Auth account deleted for uid:', targetUid);
+  } catch (e) {
+    console.error('[deleteUserAccount] Auth delete FAILED for uid:', targetUid, '— code:', e.code, 'message:', e.message);
+    if (e.code === 'auth/user-not-found') {
+      console.warn('[deleteUserAccount] Auth user already absent — treating as success.');
+    } else {
+      throw new HttpsError(
+        'internal',
+        `Profile was deleted, but the login (Auth) account could NOT be removed automatically ` +
+        `(${e.code || 'unknown error'}). Please delete it manually in Firebase Console → Authentication → Users.`
+      );
+    }
+  }
+
+  console.log('[deleteUserAccount] complete — uid:', targetUid, 'username:', targetUsername);
+  return { success: true, targetUid, targetUsername };
 });
