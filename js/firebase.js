@@ -92,6 +92,7 @@ window.sanitizeUser = function(data) {
 
   // Boolean fields — must be exactly true or false
   safe.isAdmin = data.isAdmin === true;
+  safe.selfRegistered = data.selfRegistered === true;
 
   // Numeric fields — must be a finite non-negative integer
   const safeInt = (v, max = 1e6) => {
