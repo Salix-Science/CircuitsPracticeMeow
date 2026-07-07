@@ -5,13 +5,9 @@
 <meta name="viewport" content="width=device-width, initial-scale=1"/>
 <title>Circuits Practice</title>
 
-<!-- Favicon -->
-<link rel="icon" type="image/png" href="/favicon.png"/>
-<link rel="icon" href="/favicon.ico" sizes="any"/>
-
 <!-- Fonts -->
 <link rel="preconnect" href="https://fonts.googleapis.com"/>
-<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=IBM+Plex+Sans:ital,wght@0,300;0,400;0,500;0,600;1,300&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;500;600&family=Raleway:ital,wght@0,300;0,400;0,500;0,600;1,300&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet"/>
 <!-- Icons -->
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@latest/tabler-icons.min.css"/>
 <!-- Styles -->
@@ -56,46 +52,15 @@
       </div>
     </div>
 
-    <!-- Register -->
+    <!-- Register (disabled — accounts are admin-created) -->
     <div id="auth-register" class="hidden">
-      <div class="field"><label>Username</label><input type="text" id="r-user" autocomplete="username" placeholder="choose a username"/></div>
-      <div class="field"><label>Email address</label><input type="email" id="r-email" autocomplete="email" placeholder="you@example.com"/></div>
-      <div class="field"><label>Password</label><input type="password" id="r-pass" autocomplete="new-password" placeholder="••••••••"/></div>
-      <div class="field"><label>Confirm password</label><input type="password" id="r-pass2" autocomplete="new-password" placeholder="••••••••"/></div>
-      <button class="btn btn-accent" style="width:100%;justify-content:center" onclick="doRegister()"><i class="ti ti-user-plus"></i> Create account</button>
+      <div style="text-align:center;padding:1.5rem 0.5rem;color:var(--text3);font-size:13px;line-height:1.7">
+        <i class="ti ti-lock" style="font-size:28px;display:block;margin-bottom:10px;color:var(--text4)"></i>
+        Self-registration is disabled.<br/>
+        Contact your instructor for an account.
+      </div>
       <div class="err-msg hidden" id="r-err"><i class="ti ti-alert-circle"></i><span></span></div>
       <div class="ok-msg hidden" id="r-ok"></div>
-    </div>
-  </div>
-</div>
-
-<!-- ════════════════════════════════════════════
-     EMAIL VERIFICATION SCREEN
-     Shown after self-registration until the user clicks
-     the verification link sent to their inbox.
-     ════════════════════════════════════════════ -->
-<div id="screen-verify" class="hidden">
-  <div class="wordmark">Circuits Practice</div>
-  <div class="auth-card">
-    <div style="text-align:center;padding:0.5rem 0.5rem 1.25rem;color:var(--text3);font-size:13px;line-height:1.7">
-      <i class="ti ti-mail-opened" style="font-size:28px;display:block;margin-bottom:10px;color:var(--accent2)"></i>
-      <div style="font-family:var(--font-display);font-size:14px;letter-spacing:.06em;color:var(--text);margin-bottom:8px">Verify your email</div>
-      We sent a verification link to<br/>
-      <strong id="verify-email-addr" style="color:var(--text)"></strong><br/>
-      Click the link, then come back here and continue.
-    </div>
-    <button class="btn btn-accent" style="width:100%;justify-content:center;margin-bottom:8px" onclick="checkVerificationAndContinue()">
-      <i class="ti ti-refresh"></i> I've verified — Continue
-    </button>
-    <button class="btn" style="width:100%;justify-content:center" onclick="resendVerificationEmail()">
-      <i class="ti ti-send"></i> Resend verification email
-    </button>
-    <div class="ok-msg hidden" id="verify-resend-ok" style="margin-top:10px;font-size:12px"></div>
-    <div class="err-msg hidden" id="verify-resend-err" style="margin-top:10px"><i class="ti ti-alert-circle"></i><span></span></div>
-    <div style="text-align:center;margin-top:14px">
-      <button class="btn btn-sm" style="font-size:11px;color:var(--text3);background:none;border:none;padding:0;cursor:pointer" onclick="verifySignOutAndReturn()">
-        Use a different account
-      </button>
     </div>
   </div>
 </div>
@@ -245,7 +210,7 @@
                 <div class="var-chips-row" id="var-insert-chips"></div>
               </div>
               <div style="margin-top:12px">
-                <div style="display:grid;grid-template-columns:80px 56px 62px 62px 98px 24px;gap:6px;margin-bottom:4px">
+                <div style="display:grid;grid-template-columns:80px 56px 62px 62px 70px 24px;gap:6px;margin-bottom:4px">
                   <label>Name</label><label>Type</label><label>Min</label><label>Max</label><label>Display unit</label><label></label>
                 </div>
                 <div id="var-rows"></div>
@@ -1150,38 +1115,6 @@
         </div>
       </div>
 
-      <!-- Danger zone -->
-      <div style="background:var(--bg2);border:0.5px solid var(--red-border);border-radius:var(--r2);overflow:hidden">
-        <div style="padding:10px 16px;border-bottom:0.5px solid var(--red-border);background:var(--red-bg);font-size:11px;font-weight:700;color:var(--red);text-transform:uppercase;letter-spacing:.08em;display:flex;align-items:center;gap:6px">
-          <i class="ti ti-alert-triangle" style="font-size:13px"></i> Danger zone
-        </div>
-        <div style="padding:16px">
-          <p style="font-size:12px;color:var(--text3);margin-bottom:14px;line-height:1.7">
-            Permanently delete your account, including your scores, streak, and assignment history. This cannot be undone.
-          </p>
-          <button class="btn btn-sm btn-red" id="profile-del-toggle" onclick="toggleDeleteAccountForm()">
-            <i class="ti ti-trash"></i> Delete my account
-          </button>
-
-          <div id="profile-del-confirm" class="hidden" style="margin-top:14px;padding:12px;background:var(--bg3);border:0.5px solid var(--border);border-radius:var(--r2)">
-            <p style="font-size:12px;color:var(--warn);margin-bottom:10px;line-height:1.6">
-              <i class="ti ti-alert-circle"></i> Enter your password to confirm. Your account will be deleted immediately.
-            </p>
-            <div class="field" style="margin-bottom:10px">
-              <label>Password</label>
-              <input type="password" id="profile-del-pass" placeholder="••••••••" autocomplete="current-password"/>
-            </div>
-            <div style="display:flex;gap:8px">
-              <button class="btn btn-sm btn-red" style="flex:1;justify-content:center" onclick="deleteOwnAccount()">
-                <i class="ti ti-trash"></i> Permanently delete
-              </button>
-              <button class="btn btn-sm" onclick="toggleDeleteAccountForm()">Cancel</button>
-            </div>
-            <div class="err-msg hidden" id="profile-del-err" style="margin-top:8px"><i class="ti ti-alert-circle"></i><span></span></div>
-          </div>
-        </div>
-      </div>
-
       <!-- Sign out -->
       <button class="btn btn-red" onclick="doLogout()" style="justify-content:center">
         <i class="ti ti-logout"></i> Sign out
@@ -1321,7 +1254,7 @@ function sendPasswordReset(){ window.sendPasswordReset?.(); }
 .slv-pbtn:hover, .slv-pbtn.active {
   border-color: var(--accent);
   color: var(--accent2);
-  background: rgba(207,138,69,.1);
+  background: rgba(157,125,232,.1);
 }
 .slv-ta-wrap {
   flex: 1;

@@ -6,7 +6,7 @@
 function _homeCatPill(cat) {
   return (typeof window.categoryPill === 'function')
     ? window.categoryPill(cat)
-    : `<span class="pill" style="background:rgba(157,125,232,.08);color:var(--text3);border:0.5px solid var(--border)">${escHtml(cat)}</span>`;
+    : `<span class="pill" style="background:rgba(207,138,69,.08);color:var(--text3);border:0.5px solid var(--border)">${escHtml(cat)}</span>`;
 }
 
 // ── Student homepage ──────────────────────────

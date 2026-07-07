@@ -146,6 +146,7 @@ window.renderBlogList = function renderBlogList() {
 window.openBlogPost = function openBlogPost(id) {
   const post = window.DB.posts.find(p => p.id === id);
   if (!post) return;
+  window.S._openPostId = id;
   document.getElementById('blog-list-view').classList.add('hidden');
   document.getElementById('blog-post-view').classList.remove('hidden');
   const date = new Date(post.createdAt).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
@@ -155,11 +156,191 @@ window.openBlogPost = function openBlogPost(id) {
     ${post.status === 'draft' ? '<span class="pill pill-warn">Draft</span>' : ''}`;
   document.getElementById('post-content-el').innerHTML = post.content;
   document.getElementById('view-blog').scrollTop = 0;
+  loadPostComments(id);
 }
 
 window.showBlogList = function showBlogList() {
   document.getElementById('blog-list-view').classList.remove('hidden');
   document.getElementById('blog-post-view').classList.add('hidden');
+}
+
+// ── Comments ──────────────────────────────────
+
+async function loadPostComments(postId) {
+  const container = document.getElementById('post-comments');
+  if (!container) return;
+  container.style.display = 'block';
+  container.innerHTML = '<div style="color:var(--text4);font-size:12px;padding:1rem 0">Loading comments…</div>';
+
+  let comments = [];
+  try {
+    const { query, collection, orderBy, getDocs } = window._firestoreQuery;
+    const db = window._getFirestoreDb();
+    const snap = await getDocs(
+      query(collection(db, 'posts', postId, 'comments'), orderBy('createdAt', 'asc'))
+    );
+    snap.forEach(d => comments.push({ id: d.id, ...d.data() }));
+  } catch (e) {
+    console.error('[comments] load failed:', e);
+    container.innerHTML = '<div style="color:var(--red);font-size:12px;padding:1rem 0">Could not load comments.</div>';
+    return;
+  }
+
+  _renderComments(postId, comments);
+}
+
+function _renderComments(postId, comments) {
+  const container = document.getElementById('post-comments');
+  if (!container) return;
+  const uid = window.S.uid;
+
+  // Non-admins only see approved comments
+  const visible = window.S.isAdmin ? comments : comments.filter(c => c.approved);
+
+  let html = `<div class="comment-section-label"><i class="ti ti-message-circle"></i> Comments${visible.length ? ' ' + visible.length : ''}</div>`;
+
+  if (!visible.length) {
+    html += `<div style="color:var(--text4);font-size:12px;padding:.5rem 0 1rem">No comments yet — be the first!</div>`;
+  } else {
+    visible.forEach(c => {
+      const isMe = c.uid === uid;
+      const dateStr = new Date(c.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+      const pendingBadge = !c.approved
+        ? `<span class="pill" style="background:rgba(255,180,0,.15);color:#e0a800;font-size:9px;margin-left:4px">Pending</span>`
+        : '';
+      html += `<div class="comment-row">
+        <div class="comment-header">
+          <span class="comment-author">${escHtml(c.username || 'Anonymous')}${isMe ? ' <span style="color:var(--text4);font-weight:400">(you)</span>' : ''}${pendingBadge}</span>
+          <span class="comment-date">${dateStr}</span>
+          <div class="comment-actions">
+            ${(isMe || window.S.isAdmin) ? `<button class="pm-icon-btn del" title="Delete" onclick="deleteComment('${escHtml(postId)}','${escHtml(c.id)}')"><i class="ti ti-trash"></i></button>` : ''}
+            ${(window.S.isAdmin && !c.approved) ? `<button class="pm-icon-btn" title="Approve" onclick="approveComment('${escHtml(postId)}','${escHtml(c.id)}')"><i class="ti ti-check"></i></button>` : ''}
+            ${!isMe ? `<button class="pm-icon-btn" title="Report" onclick="reportComment('${escHtml(postId)}','${escHtml(c.id)}')"><i class="ti ti-flag"></i></button>` : ''}
+          </div>
+        </div>
+        <div class="comment-body">${escHtml(c.body)}</div>
+      </div>`;
+    });
+  }
+
+  html += `<div class="comment-form-label"><i class="ti ti-message-plus"></i> Leave a comment</div>
+    <textarea id="comment-input" class="comment-textarea" placeholder="Write your comment…" maxlength="2000"></textarea>
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-top:8px">
+      <span style="font-size:11px;color:var(--text4)">Max 2000 characters</span>
+      <button class="btn btn-accent btn-sm" onclick="submitComment('${escHtml(postId)}')"><i class="ti ti-send"></i> Post comment</button>
+    </div>
+    <div id="comment-err" class="err-msg hidden" style="margin-top:8px"><i class="ti ti-alert-circle"></i><span></span></div>`;
+
+  container.innerHTML = html;
+}
+
+window.submitComment = async function submitComment(postId) {
+  const input = document.getElementById('comment-input');
+  const body  = (input?.value || '').trim();
+  if (!body) { _showCommentErr('Write something first.'); return; }
+
+  const btn = document.querySelector('#post-comments .btn-accent');
+  if (btn) { btn.disabled = true; btn.innerHTML = '<i class="ti ti-loader"></i> Posting…'; }
+  const errEl = document.getElementById('comment-err');
+  if (errEl) errEl.classList.add('hidden');
+
+  try {
+    const { getFunctions, httpsCallable } = await import(
+      'https://www.gstatic.com/firebasejs/10.12.0/firebase-functions.js'
+    );
+    const fns  = getFunctions(window._firebaseApp, 'us-central1');
+    const call = httpsCallable(fns, 'postComment');
+    await call({ postId, body });
+    await loadPostComments(postId);
+  } catch (e) {
+    _showCommentErr(e?.message || 'Failed to post comment.');
+    if (btn) { btn.disabled = false; btn.innerHTML = '<i class="ti ti-send"></i> Post comment'; }
+  }
+};
+
+window.deleteComment = async function deleteComment(postId, commentId) {
+  if (!confirm('Delete this comment?')) return;
+  try {
+    const { doc, deleteDoc } = window._firestoreQuery;
+    await deleteDoc(doc(window._getFirestoreDb(), 'posts', postId, 'comments', commentId));
+    await loadPostComments(postId);
+  } catch (e) {
+    alert('Failed to delete: ' + e.message);
+  }
+};
+
+window.approveComment = async function approveComment(postId, commentId) {
+  try {
+    const { doc, updateDoc } = window._firestoreQuery;
+    await updateDoc(doc(window._getFirestoreDb(), 'posts', postId, 'comments', commentId), { approved: true });
+    // Refresh wherever we are — post view or admin panel
+    const container = document.getElementById('post-comments');
+    if (container && container.style.display !== 'none') {
+      await loadPostComments(postId);
+    }
+    if (document.getElementById('reported-comments-list')) {
+      renderReportedComments();
+    }
+  } catch (e) {
+    alert('Failed to approve: ' + e.message);
+  }
+};
+
+window.reportComment = async function reportComment(postId, commentId) {
+  if (!confirm('Report this comment for review?')) return;
+  try {
+    const { doc, updateDoc } = window._firestoreQuery;
+    await updateDoc(doc(window._getFirestoreDb(), 'posts', postId, 'comments', commentId), { reported: true, reportedAt: Date.now() });
+    alert('Comment reported — thank you.');
+  } catch (e) {
+    alert('Failed to report: ' + e.message);
+  }
+};
+
+// Admin: all reported comments across all posts (requires collectionGroup index in Firestore)
+window.renderReportedComments = async function renderReportedComments() {
+  const el = document.getElementById('reported-comments-list');
+  if (!el) return;
+  el.innerHTML = '<div style="color:var(--text4);font-size:12px">Loading…</div>';
+  try {
+    const { collectionGroup, query, where, orderBy, getDocs } = window._firestoreQuery;
+    const db   = window._getFirestoreDb();
+    const snap = await getDocs(
+      query(collectionGroup(db, 'comments'), where('reported', '==', true), orderBy('reportedAt', 'desc'))
+    );
+    if (snap.empty) {
+      el.innerHTML = '<div style="color:var(--text4);font-size:12px">No reported comments.</div>';
+      return;
+    }
+    el.innerHTML = '';
+    snap.forEach(d => {
+      const c      = d.data();
+      const postId = d.ref.parent.parent.id;
+      const row    = document.createElement('div');
+      row.className = 'comment-row';
+      row.innerHTML = `
+        <div class="comment-header">
+          <span class="comment-author">${escHtml(c.username || 'Anonymous')}</span>
+          <span class="comment-date">${new Date(c.createdAt).toLocaleDateString()}</span>
+          <span style="font-size:10px;color:var(--text4);margin-left:4px">post: ${escHtml(postId)}</span>
+          <div class="comment-actions">
+            <button class="btn btn-sm btn-accent" onclick="approveComment('${escHtml(postId)}','${escHtml(d.id)}')"><i class="ti ti-check"></i> Approve</button>
+            <button class="btn btn-sm" onclick="deleteComment('${escHtml(postId)}','${escHtml(d.id)}')"><i class="ti ti-trash"></i> Delete</button>
+          </div>
+        </div>
+        <div class="comment-body">${escHtml(c.body)}</div>`;
+      el.appendChild(row);
+    });
+  } catch (e) {
+    el.innerHTML = `<div style="color:var(--red);font-size:12px">Error: ${escHtml(e.message)}</div>`;
+  }
+};
+
+function _showCommentErr(msg) {
+  const el = document.getElementById('comment-err');
+  if (!el) return;
+  el.querySelector('span').textContent = msg;
+  el.classList.remove('hidden');
 }
 
 // ── Rich text editor ──────────────────────────

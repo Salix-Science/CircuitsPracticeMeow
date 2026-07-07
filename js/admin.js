@@ -463,8 +463,8 @@ window.emptyChart = function emptyChart(msg){
 
 window.statPill = function statPill(label, value, color){
   const colors={green:'var(--green)',warn:'var(--warn)',red:'var(--red)',purple:'var(--accent2)'};
-  const bgs={green:'rgba(74,222,128,.08)',warn:'rgba(251,191,36,.08)',red:'rgba(248,113,113,.08)',purple:'rgba(157,125,232,.1)'};
-  const borders={green:'rgba(74,222,128,.2)',warn:'rgba(251,191,36,.2)',red:'rgba(248,113,113,.2)',purple:'rgba(157,125,232,.25)'};
+  const bgs={green:'rgba(74,222,128,.08)',warn:'rgba(251,191,36,.08)',red:'rgba(248,113,113,.08)',purple:'rgba(207,138,69,.1)'};
+  const borders={green:'rgba(74,222,128,.2)',warn:'rgba(251,191,36,.2)',red:'rgba(248,113,113,.2)',purple:'rgba(207,138,69,.25)'};
   return `<div style="background:${bgs[color]||bgs.purple};border:0.5px solid ${borders[color]||borders.purple};border-radius:var(--r2);padding:10px 14px;min-width:100px">
     <div style="font-size:9px;font-weight:700;color:var(--text4);text-transform:uppercase;letter-spacing:.1em;margin-bottom:4px">${label}</div>
     <div style="font-size:15px;font-family:var(--mono);font-weight:500;color:${colors[color]||colors.purple}">${value}</div>

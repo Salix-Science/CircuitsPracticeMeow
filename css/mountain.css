@@ -1,0 +1,185 @@
+/* ── Mountain (practice trail) ──────────────────────────────────────────
+   Colours/fonts come only from theme variables so this tracks the live theme.
+   Prefix: .mtn-  ·  Signature element: the switchback trail + summit flag. */
+
+.mtn-wrap { padding: 1.25rem 1rem 3rem; max-width: 760px; margin: 0 auto; }
+
+/* Progress header — sticky so "where am I" stays in view while scrolling */
+.mtn-header {
+  position: sticky; top: 0; z-index: 4;
+  background: linear-gradient(var(--bg) 70%, transparent);
+  padding: 0 0 12px; margin-bottom: 6px;
+}
+.mtn-header-top { display: flex; align-items: flex-end; justify-content: space-between; gap: 12px; }
+.mtn-h-title {
+  font-family: var(--font-display); font-size: 20px; font-weight: 600;
+  letter-spacing: .04em; color: var(--accent2);
+}
+.mtn-h-sub { font-size: 12px; color: var(--text3); margin-top: 2px; font-family: var(--mono); }
+.mtn-h-pct {
+  font-family: var(--mono); font-size: 26px; font-weight: 700; color: var(--green);
+  line-height: 1;
+}
+.mtn-h-pct span { font-size: 13px; color: var(--text4); margin-left: 1px; }
+.mtn-bar {
+  height: 5px; border-radius: 999px; background: var(--bg3);
+  overflow: hidden; margin-top: 10px; border: 0.5px solid var(--border);
+}
+.mtn-bar-fill {
+  height: 100%; border-radius: 999px;
+  background: linear-gradient(90deg, var(--accent3), var(--accent), var(--green));
+  transition: width .5s cubic-bezier(.4,0,.2,1);
+}
+
+/* Trail: a centred vertical spine with peaks branching left/right (switchback) */
+.mtn-trail { position: relative; padding: 8px 0 0; }
+.mtn-spine {
+  position: absolute; top: 0; bottom: 0; left: 50%; width: 3px;
+  transform: translateX(-50%);
+  background: repeating-linear-gradient(
+    var(--border2) 0 8px, transparent 8px 15px);   /* dashed climbing path */
+  border-radius: 3px;
+}
+
+/* Summit cap + flag */
+.mtn-summit { position: relative; text-align: center; padding-top: 26px; margin-bottom: 10px; color: var(--text4); }
+.mtn-summit.is-solved { color: var(--green); }
+.mtn-summit-svg { width: 118px; height: auto; overflow: visible; display: inline-block; }
+.mtn-summit-label {
+  font-family: var(--mono); font-size: 10px; letter-spacing: .18em;
+  text-transform: uppercase; color: currentColor; margin-top: 4px;
+}
+
+/* Base camp / trailhead */
+.mtn-base { position: relative; text-align: center; padding-top: 12px; margin-top: 6px; }
+.mtn-base-dot {
+  display: inline-block; width: 14px; height: 14px; border-radius: 50%;
+  background: var(--bg3); border: 2px solid var(--border2); vertical-align: middle;
+}
+.mtn-base-label {
+  display: block; font-family: var(--mono); font-size: 10px; letter-spacing: .14em;
+  text-transform: uppercase; color: var(--text4); margin-top: 6px;
+}
+
+/* Folder "base camp" signposts between sections */
+.mtn-camp { position: relative; display: flex; align-items: center; gap: 10px; margin: 6px 0; z-index: 2; }
+.mtn-camp-line { flex: 1; height: 0.5px; background: var(--border); }
+.mtn-camp-label {
+  display: inline-flex; align-items: center; gap: 6px;
+  font-family: var(--font-display); font-size: 12px; font-weight: 600;
+  letter-spacing: .05em; color: var(--text2);
+  background: var(--bg2); border: 0.5px solid var(--border);
+  padding: 5px 12px; border-radius: 999px; white-space: nowrap;
+}
+.mtn-camp-label i { color: var(--accent); font-size: 12px; }
+.mtn-camp-count { font-family: var(--mono); font-size: 10px; color: var(--text4); font-weight: 400; }
+
+/* Peak node */
+.mtn-node {
+  position: relative; z-index: 3;
+  display: flex; align-items: center; gap: 12px;
+  width: calc(50% - 4px); box-sizing: border-box;
+  padding: 11px 14px; margin: 10px 0;
+  background: var(--bg2); border: 0.5px solid var(--border);
+  border-radius: var(--r2); cursor: pointer; text-align: left;
+  font-family: var(--font); color: var(--text2);
+  transition: transform .15s, border-color .2s, background .2s, box-shadow .2s;
+}
+.mtn-left  { margin-right: auto; flex-direction: row; }
+.mtn-right { margin-left: auto;  flex-direction: row-reverse; text-align: right; }
+.mtn-node:hover { transform: translateY(-1px); border-color: var(--border2); background: var(--bg3); }
+.mtn-node:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+/* Branch connector from node to the central spine */
+.mtn-branch {
+  position: absolute; top: 50%; height: 2px; width: 24px;
+  background: var(--border2); transform: translateY(-50%);
+}
+.mtn-left  .mtn-branch { right: -24px; }
+.mtn-right .mtn-branch { left: -24px; }
+
+/* Dot sitting on the spine */
+.mtn-dot {
+  position: absolute; top: 50%; width: 9px; height: 9px; border-radius: 50%;
+  background: var(--bg); border: 2px solid var(--border2);
+  transform: translateY(-50%);
+}
+.mtn-left  .mtn-dot { right: -28px; }
+.mtn-right .mtn-dot { left: -28px; }
+
+/* Marker (number / check / hiker) */
+.mtn-marker {
+  flex-shrink: 0; width: 30px; height: 30px; border-radius: 50%;
+  display: grid; place-items: center;
+  font-family: var(--mono); font-size: 13px; font-weight: 700;
+  background: var(--bg3); border: 1.5px solid var(--border2); color: var(--text3);
+}
+.mtn-body { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.mtn-title {
+  font-size: 13px; font-weight: 600; color: var(--text);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.mtn-meta { font-family: var(--mono); font-size: 10px; color: var(--text4); }
+
+/* State: cleared */
+.mtn-node.is-solved { border-color: var(--green-border); background: var(--green-bg); }
+.mtn-node.is-solved .mtn-marker { background: var(--green-bg); border-color: var(--green); color: var(--green); }
+.mtn-node.is-solved .mtn-dot,
+.mtn-node.is-solved .mtn-branch { background: var(--green); border-color: var(--green); }
+.mtn-node.is-solved .mtn-meta { color: var(--green); }
+
+/* State: you-are-here (next unsolved) */
+.mtn-node.is-next { border-color: var(--gold, var(--warn)); box-shadow: 0 0 0 3px rgba(232,201,107,.12); }
+.mtn-node.is-next .mtn-marker {
+  background: var(--bg3); border-color: var(--gold, var(--warn)); color: var(--gold, var(--warn));
+  animation: mtn-pulse 2s ease-in-out infinite;
+}
+.mtn-node.is-next .mtn-meta { color: var(--gold, var(--warn)); }
+
+@keyframes mtn-pulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(232,201,107,.5); }
+  50%      { box-shadow: 0 0 0 6px rgba(232,201,107,0); }
+}
+
+/* Sidebar Trail/List toggle */
+.mtn-toggle {
+  display: flex; gap: 4px; padding: 4px; margin-bottom: 10px;
+  background: var(--bg3); border: 0.5px solid var(--border); border-radius: var(--r2);
+}
+.mtn-tg-btn {
+  flex: 1; display: inline-flex; align-items: center; justify-content: center; gap: 5px;
+  padding: 6px 8px; border: none; border-radius: var(--r);
+  background: transparent; color: var(--text3); cursor: pointer;
+  font-family: var(--font); font-size: 11px; font-weight: 600; transition: all .2s;
+}
+.mtn-tg-btn i { font-size: 13px; }
+.mtn-tg-btn:hover { color: var(--text2); }
+.mtn-tg-btn.active { background: var(--bg); color: var(--accent2); box-shadow: var(--glow); }
+
+/* Back-to-trail button injected into an opened problem */
+.mtn-back { align-self: flex-start; margin-bottom: 4px; }
+
+/* Empty + list-mode hint */
+.mtn-empty { text-align: center; padding: 4rem 1.5rem; color: var(--text3); }
+.mtn-empty-icon { font-size: 40px; opacity: .6; }
+.mtn-empty-title { font-family: var(--font-display); font-size: 18px; color: var(--text2); margin-top: 10px; }
+.mtn-empty-sub { font-size: 12px; color: var(--text4); margin-top: 6px; max-width: 340px; margin-inline: auto; }
+.mtn-list-hint {
+  display: flex; align-items: center; gap: 8px; justify-content: center;
+  padding: 3rem 1rem; color: var(--text4); font-size: 12px; font-family: var(--mono);
+}
+
+/* Narrow screens: collapse the switchback into a single left-aligned column */
+@media (max-width: 620px) {
+  .mtn-spine { left: 19px; }
+  .mtn-node { width: 100%; margin-left: 38px; flex-direction: row; text-align: left; }
+  .mtn-right { flex-direction: row; text-align: left; }
+  .mtn-left .mtn-branch, .mtn-right .mtn-branch { left: -19px; right: auto; width: 19px; }
+  .mtn-left .mtn-dot, .mtn-right .mtn-dot { left: -23px; right: auto; }
+  .mtn-camp { margin-left: 0; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .mtn-node, .mtn-bar-fill { transition: none; }
+  .mtn-node.is-next .mtn-marker { animation: none; }
+}

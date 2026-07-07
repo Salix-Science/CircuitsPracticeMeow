@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>Mountain view — preview</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@3.1.0/dist/tabler-icons.min.css"/>
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;700&display=swap" rel="stylesheet"/>
+<style>
+/* PREVIEW-ONLY tokens. These approximate a copper/graphite theme so you can
+   judge the layout. On the live site these are ignored — mountain.css reads
+   whatever your real :root variables are. Swap/ignore freely. */
+:root{
+  --bg:#131316; --bg2:#1a1a1f; --bg3:#232329; --bg4:#2c2c34; --bg5:#37373f;
+  --border:#33333c; --border2:#4d4d59; --border3:#6b6b7a;
+  --text:#ece8e1; --text2:#c3bcae; --text3:#8a8478; --text4:#5b564d;
+  --accent:#c17a3f; --accent2:#e0a56b; --accent3:#8a5326;   /* copper */
+  --green:#6ab04c; --green-bg:#12210c; --green-border:#2c471c;
+  --red:#d9584b; --warn:#e0a12e; --gold:#d8a24a;            /* patina/brass */
+  --font:'IBM Plex Sans',sans-serif; --font-display:'Space Grotesk',sans-serif; --mono:'IBM Plex Mono',monospace;
+  --r:6px; --r2:10px; --r3:16px;
+  --glow:0 0 20px rgba(193,122,63,.18);
+}
+html,body{margin:0;background:var(--bg);color:var(--text);font-family:var(--font);}
+.frame{display:grid;grid-template-columns:210px 1fr;min-height:100vh;}
+.sidebar{background:var(--bg2);border-right:.5px solid var(--border);padding:14px;overflow:auto;}
+.main-content{overflow:auto;height:100vh;}
+.sidebar-label{font-size:9px;font-weight:700;color:var(--text4);text-transform:uppercase;letter-spacing:.14em;padding:10px 8px 4px;}
+.preview-tag{position:fixed;bottom:10px;right:12px;font:11px var(--mono);color:var(--text4);background:var(--bg3);padding:4px 8px;border-radius:6px;border:.5px solid var(--border);z-index:9;}
+.btn{background:var(--bg3);border:.5px solid var(--border);color:var(--text2);border-radius:var(--r);padding:6px 10px;cursor:pointer;font-family:var(--font);}
+.btn-sm{font-size:11px;padding:5px 9px;}
+.practice-pane{padding:1.5rem;}
+</style>
+<!-- styles now self-inject from mountain.js — no separate stylesheet needed -->
+</head>
+<body>
+<div class="frame">
+  <div class="sidebar" id="practice-sidebar">
+    <div class="sidebar-label">Topic folders</div>
+  </div>
+  <div class="main-content" id="practice-main"></div>
+</div>
+<div class="preview-tag">preview · mock data · placeholder copper theme</div>
+
+<script>
+// ── Minimal stubs so mountain.js's renderMountain() runs standalone ──
+function escHtml(s){return String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
+window.escHtml=escHtml;
+window.S={user:'demo',isAdmin:false};
+const mk=(id,title,topic)=>({id,title,topic,enabled:true,vars:[],answers:[]});
+window.DB={
+  folders:[
+    {id:'f1',name:'DC Fundamentals',problemIds:['p1','p2','p3','p4']},
+    {id:'f2',name:'Node & Mesh Analysis',problemIds:['p5','p6','p7']},
+    {id:'f3',name:'Thevenin / Norton',problemIds:['p8','p9','p1']},
+    {id:'f4',name:'First-Order Transients',problemIds:['p10','p11','p12']},
+  ],
+  problems:[
+    mk('p1','Ohm\u2019s law: single resistor','DC'),
+    mk('p2','Series resistor voltage split','DC'),
+    mk('p3','Parallel resistor current split','DC'),
+    mk('p4','Power dissipated in a network','DC'),
+    mk('p5','Node voltage: 2-node network','Node'),
+    mk('p6','Supernode with dependent source','Node'),
+    mk('p7','Mesh currents: 3 loops','Mesh'),
+    mk('p8','Thevenin equivalent resistance','Thev'),
+    mk('p9','Norton current from a bridge','Thev'),
+    mk('p10','RC step response \u03c4','Trans'),
+    mk('p11','RL current decay','Trans'),
+    mk('p12','Second look: RC with initial charge','Trans'),
+  ],
+  // demo progress: first four cleared → "you are here" lands on p5
+  users:{demo:{probRatings:{p1:3,p2:2,p3:4,p4:3}}}
+};
+// stub so peak clicks don't error in the preview
+window.loadFolderPractice=function(fid,pid){
+  document.getElementById('practice-main').innerHTML=
+    '<div class="practice-pane"><button class="btn btn-sm" onclick="window.renderMountain()">\u2190 Back to the trail</button>'+
+    '<h3 style="font-family:var(--font-display)">Opened '+escHtml(pid)+'</h3>'+
+    '<p style="color:var(--text3)">(In the real app this is the live problem card.)</p></div>';
+};
+</script>
+<script src="mountain.js"></script>
+<script>
+  // sidebar folder list (visual parity with the real sidebar) + render
+  const sb=document.getElementById('practice-sidebar');
+  DB.folders.forEach(f=>{
+    const d=document.createElement('div');
+    d.style.cssText='font:12px var(--font);color:var(--text3);padding:6px 8px;';
+    d.innerHTML='<i class="ti ti-folder"></i> '+escHtml(f.name);
+    sb.appendChild(d);
+  });
+  window.enterPracticeView();   // injects toggle + renders the trail
+</script>
+</body>
+</html>

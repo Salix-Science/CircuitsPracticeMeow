@@ -1,15 +1,25 @@
 /* main.js — Single entry point. Imports firebase.js (which sets up
    window.DB, window.S, window.doLogin etc.), then loads all other
-   scripts in order once Firebase is ready. */
+   scripts once Firebase is ready.
+
+   Loading strategy:
+   - The feature scripts are fetched in parallel (Promise.all),
+     cutting the serial waterfall down to a single network round-trip.
+   - app.js is loaded last and alone because it sets window._appReady = true,
+     which signals firebase.js to hand off the pending auth state. It must
+     not fire until all feature scripts have finished executing.
+*/
 
 import './firebase.js';
 
-// firebase.js is synchronous up to the point of registering onAuthStateChanged,
-// so by the time this import resolves, all window.* functions are defined.
-// Now dynamically load the remaining scripts in strict order.
-const scripts = [
+// ── Feature scripts — load all in parallel ───────────────────────────────────
+// None of these reference each other's globals at parse time; they only
+// expose window.* functions that are called later from event handlers and
+// app.js routing. Parallel loading is therefore safe.
+const featureScripts = [
   'js/home.js',
   'js/practice.js',
+  'js/mountain.js',
   'js/blog.js',
   'js/editor.js',
   'js/assignments.js',
@@ -23,11 +33,10 @@ const scripts = [
   'js/notifications.js',
   'js/ratings.js',
   'js/adminlog.js',
-  'js/app.js',
 ];
 
-for (const src of scripts) {
-  await new Promise((resolve) => {
+function loadScript(src) {
+  return new Promise((resolve) => {
     const s = document.createElement('script');
     s.src = src;
     s.onload = resolve;
@@ -38,3 +47,10 @@ for (const src of scripts) {
     document.head.appendChild(s);
   });
 }
+
+await Promise.all(featureScripts.map(loadScript));
+
+// ── app.js — must run last ───────────────────────────────────────────────────
+// Sets window._appReady = true and flushes window._pendingAuthUser.
+// Guaranteed to execute only after all feature scripts have finished.
+await loadScript('js/app.js');

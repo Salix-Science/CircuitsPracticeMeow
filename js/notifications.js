@@ -49,13 +49,13 @@ function buildEmailHtml(subject, message, type = 'general', opts = {}) {
   // Each double-newline becomes a paragraph break; single newlines become <br>
   const bodyHtml = message
     .split(/\n{2,}/)
-    .map(para => `<p style="font-size:14px;color:#b8a8e8;line-height:1.85;margin:0 0 14px">${
+    .map(para => `<p style="font-size:14px;color:#b7ab93;line-height:1.85;margin:0 0 14px">${
       para.replace(/\n/g, '<br>').trim()
     }</p>`)
     .join('\n');
 
   const greeting = recipient
-    ? `<p style="font-size:14px;color:#b8a8e8;line-height:1.85;margin:0 0 14px">Hi ${recipient},</p>`
+    ? `<p style="font-size:14px;color:#b7ab93;line-height:1.85;margin:0 0 14px">Hi ${recipient},</p>`
     : '';
 
   return `<!DOCTYPE html>
@@ -65,30 +65,30 @@ function buildEmailHtml(subject, message, type = 'general', opts = {}) {
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <title>${subject}</title>
 </head>
-<body style="margin:0;padding:0;background:#1a1430;font-family:Georgia,'Times New Roman',serif">
+<body style="margin:0;padding:0;background:#1d242c;font-family:Georgia,'Times New Roman',serif">
 
   <!-- Outer wrapper -->
-  <table width="100%" cellpadding="0" cellspacing="0" border="0" style="background:#1a1430;padding:32px 16px">
+  <table width="100%" cellpadding="0" cellspacing="0" border="0" style="background:#1d242c;padding:32px 16px">
     <tr><td align="center">
 
       <!-- Card -->
       <table width="100%" cellpadding="0" cellspacing="0" border="0"
-             style="max-width:580px;background:#110d1f;border-radius:10px;overflow:hidden;border:1px solid #3d2f6b;box-shadow:0 4px 40px rgba(0,0,0,0.6)">
+             style="max-width:580px;background:#161c23;border-radius:10px;overflow:hidden;border:1px solid #323b44;box-shadow:0 4px 40px rgba(0,0,0,0.6)">
 
         <!-- ── Header ── -->
         <tr>
-          <td style="background:linear-gradient(135deg,#110d1f 0%,#221b3d 100%);padding:30px 36px 26px;text-align:center;border-bottom:1px solid #3d2f6b">
+          <td style="background:linear-gradient(135deg,#161c23 0%,#242c35 100%);padding:30px 36px 26px;text-align:center;border-bottom:1px solid #323b44">
             <!-- Circuit line decoration -->
-            <div style="font-size:10px;color:#3d2f6b;letter-spacing:.3em;margin-bottom:10px">
+            <div style="font-size:10px;color:#323b44;letter-spacing:.3em;margin-bottom:10px">
               ─────── ◈ ───────
             </div>
-            <div style="font-family:Georgia,'Times New Roman',serif;font-size:22px;font-weight:700;letter-spacing:.20em;color:#c4a8ff;text-transform:uppercase;margin-bottom:5px">
+            <div style="font-family:Georgia,'Times New Roman',serif;font-size:22px;font-weight:700;letter-spacing:.20em;color:#e8a866;text-transform:uppercase;margin-bottom:5px">
               Circuits Practice
             </div>
-            <div style="font-size:10px;color:#7a6aaa;letter-spacing:.18em;text-transform:uppercase;font-family:Courier,'Courier New',monospace">
+            <div style="font-size:10px;color:#7d7461;letter-spacing:.18em;text-transform:uppercase;font-family:Courier,'Courier New',monospace">
               circuitspractice.org
             </div>
-            <div style="font-size:10px;color:#3d2f6b;letter-spacing:.3em;margin-top:10px">
+            <div style="font-size:10px;color:#323b44;letter-spacing:.3em;margin-top:10px">
               ─────── ◈ ───────
             </div>
           </td>
@@ -96,8 +96,8 @@ function buildEmailHtml(subject, message, type = 'general', opts = {}) {
 
         <!-- ── Type badge ── -->
         <tr>
-          <td style="background:#1a1430;padding:12px 36px;border-bottom:1px solid #2a1f4d">
-            <span style="display:inline-block;font-size:10px;font-weight:600;letter-spacing:.12em;text-transform:uppercase;color:#9d7de8;background:rgba(157,125,232,.12);border:1px solid rgba(157,125,232,.28);border-radius:99px;padding:4px 12px;font-family:Courier,'Courier New',monospace">
+          <td style="background:#1d242c;padding:12px 36px;border-bottom:1px solid #262e36">
+            <span style="display:inline-block;font-size:10px;font-weight:600;letter-spacing:.12em;text-transform:uppercase;color:#cf8a45;background:rgba(207,138,69,.12);border:1px solid rgba(207,138,69,.28);border-radius:99px;padding:4px 12px;font-family:Courier,'Courier New',monospace">
               ${badge.emoji}&nbsp; ${badge.label}
             </span>
           </td>
@@ -105,8 +105,8 @@ function buildEmailHtml(subject, message, type = 'general', opts = {}) {
 
         <!-- ── Subject ── -->
         <tr>
-          <td style="background:#110d1f;padding:24px 36px 8px">
-            <h1 style="font-family:Georgia,'Times New Roman',serif;font-size:19px;font-weight:600;color:#ede8ff;margin:0;line-height:1.4;letter-spacing:.01em">
+          <td style="background:#161c23;padding:24px 36px 8px">
+            <h1 style="font-family:Georgia,'Times New Roman',serif;font-size:19px;font-weight:600;color:#ece3d3;margin:0;line-height:1.4;letter-spacing:.01em">
               ${subject}
             </h1>
           </td>
@@ -114,9 +114,9 @@ function buildEmailHtml(subject, message, type = 'general', opts = {}) {
 
         <!-- ── Body ── -->
         <tr>
-          <td style="background:#110d1f;padding:12px 36px 8px">
+          <td style="background:#161c23;padding:12px 36px 8px">
             <!-- Subtle divider -->
-            <div style="height:1px;background:linear-gradient(90deg,transparent,#3d2f6b,transparent);margin-bottom:20px"></div>
+            <div style="height:1px;background:linear-gradient(90deg,transparent,#323b44,transparent);margin-bottom:20px"></div>
 
             ${greeting}
             ${bodyHtml}
@@ -125,9 +125,9 @@ function buildEmailHtml(subject, message, type = 'general', opts = {}) {
 
         <!-- ── CTA button ── -->
         <tr>
-          <td style="background:#110d1f;padding:8px 36px 28px;text-align:center">
+          <td style="background:#161c23;padding:8px 36px 28px;text-align:center">
             <a href="${ctaUrl}"
-               style="display:inline-block;background:linear-gradient(135deg,#6b3fa0,#9d7de8);color:#ffffff;text-decoration:none;font-size:13px;font-weight:600;padding:12px 30px;border-radius:6px;letter-spacing:.05em;font-family:Georgia,'Times New Roman',serif">
+               style="display:inline-block;background:linear-gradient(135deg,#7a4a20,#cf8a45);color:#ffffff;text-decoration:none;font-size:13px;font-weight:600;padding:12px 30px;border-radius:6px;letter-spacing:.05em;font-family:Georgia,'Times New Roman',serif">
               ${ctaLabel}
             </a>
           </td>
@@ -135,14 +135,14 @@ function buildEmailHtml(subject, message, type = 'general', opts = {}) {
 
         <!-- ── Footer ── -->
         <tr>
-          <td style="background:#0a0612;padding:20px 36px;border-top:1px solid #3d2f6b;text-align:center">
-            <p style="font-size:11px;color:#4a3d77;margin:0 0 5px;line-height:1.7;font-family:Courier,'Courier New',monospace">
+          <td style="background:#11161c;padding:20px 36px;border-top:1px solid #323b44;text-align:center">
+            <p style="font-size:11px;color:#4f493c;margin:0 0 5px;line-height:1.7;font-family:Courier,'Courier New',monospace">
               You're receiving this because you subscribed to notifications on Circuits Practice.
             </p>
-            <p style="font-size:11px;color:#4a3d77;margin:0;line-height:1.7;font-family:Courier,'Courier New',monospace">
-              <a href="${SITE}" style="color:#7a6aaa;text-decoration:none">circuitspractice.org</a>
+            <p style="font-size:11px;color:#4f493c;margin:0;line-height:1.7;font-family:Courier,'Courier New',monospace">
+              <a href="${SITE}" style="color:#7d7461;text-decoration:none">circuitspractice.org</a>
               &nbsp;·&nbsp;
-              To unsubscribe, update your preferences under <strong style="color:#5a4490">Profile → Email notifications</strong>.
+              To unsubscribe, update your preferences under <strong style="color:#4a5560">Profile → Email notifications</strong>.
             </p>
           </td>
         </tr>

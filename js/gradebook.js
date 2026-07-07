@@ -604,22 +604,22 @@ function gbExportPDF() {
   * { box-sizing:border-box; margin:0; padding:0; }
   body { font-family: 'Segoe UI', Arial, sans-serif; font-size:12px; color:#1e1b2e; background:#fff; }
   .page { max-width:860px; margin:0 auto; padding:32px 36px; }
-  h1 { font-size:22px; font-weight:700; color:#4c1d95; letter-spacing:.04em; }
-  h2 { font-size:13px; font-weight:700; color:#5b21b6; text-transform:uppercase; letter-spacing:.1em; margin-bottom:10px; padding-bottom:4px; border-bottom:1.5px solid #ede9fe; }
-  .meta { font-size:11px; color:#7c3aed; margin-top:4px; }
+  h1 { font-size:22px; font-weight:700; color:#8a5326; letter-spacing:.04em; }
+  h2 { font-size:13px; font-weight:700; color:#a5631f; text-transform:uppercase; letter-spacing:.1em; margin-bottom:10px; padding-bottom:4px; border-bottom:1.5px solid #f0ddc0; }
+  .meta { font-size:11px; color:#b9772f; margin-top:4px; }
   .stats { display:grid; grid-template-columns:repeat(5,1fr); gap:10px; margin:20px 0; }
-  .stat { background:#f5f3ff; border:1px solid #ede9fe; border-radius:8px; padding:12px; text-align:center; }
-  .stat-val { font-size:20px; font-weight:700; color:#4c1d95; }
-  .stat-lbl { font-size:9px; color:#7c3aed; text-transform:uppercase; letter-spacing:.08em; margin-top:3px; }
+  .stat { background:#fdf3e6; border:1px solid #f0ddc0; border-radius:8px; padding:12px; text-align:center; }
+  .stat-val { font-size:20px; font-weight:700; color:#8a5326; }
+  .stat-lbl { font-size:9px; color:#b9772f; text-transform:uppercase; letter-spacing:.08em; margin-top:3px; }
   .dist-row { display:flex; align-items:center; gap:10px; margin-bottom:5px; }
   .dist-letter { width:32px; text-align:center; font-size:11px; font-weight:700; padding:2px 6px; border-radius:4px; }
   .dist-bar-outer { flex:1; height:14px; background:#f3f4f6; border-radius:3px; overflow:hidden; }
   .dist-bar-inner { height:100%; border-radius:3px; }
   .dist-n { width:30px; text-align:right; font-size:11px; color:#6b7280; font-variant-numeric:tabular-nums; }
   table { width:100%; border-collapse:collapse; margin-top:0; font-size:11px; }
-  th { background:#4c1d95; color:#fff; padding:7px 10px; text-align:left; font-size:10px; text-transform:uppercase; letter-spacing:.07em; }
-  td { padding:6px 10px; border-bottom:1px solid #ede9fe; }
-  tr:nth-child(even) td { background:#faf5ff; }
+  th { background:#8a5326; color:#fff; padding:7px 10px; text-align:left; font-size:10px; text-transform:uppercase; letter-spacing:.07em; }
+  td { padding:6px 10px; border-bottom:1px solid #f0ddc0; }
+  tr:nth-child(even) td { background:#fdf8f1; }
   .grade-pill { font-size:11px; font-weight:700; padding:2px 7px; border-radius:4px; display:inline-block; }
   .scale-table td, .scale-table th { padding:5px 10px; }
   .section { margin-bottom:28px; }

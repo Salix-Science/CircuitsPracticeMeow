@@ -18,12 +18,14 @@ import {
   setDoc,
   updateDoc,
   collection,
+  collectionGroup,
   getDocs,
   deleteDoc,
   arrayUnion,
   addDoc,
   increment,
   query,
+  where,
   orderBy,
   limit,
   startAfter
@@ -55,7 +57,7 @@ const db        = getFirestore(app);
 window._firebaseApp = app;
 // Expose db + Firestore query helpers for adminlog.js
 window._getFirestoreDb = () => db;
-window._firestoreQuery = { query, collection, orderBy, limit, startAfter, getDocs };
+window._firestoreQuery = { query, collection, collectionGroup, where, doc, deleteDoc, updateDoc, orderBy, limit, startAfter, getDocs };
 
 // Analytics may fail in dev (localhost/file://) or if blocked by an ad blocker.
 // Wrap in try/catch so a failure here never prevents login from working.
@@ -1001,10 +1003,26 @@ window.deleteUser = async function(uid, username) {
     console.warn('[security] deleteUser blocked — caller is not admin');
     return;
   }
-  if (!confirm(`Delete user "${username}"? This cannot be undone.`)) return;
-  await deleteDoc(doc(db, 'users', uid));
-  logAdminAction('delete_user', { targetUid: uid, targetUsername: username }).catch(() => {});
-  renderUserMgmt();
+  if (!confirm(`Delete user "${username}"? This removes their profile AND their login account. This cannot be undone.`)) return;
+
+  console.log('[deleteUser] requesting deletion — uid:', uid, 'username:', username);
+
+  try {
+    const { getFunctions, httpsCallable } = await import(
+      'https://www.gstatic.com/firebasejs/10.12.0/firebase-functions.js'
+    );
+    const fns  = getFunctions(window._firebaseApp, 'us-central1');
+    const call = httpsCallable(fns, 'deleteUserAccount');
+    const res  = await call({ targetUid: uid, targetUsername: username });
+    console.log('[deleteUser] Cloud Function result:', res.data);
+
+    logAdminAction('delete_user', { targetUid: uid, targetUsername: username }).catch(() => {});
+    renderUserMgmt();
+    renderAnalytics();
+  } catch (e) {
+    console.error('[deleteUser] FAILED:', e.code, e.message);
+    alert(`Failed to delete "${username}": ${e.message}`);
+  }
 };
 
 // ── Admin: create account ─────────────────────

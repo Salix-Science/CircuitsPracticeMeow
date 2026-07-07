@@ -19,9 +19,6 @@ window.resetForm = function resetForm(){
   window.S.editorImg=null;
   window.S.formEnabled=true;
   window.S.editorAnswers=[{id:`ans-${Date.now()}`,label:'Answer',formula:'',unit:'V',tol:'2'}];
-  window.S.editorAnswerMode='boxes';
-  window.S.editorTable={corner:'',tol:'2',rows:[{label:'Row 1',unit:'V',cells:['']}],cols:[{label:'Col 1'}]};
-  setAnswerMode('boxes'); // resets both panels
   ['e-title','e-topic','e-question','e-hint'].forEach(id=>{
     const el=document.getElementById(id); if(el) el.value='';
   });
@@ -37,6 +34,7 @@ window.resetForm = function resetForm(){
   document.getElementById('form-toggle-label').textContent='Enabled';
   renderVarInsertChips();
   renderAnswerBoxes();
+  setAnswerMode(window.S.editorAnswerMode||'boxes');
   rebuildTopicDropdown(); // ← always rebuild on form reset so dropdown is current
   document.getElementById('e-title')?.focus();
 }
@@ -67,7 +65,7 @@ window.renderVarRows = function renderVarRows(){
     const unitOptions=(TYPE_UNIT_OPTIONS[v.type]||[v.unit||'']).map(u=>
       `<option value="${u}" ${u===v.unit?'selected':''}>${u}</option>`).join('');
     const row=document.createElement('div');
-    row.style.cssText='display:grid;grid-template-columns:80px 56px 62px 62px 70px 24px;gap:6px;align-items:end;margin-bottom:6px';
+    row.style.cssText='display:grid;grid-template-columns:80px 56px 62px 62px 98px 24px;gap:6px;align-items:end;margin-bottom:6px';
     row.innerHTML=`
       <div><label>Name</label>
         <input type="text" value="${v.name}" style="padding:6px 8px;font-size:12px"
@@ -111,158 +109,6 @@ window.renderVarInsertChips = function renderVarInsertChips(){
     const n=document.createElement('span');n.style.cssText='font-size:11px;color:var(--text4)';
     n.textContent='Add variables to see insert buttons.';wrap.appendChild(n);
   }
-}
-
-// ── Answer mode (boxes | table) ───────────────
-// S.editorAnswerMode = 'boxes' | 'table'
-// S.editorTable = { corner, tol, rows:[{label,unit,cells:[]}], cols:[{label}] }
-if(!window.S.editorAnswerMode) window.S.editorAnswerMode = 'boxes';
-if(!window.S.editorTable) window.S.editorTable = {
-  corner:'', tol:'2',
-  rows:[{label:'Row 1', unit:'V', cells:['']}],
-  cols:[{label:'Col 1'}]
-};
-
-window.setAnswerMode = function setAnswerMode(mode) {
-  window.S.editorAnswerMode = mode;
-  document.getElementById('answer-mode-boxes').style.display = (mode==='boxes'||mode==='both') ? '' : 'none';
-  document.getElementById('answer-mode-table').style.display = (mode==='table'||mode==='both') ? '' : 'none';
-  document.getElementById('amt-boxes').classList.toggle('active', mode==='boxes');
-  document.getElementById('amt-table').classList.toggle('active', mode==='table');
-  document.getElementById('amt-both')?.classList.toggle('active', mode==='both');
-  if (mode==='table'||mode==='both') renderTableEditor();
-}
-
-window.renderTableEditor = function renderTableEditor() {
-  const wrap = document.getElementById('table-editor-wrap'); if(!wrap) return;
-  const t = window.S.editorTable;
-  // Sync corner + tol fields
-  const cornerEl = document.getElementById('tbl-corner'); if(cornerEl) cornerEl.value = t.corner||'';
-  const tolEl    = document.getElementById('tbl-tol');    if(tolEl)    tolEl.value    = t.tol||'2';
-
-  // Build a small editor grid:
-  // Row 0: empty corner | col-label inputs | [del col btn]
-  // Row N: row-label input | unit input | cell formula inputs | [del row btn]
-  let html = `<div class="tbl-ed-scroll"><table class="tbl-ed">`;
-
-  // Header row — col labels
-  html += `<thead><tr><th class="tbl-ed-corner">Rows ↓ / Cols →</th>`;
-  t.cols.forEach((col,c)=>{
-    html += `<th>
-      <input type="text" class="tbl-ed-col-label" value="${escHtml(col.label||'')}"
-        placeholder="Col ${c+1}"
-        oninput="window.S.editorTable.cols[${c}].label=this.value"/>
-      <button class="tbl-ed-del" title="Delete column" onclick="removeTableCol(${c})"><i class="ti ti-x"></i></button>
-    </th>`;
-  });
-  html += `<th class="tbl-ed-unit-h">Unit</th><th></th></tr></thead>`;
-
-  // Body — one row per row
-  html += `<tbody>`;
-  t.rows.forEach((row,r)=>{
-    // Ensure cells array is long enough
-    while((row.cells||[]).length < t.cols.length) { if(!row.cells) row.cells=[]; row.cells.push(''); }
-
-    html += `<tr><th>
-      <input type="text" class="tbl-ed-row-label" value="${escHtml(row.label||'')}"
-        placeholder="Row ${r+1}"
-        oninput="window.S.editorTable.rows[${r}].label=this.value"/>
-      <button class="tbl-ed-del" title="Delete row" onclick="removeTableRow(${r})"><i class="ti ti-x"></i></button>
-    </th>`;
-    t.cols.forEach((_col,c)=>{
-      const formula = (row.cells && row.cells[c]) || '';
-      html += `<td>
-        <input type="text" class="tbl-ed-formula mono" value="${escHtml(formula)}"
-          placeholder="formula"
-          oninput="window.S.editorTable.rows[${r}].cells[${c}]=this.value;previewTableFormulas()"/>
-        <span class="tbl-ed-preview" id="tblprev-${r}-${c}"></span>
-      </td>`;
-    });
-    html += `<td>
-      <input type="text" class="tbl-ed-unit" value="${escHtml(row.unit||'')}"
-        placeholder="V"
-        oninput="window.S.editorTable.rows[${r}].unit=this.value"/>
-    </td><td></td></tr>`;
-  });
-  html += `</tbody></table></div>`;
-  wrap.innerHTML = html;
-  previewTableFormulas();
-}
-
-window.addTableRow = function addTableRow() {
-  const t = window.S.editorTable;
-  t.rows.push({ label:`Row ${t.rows.length+1}`, unit:'V', cells: t.cols.map(()=>'') });
-  renderTableEditor();
-}
-window.removeTableRow = function removeTableRow(r) {
-  const t = window.S.editorTable;
-  if(t.rows.length <= 1){ alert('A table needs at least one row.'); return; }
-  t.rows.splice(r,1);
-  renderTableEditor();
-}
-window.addTableCol = function addTableCol() {
-  const t = window.S.editorTable;
-  t.cols.push({ label:`Col ${t.cols.length+1}` });
-  t.rows.forEach(row=>{ if(!row.cells) row.cells=[]; row.cells.push(''); });
-  renderTableEditor();
-}
-window.removeTableCol = function removeTableCol(c) {
-  const t = window.S.editorTable;
-  if(t.cols.length <= 1){ alert('A table needs at least one column.'); return; }
-  t.cols.splice(c,1);
-  t.rows.forEach(row=>{ if(row.cells) row.cells.splice(c,1); });
-  renderTableEditor();
-}
-
-window.previewTableFormulas = function previewTableFormulas() {
-  const t = window.S.editorTable;
-  const vars = window.S.editorVars;
-
-  // Three sample points: min, mid, max — to catch range problems
-  const mkVals = (pos) => {
-    const v = {};
-    vars.forEach(va => {
-      const lo = parseFloat(va.min), hi = parseFloat(va.max);
-      v[va.name] = pos === 'min' ? lo : pos === 'max' ? hi : (lo + hi) / 2;
-    });
-    return v;
-  };
-  const midVals = mkVals('mid');
-  const minVals = mkVals('min');
-  const maxVals = mkVals('max');
-  const varStr  = vars.map(va=>`${va.name}=${midVals[va.name]} ${va.unit||''}`).join(', ') || 'no vars';
-
-  t.rows.forEach((row,r)=>{
-    t.cols.forEach((_col,c)=>{
-      const el = document.getElementById(`tblprev-${r}-${c}`); if(!el) return;
-      const formula = (row.cells && row.cells[c]) || '';
-      if(!formula.trim()){ el.textContent=''; el.title=''; return; }
-      try {
-        const fn     = new Function(...Object.keys(midVals), `return (${formula})`);
-        const resMid = fn(...Object.values(midVals));
-
-        // Range-check at extremes
-        let rangeWarn = '';
-        try {
-          const fnLo = new Function(...Object.keys(minVals), `return (${formula})`);
-          const fnHi = new Function(...Object.keys(maxVals), `return (${formula})`);
-          const resLo = fnLo(...Object.values(minVals));
-          const resHi = fnHi(...Object.values(maxVals));
-          if (!isFinite(resLo) || !isFinite(resHi)) rangeWarn = ' ⚠ range';
-          else if (Math.sign(resLo) !== Math.sign(resHi) && resLo !== 0 && resHi !== 0)
-            rangeWarn = ' ⚠ sign flip';
-        } catch(_) { rangeWarn = ' ⚠ range err'; }
-
-        el.textContent = `${rnd(resMid,4)} ${row.unit||''}${rangeWarn}`;
-        el.style.color  = rangeWarn ? 'var(--warn)' : 'var(--accent2)';
-        el.title        = `${varStr} → ${rnd(resMid,4)} ${row.unit||''}`;
-      } catch(e) {
-        el.textContent = `⚠ ${e.message}`;
-        el.style.color = 'var(--red)';
-        el.title       = e.message;
-      }
-    });
-  });
 }
 
 // ── Answer boxes ──────────────────────────────
@@ -331,6 +177,21 @@ window.removeAnswerBox = function removeAnswerBox(i){
   renderAnswerBoxes();
 }
 
+// ── Answer mode toggle (Boxes / Table / Both) ─
+// Sets S.editorAnswerMode and updates button active states + panel visibility.
+window.setAnswerMode = function setAnswerMode(mode){
+  window.S.editorAnswerMode = mode; // 'boxes' | 'table' | 'both'
+  // Update button active classes
+  ['boxes','table','both'].forEach(m => {
+    document.getElementById(`amt-${m}`)?.classList.toggle('active', m === mode);
+  });
+  // Show/hide the relevant editor sections
+  const boxesSection = document.getElementById('answer-mode-boxes');
+  const tableSection = document.getElementById('answer-mode-table');
+  if(boxesSection) boxesSection.style.display = (mode==='boxes'||mode==='both') ? '' : 'none';
+  if(tableSection) tableSection.style.display = (mode==='table'||mode==='both') ? '' : 'none';
+}
+
 window.previewAllFormulas = function previewAllFormulas(){
   const vals={};
   window.S.editorVars.forEach(v=>{vals[v.name]=(parseFloat(v.min)+parseFloat(v.max))/2;});
@@ -368,25 +229,10 @@ window.saveProblem = async function saveProblem(){
   const title=document.getElementById('e-title').value.trim();
   const question=document.getElementById('e-question').value.trim();
   if(!title||!question){alert('Title and Question are required.');return;}
-
-  const editorMode = window.S.editorAnswerMode; // 'boxes' | 'table' | 'both'
-  const hasTable   = editorMode === 'table' || editorMode === 'both';
-  const hasBoxes   = editorMode === 'boxes' || editorMode === 'both';
-  const answers    = window.S.editorAnswers;
-
-  // Validate boxes
-  if(hasBoxes){
-    if(!answers.length||!answers[0].formula.trim()){alert('At least one answer formula is required.');return;}
-    const badFormulas=answers.filter(a=>!a.formula.trim());
-    if(badFormulas.length){alert(`Answer box "${badFormulas[0].label}" has no formula.`);return;}
-  }
-  // Validate table
-  if(hasTable){
-    const t = window.S.editorTable;
-    if(!t.rows.length || !t.cols.length){alert('Table needs at least one row and one column.');return;}
-    const missingCell = t.rows.some(row=>t.cols.some((_,c)=>!(row.cells&&row.cells[c]&&row.cells[c].trim())));
-    if(missingCell){alert('Every table cell needs a formula.');return;}
-  }
+  const answers=window.S.editorAnswers;
+  if(!answers.length||!answers[0].formula.trim()){alert('At least one answer formula is required.');return;}
+  const badFormulas=answers.filter(a=>!a.formula.trim());
+  if(badFormulas.length){alert(`Answer box "${badFormulas[0].label}" has no formula.`);return;}
 
   const maxAttempts=parseInt(document.getElementById('e-max-attempts').value)||0;
   const prob={
@@ -394,24 +240,18 @@ window.saveProblem = async function saveProblem(){
     title,
     topic:document.getElementById('e-topic').value.trim(),
     question,
-    answerMode: editorMode,
-    answers: hasBoxes ? answers.map(a=>({...a})) : [],
-    table: hasTable ? {
-      corner: window.S.editorTable.corner||'',
-      tol:    window.S.editorTable.tol||'2',
-      rows:   window.S.editorTable.rows.map(r=>({...r, cells:[...r.cells]})),
-      cols:   window.S.editorTable.cols.map(c=>({...c})),
-    } : null,
-    // Legacy single-answer fields kept for compatibility
-    formula: hasBoxes ? answers[0].formula : '',
-    unit:    hasBoxes ? answers[0].unit    : '',
-    tol:     hasBoxes ? answers[0].tol     : (window.S.editorTable.tol||'2'),
+    answers:answers.map(a=>({...a})),   // array of answer boxes
+    // Legacy single-answer fields kept for compatibility with old problems
+    formula:answers[0].formula,
+    unit:answers[0].unit,
+    tol:answers[0].tol,
     vars:window.S.editorVars.map(v=>({...v})),
     defaultPts:parseInt(document.getElementById('e-pts').value)||10,
     maxAttempts,
     hint:document.getElementById('e-hint').value,
     imgDataUrl:window.S.editorImg||null,
     enabled:window.S.formEnabled,
+    answerMode:window.S.editorAnswerMode||'boxes',
   };
   const idx=window.DB.problems.findIndex(p=>p.id===prob.id);
   const isNew=idx<0;
@@ -420,9 +260,7 @@ window.saveProblem = async function saveProblem(){
   document.getElementById('form-mode-label').textContent='Saving…';
   await saveDB();
   document.getElementById('form-mode-label').textContent=`Editing: ${prob.title}`;
-  const _tblCount = (hasTable && prob.table) ? prob.table.rows.length*prob.table.cols.length : 0;
-  const _boxCount = (prob.answers||[]).length;
-  logAdminAction(isNew ? 'create_problem' : 'edit_problem', { id: prob.id, title: prob.title, topic: prob.topic, enabled: prob.enabled, answerMode: prob.answerMode, answerCount: _tblCount + _boxCount });
+  logAdminAction(isNew ? 'create_problem' : 'edit_problem', { id: prob.id, title: prob.title, topic: prob.topic, enabled: prob.enabled, answerCount: (prob.answers||[]).length });
   buildPracticeSidebar();renderPmList();renderFolderList();
 
   // Preview
@@ -438,7 +276,6 @@ window.saveProblem = async function saveProblem(){
     <div style="display:flex;align-items:center;gap:6px;margin-bottom:6px">
       <span style="font-family:var(--font-display);font-size:12px;color:var(--accent2)">${prob.title}</span>
       ${!prob.enabled?'<span class="pill pill-disabled">hidden</span>':'<span class="pill pill-green">visible</span>'}
-      ${editorMode==='table'?'<span class="pill pill-purple" style="font-size:9px">table</span>':editorMode==='both'?'<span class="pill pill-purple" style="font-size:9px">table + boxes</span>':''}
     </div>
     ${prob.imgDataUrl?`<img src="${prob.imgDataUrl}" style="max-width:100%;max-height:80px;border-radius:4px;margin-bottom:6px;display:block"/>`:''}
     <p style="color:var(--text);line-height:1.6;margin-bottom:6px">${v.question}</p>
@@ -454,19 +291,6 @@ window.loadProbToForm = function loadProbToForm(prob){
   window.S.editorVars=prob.vars.map(v=>({...v}));
   window.S.editorImg=prob.imgDataUrl||null;
   window.S.formEnabled=prob.enabled!==false;
-
-  // Restore answer mode
-  const mode = (prob.answerMode === 'table' || prob.answerMode === 'both') ? prob.answerMode : 'boxes';
-  if ((mode === 'table' || mode === 'both') && prob.table) {
-    window.S.editorTable = {
-      corner: prob.table.corner || '',
-      tol:    prob.table.tol    || '2',
-      rows:   (prob.table.rows||[]).map(r=>({ ...r, cells:[...(r.cells||[])] })),
-      cols:   (prob.table.cols||[]).map(c=>({ ...c })),
-    };
-  } else {
-    window.S.editorTable = {corner:'',tol:'2',rows:[{label:'Row 1',unit:'V',cells:['']}],cols:[{label:'Col 1'}]};
-  }
 
   // Load answers — support old single-formula problems
   if(prob.answers&&prob.answers.length){
@@ -499,7 +323,7 @@ window.loadProbToForm = function loadProbToForm(prob){
   if(topicInp) topicInp.value=prob.topic||'';
 
   renderVarRows();renderVarInsertChips();renderAnswerBoxes();
-  setAnswerMode(mode);
+  setAnswerMode(prob.answerMode||'boxes');
   showEdTab('problems',document.querySelector('.editor-top-tab'));
 }
 
@@ -1031,7 +855,7 @@ function _drawCategoryEditor(){
   _catDraft.forEach((c,i)=>{
     const row = document.createElement('div');
     row.style.cssText = 'display:flex;align-items:center;gap:8px';
-    const safeColor = /^#[0-9a-fA-F]{6}$/.test(c.color) ? c.color : '#9d7de8';
+    const safeColor = /^#[0-9a-fA-F]{6}$/.test(c.color) ? c.color : '#cf8a45';
     row.innerHTML = `
       <input type="color" value="${safeColor}" title="Colour"
         style="width:40px;height:34px;padding:2px;background:var(--bg3);border:0.5px solid var(--border);border-radius:var(--r2);cursor:pointer"
@@ -1053,7 +877,7 @@ window._catDraftSet = function(i, key, val){
 };
 
 window.addCategoryRow = function addCategoryRow(){
-  _catDraft.push({ name:'', color:'#9d7de8', _orig:null });
+  _catDraft.push({ name:'', color:'#cf8a45', _orig:null });
   _drawCategoryEditor();
   // Focus the new name input
   const last = document.getElementById('cat-name-'+(_catDraft.length-1));
@@ -1069,7 +893,7 @@ function _updateCatPreview(){
   const prev = document.getElementById('cat-editor-preview');
   if(!prev) return;
   prev.innerHTML = _catDraft.map(c=>{
-    const color = /^#[0-9a-fA-F]{3,6}$/.test((c.color||'').trim()) ? c.color.trim() : '#9d7de8';
+    const color = /^#[0-9a-fA-F]{3,6}$/.test((c.color||'').trim()) ? c.color.trim() : '#cf8a45';
     const rgb = window.hexToRgb(color);
     return `<span class="pill" style="background:rgba(${rgb},.12);color:${color};border:0.5px solid rgba(${rgb},.30)">${escHtml(c.name||'Unnamed')}</span>`;
   }).join('') || '<span style="font-size:12px;color:var(--text4)">No categories yet.</span>';
@@ -1087,7 +911,7 @@ window.saveCategoryEditor = async function saveCategoryEditor(){
   if(cleaned.some(c=>!c.name)){ showErr('Every category needs a name.'); return; }
   const lower = cleaned.map(c=>c.name.toLowerCase());
   if(new Set(lower).size !== lower.length){ showErr('Category names must be unique.'); return; }
-  cleaned.forEach(c=>{ if(!/^#[0-9a-fA-F]{6}$/.test(c.color)) c.color = '#9d7de8'; });
+  cleaned.forEach(c=>{ if(!/^#[0-9a-fA-F]{6}$/.test(c.color)) c.color = '#cf8a45'; });
 
   // Cascade renames onto existing posts so their pills keep the right colour
   let postsChanged = false;
