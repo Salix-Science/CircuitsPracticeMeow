@@ -279,8 +279,11 @@ exports.postComment = onCall({ enforceAppCheck: false, cors: true }, async (requ
   if (!request.auth) {
     throw new HttpsError('unauthenticated', 'You must be signed in to comment.');
   }
-  const uid      = request.auth.uid;
-  const username = request.auth.token?.email?.replace('@circuitspractice.app', '') || 'Anonymous';
+  const uid = request.auth.uid;
+
+  // Load display name from Firestore — covers both legacy and real-email accounts.
+  const userSnap = await db.collection('users').doc(uid).get();
+  const username = userSnap.exists ? (userSnap.data().username || 'Anonymous') : 'Anonymous';
 
   // ── Validate payload ──
   const { postId, body } = request.data || {};
@@ -301,18 +304,6 @@ exports.postComment = onCall({ enforceAppCheck: false, cors: true }, async (requ
     throw new HttpsError('not-found', 'Post not found or not published.');
   }
 
-  // ── Rate limit: max 5 comments per user per 60 s ──
-  const cutoff   = Date.now() - 60_000;
-  const recentQSnap = await db.collection('posts').doc(postId)
-    .collection('comments')
-    .where('uid', '==', uid)
-    .where('createdAt', '>', cutoff)
-    .get();
-
-  if (recentQSnap.size >= 5) {
-    throw new HttpsError('resource-exhausted', 'You\'re posting too quickly — wait a moment.');
-  }
-
   // ── Write comment ──
   const now = Date.now();
   const ref = await db.collection('posts').doc(postId).collection('comments').add({
@@ -320,7 +311,7 @@ exports.postComment = onCall({ enforceAppCheck: false, cors: true }, async (requ
     username,
     body:      cleanBody,
     createdAt: now,
-    approved:  false, // set to true manually or build an admin approval flow
+    approved:  true,
   });
 
   return { commentId: ref.id, createdAt: now };
