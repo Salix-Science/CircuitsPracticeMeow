@@ -8,6 +8,8 @@ import {
   createUserWithEmailAndPassword,
   signInWithEmailAndPassword,
   sendPasswordResetEmail,
+  sendEmailVerification,
+  reload,
   signOut,
   onAuthStateChanged
 } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
@@ -846,15 +848,119 @@ window.submitEmailMigration = async function() {
 };
 
 window.doRegister = async function() {
-  console.warn('[security] public registration is disabled — accounts are admin-created only');
-  const err = document.getElementById('r-err');
-  if (err) {
-    const span = err.querySelector('span');
-    if (span) span.textContent = 'Registration is disabled. Contact your instructor for an account.';
-    err.classList.remove('hidden');
-  } else {
-    try { showAuthErr('l-err', 'Registration is disabled. Contact your instructor for an account.'); } catch(e) {}
+  console.log('[doRegister] START');
+  hideAuthErr('r-err');
+  const rOk = document.getElementById('r-ok');
+  if (rOk) rOk.classList.add('hidden');
+
+  const username = document.getElementById('r-user').value.trim();
+  const email    = document.getElementById('r-email').value.trim();
+  const pass     = document.getElementById('r-pass').value;
+  const pass2    = document.getElementById('r-pass2').value;
+  console.log('[doRegister] inputs — username:', username, 'email:', email, 'passLen:', pass.length);
+
+  if (!username || username.length < 3) { showAuthErr('r-err', 'Username needs at least 3 characters.'); return; }
+  if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) { showAuthErr('r-err', 'Enter a valid email address.'); return; }
+  if (pass.length < 6) { showAuthErr('r-err', 'Password needs 6+ characters.'); return; }
+  if (pass !== pass2) { showAuthErr('r-err', 'Passwords do not match.'); return; }
+
+  try {
+    console.log('[doRegister] checking username uniqueness…');
+    const dupSnap = await getDocs(query(collection(db, 'users'), where('username', '==', username)));
+    console.log('[doRegister] uniqueness check — matches found:', dupSnap.size);
+    if (!dupSnap.empty) { showAuthErr('r-err', 'That username is already taken.'); return; }
+
+    window._suppressAuthObserver = true;
+    console.log('[doRegister] observer suppressed — creating Firebase Auth account…');
+
+    const cred = await createUserWithEmailAndPassword(auth, email, pass);
+    console.log('[doRegister] Auth account created — uid:', cred.user.uid);
+
+    console.log('[doRegister] writing Firestore profile…');
+    await setDoc(doc(db, 'users', cred.user.uid), {
+      username, isAdmin: false, scores: {}, probScores: {}, streak: 0,
+      assignSubmissions: {}, assignAttempts: {}, selfRegistered: true,
+      notifPrefs: { email, posts: true, announcements: true, assignments: true },
+    });
+    console.log('[doRegister] Firestore profile written OK');
+
+    console.log('[doRegister] sending verification email to:', email);
+    await sendEmailVerification(cred.user);
+    console.log('[doRegister] verification email sent');
+
+    document.getElementById('screen-auth').classList.add('hidden');
+    document.getElementById('screen-verify').classList.remove('hidden');
+    document.getElementById('verify-email-addr').textContent = email;
+    console.log('[doRegister] showing #screen-verify — DONE');
+  } catch (e) {
+    window._suppressAuthObserver = false;
+    console.error('[doRegister] FAILED:', e.code, e.message);
+    if (e.code === 'auth/email-already-in-use') {
+      showAuthErr('r-err', 'That email is already registered — try signing in instead.');
+    } else {
+      showAuthErr('r-err', e.message);
+    }
   }
+};
+
+window.resendVerificationEmail = async function() {
+  console.log('[resendVerificationEmail] START — current user:', auth.currentUser?.uid);
+  const okEl  = document.getElementById('verify-resend-ok');
+  const errEl = document.getElementById('verify-resend-err');
+  okEl.classList.add('hidden'); errEl.classList.add('hidden');
+  try {
+    if (!auth.currentUser) throw new Error('No signed-in user to resend to.');
+    await sendEmailVerification(auth.currentUser);
+    console.log('[resendVerificationEmail] sent OK');
+    okEl.textContent = 'Verification email resent — check your inbox.';
+    okEl.classList.remove('hidden');
+  } catch (e) {
+    console.error('[resendVerificationEmail] FAILED:', e.code, e.message);
+    errEl.querySelector('span').textContent = e.message;
+    errEl.classList.remove('hidden');
+  }
+};
+
+window.checkVerificationAndContinue = async function() {
+  console.log('[checkVerificationAndContinue] START — current user:', auth.currentUser?.uid);
+  const errEl = document.getElementById('verify-resend-err');
+  errEl.classList.add('hidden');
+  try {
+    if (!auth.currentUser) throw new Error('No signed-in user — please register again.');
+    await reload(auth.currentUser);
+    console.log('[checkVerificationAndContinue] reloaded — emailVerified:', auth.currentUser.emailVerified);
+    if (!auth.currentUser.emailVerified) {
+      errEl.querySelector('span').textContent = "Not verified yet — check your inbox and click the link first.";
+      errEl.classList.remove('hidden');
+      return;
+    }
+    console.log('[checkVerificationAndContinue] verified! Entering app…');
+    document.getElementById('screen-verify').classList.add('hidden');
+    window._suppressAuthObserver = false;
+
+    const profile = await loadUserProfile(auth.currentUser.uid);
+    if (!profile) { console.error('[checkVerificationAndContinue] loadUserProfile returned null'); return; }
+    window.S.uid       = auth.currentUser.uid;
+    window.S.user      = profile.username;
+    window.S.isAdmin    = !!profile.isAdmin;
+    window.S.authEmail = auth.currentUser.email || '';
+    await loadSharedData();
+    const go = () => enterApp();
+    if (window._appReady) go(); else window._pendingAuthUser = go;
+    console.log('[checkVerificationAndContinue] DONE — entered app');
+  } catch (e) {
+    console.error('[checkVerificationAndContinue] FAILED:', e.code, e.message);
+    errEl.querySelector('span').textContent = e.message;
+    errEl.classList.remove('hidden');
+  }
+};
+
+window.verifySignOutAndReturn = async function() {
+  console.log('[verifySignOutAndReturn] signing out unverified user');
+  window._suppressAuthObserver = false;
+  await signOut(auth);
+  document.getElementById('screen-verify').classList.add('hidden');
+  document.getElementById('screen-auth').classList.remove('hidden');
 };
 
 window.doLogout = async function() {
