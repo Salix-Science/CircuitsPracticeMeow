@@ -1,3 +1,5 @@
+console.log('[BUILD] firebase.js loaded — build tag: 2026-07-07T03:19:48.549Z');
+
 /* firebase.js — Firebase initialisation + DB layer
    All other JS files call saveDB() / loadDB() / window.S / window.DB
    exactly as before — this file is the only thing that changes. */
