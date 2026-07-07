@@ -864,17 +864,30 @@ window.doRegister = async function() {
   if (pass.length < 6) { showAuthErr('r-err', 'Password needs 6+ characters.'); return; }
   if (pass !== pass2) { showAuthErr('r-err', 'Passwords do not match.'); return; }
 
+  let cred = null;
   try {
-    console.log('[doRegister] checking username uniqueness…');
-    const dupSnap = await getDocs(query(collection(db, 'users'), where('username', '==', username)));
-    console.log('[doRegister] uniqueness check — matches found:', dupSnap.size);
-    if (!dupSnap.empty) { showAuthErr('r-err', 'That username is already taken.'); return; }
-
+    // Firestore rules require request.auth != null to read/query 'users',
+    // so we must create (and thus sign in) the Auth account BEFORE checking
+    // uniqueness. If the username turns out to be taken, we roll back by
+    // deleting the just-created Auth account so no orphan is left behind.
     window._suppressAuthObserver = true;
     console.log('[doRegister] observer suppressed — creating Firebase Auth account…');
 
-    const cred = await createUserWithEmailAndPassword(auth, email, pass);
+    cred = await createUserWithEmailAndPassword(auth, email, pass);
     console.log('[doRegister] Auth account created — uid:', cred.user.uid);
+
+    console.log('[doRegister] checking username uniqueness (now authenticated)…');
+    const dupSnap = await getDocs(query(collection(db, 'users'), where('username', '==', username)));
+    console.log('[doRegister] uniqueness check — matches found:', dupSnap.size);
+
+    if (!dupSnap.empty) {
+      console.warn('[doRegister] username taken — rolling back Auth account:', cred.user.uid);
+      await cred.user.delete();
+      console.log('[doRegister] rollback complete — Auth account deleted');
+      window._suppressAuthObserver = false;
+      showAuthErr('r-err', 'That username is already taken.');
+      return;
+    }
 
     console.log('[doRegister] writing Firestore profile…');
     await setDoc(doc(db, 'users', cred.user.uid), {
