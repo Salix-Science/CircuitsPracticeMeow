@@ -444,6 +444,21 @@ label {
 }
 .editor-top-tab:hover { color: var(--text); }
 .editor-top-tab.active { color: var(--accent2); background: var(--bg); border-color: var(--border); border-bottom-color: var(--bg); }
+.answer-mode-tabs {
+  display: inline-flex; gap: 2px; background: var(--bg3);
+  border: 0.5px solid var(--border); border-radius: var(--r); padding: 2px;
+}
+.answer-mode-tab {
+  display: inline-flex; align-items: center; gap: 5px;
+  padding: 5px 10px; border-radius: calc(var(--r) - 2px);
+  border: none; background: transparent; color: var(--text3);
+  font-family: var(--font); font-size: 11px; font-weight: 600;
+  cursor: pointer; transition: all .2s;
+}
+.answer-mode-tab i { font-size: 13px; }
+.answer-mode-tab:hover { color: var(--text); }
+.answer-mode-tab.active { background: var(--bg5); color: var(--accent2); }
+.answer-mode-tab.active i { color: var(--accent); }
 .editor-view { display: none; flex: 1; overflow: hidden; }
 .editor-view.active { display: flex; }
 .editor-two { display: grid; grid-template-columns: 1fr 290px; flex: 1; overflow: hidden; }
