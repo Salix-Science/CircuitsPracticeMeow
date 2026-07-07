@@ -65,7 +65,7 @@ window.renderVarRows = function renderVarRows(){
     const unitOptions=(TYPE_UNIT_OPTIONS[v.type]||[v.unit||'']).map(u=>
       `<option value="${u}" ${u===v.unit?'selected':''}>${u}</option>`).join('');
     const row=document.createElement('div');
-    row.style.cssText='display:grid;grid-template-columns:80px 56px 62px 62px 70px 24px;gap:6px;align-items:end;margin-bottom:6px';
+    row.style.cssText='display:grid;grid-template-columns:80px 56px 62px 62px 98px 24px;gap:6px;align-items:end;margin-bottom:6px';
     row.innerHTML=`
       <div><label>Name</label>
         <input type="text" value="${v.name}" style="padding:6px 8px;font-size:12px"
