@@ -75,6 +75,19 @@
 .mtn-node.is-next .mtn-marker{background:var(--bg3);border-color:var(--gold,var(--warn));color:var(--gold,var(--warn));animation:mtn-pulse 2s ease-in-out infinite;}
 .mtn-node.is-next .mtn-meta{color:var(--gold,var(--warn));}
 @keyframes mtn-pulse{0%,100%{box-shadow:0 0 0 0 rgba(232,201,107,.5);}50%{box-shadow:0 0 0 6px rgba(232,201,107,0);}}
+.mtn-way{position:relative;z-index:3;display:flex;align-items:flex-start;gap:12px;width:calc(100% - 72px);box-sizing:border-box;margin:14px auto;padding:12px 15px;background:var(--bg3);border:.5px dashed var(--border2);border-radius:var(--r2);cursor:pointer;text-align:left;font-family:var(--font);color:var(--text2);transition:transform .15s,border-color .2s,background .2s;}
+.mtn-way:hover{transform:translateY(-1px);border-color:var(--accent);background:var(--bg5);}
+.mtn-way:focus-visible{outline:2px solid var(--accent);outline-offset:2px;}
+.mtn-way-icon{flex-shrink:0;width:28px;height:28px;border-radius:var(--r);display:grid;place-items:center;background:var(--bg2);border:1px solid var(--border2);color:var(--accent2);font-size:15px;}
+.mtn-way-body{display:flex;flex-direction:column;gap:3px;min-width:0;flex:1;}
+.mtn-way-kicker{font-family:var(--mono);font-size:9px;letter-spacing:.16em;text-transform:uppercase;color:var(--accent2);}
+.mtn-way-title{font-size:13px;font-weight:600;color:var(--text);line-height:1.35;}
+.mtn-way-excerpt{font-size:11px;color:var(--text4);line-height:1.45;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;}
+.mtn-way.is-read{border-style:solid;border-color:var(--border);opacity:.72;}
+.mtn-way.is-read .mtn-way-icon{color:var(--green);border-color:var(--green-border);background:var(--green-bg);}
+.mtn-way.is-read .mtn-way-kicker{color:var(--text4);}
+.mtn-camp.is-milestone .mtn-camp-label{background:var(--bg3);border-color:var(--border2);color:var(--accent2);letter-spacing:.09em;text-transform:uppercase;font-size:11px;}
+.mtn-camp.is-milestone .mtn-camp-label i{color:var(--accent2);}
 .mtn-toggle{display:flex;gap:4px;padding:4px;margin-bottom:10px;background:var(--bg3);border:.5px solid var(--border);border-radius:var(--r2);}
 .mtn-tg-btn{flex:1;display:inline-flex;align-items:center;justify-content:center;gap:5px;padding:6px 8px;border:none;border-radius:var(--r);background:transparent;color:var(--text3);cursor:pointer;font-family:var(--font);font-size:11px;font-weight:600;transition:all .2s;}
 .mtn-tg-btn i{font-size:13px;}
@@ -93,6 +106,7 @@
   .mtn-left .mtn-branch,.mtn-right .mtn-branch{left:-19px;right:auto;width:19px;}
   .mtn-left .mtn-dot,.mtn-right .mtn-dot{left:-23px;right:auto;}
   .mtn-camp{margin-left:0;}
+  .mtn-way{width:calc(100% - 38px);margin-left:38px;margin-right:0;}
 }
 @media(prefers-reduced-motion:reduce){
   .mtn-node,.mtn-bar-fill{transition:none;}
@@ -170,11 +184,154 @@
     }
   };
 
+  // ── Read-tracking for waypoints (blog posts on the trail) ───────────
+  // Deliberately localStorage, not Firestore: adding a user field would mean
+  // touching the sanitizeUser / saveUserOnly whitelists in firebase.js, and a
+  // "have I read this note" flag does not justify that risk. Worst case a
+  // student sees a note as unread on a new device.
+  const READ_KEY = 'mtn_read_posts';
+  function readPosts() {
+    try {
+      const raw = JSON.parse(localStorage.getItem(READ_KEY) || '[]');
+      return new Set(Array.isArray(raw) ? raw.filter(x => typeof x === 'string') : []);
+    } catch (e) { return new Set(); }
+  }
+  function markRead(postId) {
+    try {
+      const s = readPosts(); s.add(postId);
+      localStorage.setItem(READ_KEY, JSON.stringify([...s]));
+      console.log(LOG, 'waypoint marked read:', postId, '· total read:', s.size);
+    } catch (e) { console.warn(LOG, 'markRead failed', e); }
+  }
+
+  // ── Authored structure store (config/mountain) ──────────────────────
+  // null  = not loaded yet, or no authored structure exists → derived mode
+  // array = authored node list, index 0 = trailhead (bottom of the climb)
+  window._mtnStructure = window._mtnStructure || null;
+  let _structLoaded = false;
+
+  // Lazily pull setDoc/getDoc off the same CDN module firebase.js already
+  // imported. It is in the browser module cache, so this is not a new fetch —
+  // and it means mountain.js can persist config/mountain without firebase.js
+  // needing a new export.
+  async function fsMod() {
+    return import('https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js');
+  }
+
+  // Defensive: never trust the doc's shape. A malformed node is dropped, not
+  // rendered — the same posture as the blogCategories read in firebase.js.
+  function sanitizeStructure(raw) {
+    if (!Array.isArray(raw)) return null;
+    const KINDS = ['problem', 'post', 'folder', 'milestone'];
+    const out = [];
+    raw.forEach((n, i) => {
+      if (!n || typeof n !== 'object') { console.warn(LOG, 'dropping non-object node at', i); return; }
+      if (!KINDS.includes(n.kind)) { console.warn(LOG, 'dropping node with unknown kind:', n.kind); return; }
+      if (n.kind !== 'milestone' && typeof n.refId !== 'string') {
+        console.warn(LOG, 'dropping', n.kind, 'node with no refId at', i); return;
+      }
+      out.push({
+        id:    typeof n.id === 'string' ? n.id : `n_${i}_${Math.random().toString(36).slice(2, 7)}`,
+        kind:  n.kind,
+        refId: typeof n.refId === 'string' ? n.refId : null,
+        fid:   typeof n.fid === 'string' ? n.fid : null,
+        label: typeof n.label === 'string' ? n.label.replace(/<[^>]*>/g, '').slice(0, 80) : '',
+      });
+    });
+    return out;
+  }
+
+  async function loadStructure(force) {
+    if (_structLoaded && !force) return window._mtnStructure;
+    try {
+      const { doc, getDoc } = await fsMod();
+      const db = window._getFirestoreDb?.();
+      if (!db) { console.warn(LOG, 'no Firestore db — staying in derived mode'); return null; }
+      const snap = await getDoc(doc(db, 'config', 'mountain'));
+      _structLoaded = true;
+      if (!snap.exists()) {
+        window._mtnStructure = null;
+        console.log(LOG, 'no config/mountain doc — DERIVED mode (folder order)');
+        return null;
+      }
+      const clean = sanitizeStructure(snap.data().nodes);
+      window._mtnStructure = (clean && clean.length) ? clean : null;
+      console.log(LOG, 'structure loaded — AUTHORED mode ·', clean ? clean.length : 0, 'nodes',
+        '· updated', snap.data().updatedAt ? new Date(snap.data().updatedAt).toLocaleString() : '(unknown)');
+      return window._mtnStructure;
+    } catch (e) {
+      _structLoaded = true;
+      console.warn(LOG, 'structure read failed (' + (e.code || e.message) + ') — falling back to DERIVED mode');
+      window._mtnStructure = null;
+      return null;
+    }
+  }
+
+  async function saveStructure(nodes) {
+    if (!window.S?.isAdmin) { console.warn(LOG, '[security] saveStructure blocked — not admin'); return false; }
+    const clean = sanitizeStructure(nodes) || [];
+    try {
+      const { doc, setDoc } = await fsMod();
+      const db = window._getFirestoreDb();
+      await setDoc(doc(db, 'config', 'mountain'), {
+        nodes: clean, version: 1, updatedAt: Date.now(), updatedBy: window.S.user || '',
+      }, { merge: false });
+      window._mtnStructure = clean.length ? clean : null;
+      _structLoaded = true;
+      console.log(LOG, 'structure saved ·', clean.length, 'nodes');
+      return true;
+    } catch (e) {
+      console.error(LOG, 'saveStructure failed:', e.code, e.message);
+      return false;
+    }
+  }
+
+  async function clearStructure() {
+    if (!window.S?.isAdmin) { console.warn(LOG, '[security] clearStructure blocked'); return false; }
+    try {
+      const { doc, deleteDoc } = await fsMod();
+      await deleteDoc(doc(window._getFirestoreDb(), 'config', 'mountain'));
+      window._mtnStructure = null;
+      _structLoaded = true;
+      console.log(LOG, 'structure cleared — back to DERIVED mode');
+      return true;
+    } catch (e) {
+      console.error(LOG, 'clearStructure failed:', e.code, e.message);
+      return false;
+    }
+  }
+
   // ── Diagnostics ─────────────────────────────────────────────────────
   // MTN.diag() in the console: shows exactly which signals mark each peak
   // solved, so a "why isn't this lit?" question is answerable in one call.
   window.MTN = {
-    tag: 'mtn-2026-07-28-solvefix',
+    tag: 'mtn-2026-07-28-editor',
+    loadStructure, saveStructure, clearStructure, sanitizeStructure,
+    resolve: (s) => resolveStructure(s || window._mtnStructure || []),
+    derived: derivedNodes,
+    get structure() { return window._mtnStructure; },
+    get mode() { return window._mtnStructure ? 'authored' : 'derived'; },
+    readPosts: () => [...readPosts()],
+    // Which nodes exist in the DB but are NOT anywhere on the authored trail.
+    // The single most useful thing to check after editing structure.
+    orphans() {
+      if (!window._mtnStructure) return { note: 'derived mode — every enabled problem is on the trail by definition' };
+      const placed = new Set();
+      window._mtnStructure.forEach(n => {
+        if (n.kind === 'problem' || n.kind === 'post') placed.add(n.refId);
+        if (n.kind === 'folder') {
+          const f = (window.DB?.folders || []).find(x => x.id === n.refId);
+          (f?.problemIds || []).forEach(pid => placed.add(pid));
+        }
+      });
+      const probs = (window.DB?.problems || []).filter(p => p.enabled !== false && !placed.has(p.id));
+      const posts = (window.DB?.posts || []).filter(p => p.status !== 'draft' && !placed.has(p.id));
+      console.group(LOG + ' orphans');
+      console.log('unplaced problems:', probs.length, probs.map(p => p.title));
+      console.log('unplaced posts:', posts.length, posts.map(p => p.title));
+      console.groupEnd();
+      return { problems: probs, posts };
+    },
     diag() {
       const u = window.DB?.users?.[window.S?.user];
       const alog = Array.isArray(u?.attemptLog) ? u.attemptLog : [];
@@ -207,9 +364,75 @@
     },
   };
 
-  // ── Ordered nodes: every enabled problem, folder-grouped, ascending ──
-  // index 0 = first thing to study (rendered at the BOTTOM = trailhead).
+  // ── Node resolution ─────────────────────────────────────────────────
+  // Two modes:
+  //   AUTHORED — config/mountain exists. The admin's node list is expanded
+  //              into render nodes. Posts and milestones can sit anywhere.
+  //   DERIVED  — no config/mountain. Original behaviour: folder order, every
+  //              enabled problem, no posts. This is the safety net, so the
+  //              trail keeps working if the doc is missing or unreadable.
+  // Either way index 0 = trailhead (rendered at the BOTTOM).
+
+  function _probById(id)   { return (window.DB?.problems || []).find(p => p.id === id); }
+  function _postById(id)   { return (window.DB?.posts    || []).find(p => p.id === id); }
+  function _folderById(id) { return (window.DB?.folders  || []).find(f => f.id === id); }
+
+  function resolveStructure(struct) {
+    const out = [];
+    const missing = [];
+    (struct || []).forEach(n => {
+      if (n.kind === 'folder') {
+        const f = _folderById(n.refId);
+        if (!f) { missing.push(`folder ${n.refId}`); return; }
+        const probs = (f.problemIds || []).map(_probById).filter(p => p && p.enabled !== false);
+        if (!probs.length) return;              // empty folder = no camp marker
+        out.push({ kind: 'camp', label: f.name, count: probs.length, icon: 'ti-flag', nid: n.id });
+        probs.forEach(p => out.push({ kind: 'prob', prob: p, folder: f, nid: `${n.id}:${p.id}` }));
+
+      } else if (n.kind === 'problem') {
+        const p = _probById(n.refId);
+        if (!p) { missing.push(`problem ${n.refId}`); return; }
+        if (p.enabled === false) return;        // disabled problems stay hidden
+        const f = (n.fid && _folderById(n.fid)) ||
+                  (window.DB?.folders || []).find(x => (x.problemIds || []).includes(p.id)) ||
+                  { id: '', name: 'Trail' };
+        out.push({ kind: 'prob', prob: p, folder: f, nid: n.id });
+
+      } else if (n.kind === 'post') {
+        const post = _postById(n.refId);
+        if (!post) { missing.push(`post ${n.refId}`); return; }
+        // Drafts are visible to admins only — same rule as the blog list.
+        if (post.status === 'draft' && !window.S?.isAdmin) return;
+        out.push({ kind: 'post', post, nid: n.id });
+
+      } else if (n.kind === 'milestone') {
+        out.push({ kind: 'camp', label: n.label || 'Milestone', count: 0, icon: 'ti-map-pin',
+                   milestone: true, nid: n.id });
+      }
+    });
+    if (missing.length) {
+      console.warn(LOG, 'structure references', missing.length,
+        'item(s) that no longer exist — skipped:', missing);
+    }
+    return out;
+  }
+
   function orderedNodes() {
+    const struct = window._mtnStructure;
+    if (struct && struct.length) {
+      const nodes = resolveStructure(struct);
+      const peaks = nodes.filter(n => n.kind === 'prob').length;
+      const ways  = nodes.filter(n => n.kind === 'post').length;
+      console.log(LOG, `orderedNodes [AUTHORED]: ${peaks} peaks · ${ways} waypoints · ${struct.length} authored nodes`);
+      return nodes;
+    }
+    console.log(LOG, 'orderedNodes [DERIVED]: no authored structure, using folder order');
+    return derivedNodes();
+  }
+
+  // Original folder-order derivation. Also used by the editor's "Seed from
+  // current trail" button, so the admin starts from what students see today.
+  function derivedNodes() {
     const folders = (window.DB?.folders || []).filter(f =>
       (f.problemIds || []).some(pid => {
         const p = window.DB.problems.find(pr => pr.id === pid);
@@ -222,14 +445,14 @@
         .map(pid => window.DB.problems.find(pr => pr.id === pid))
         .filter(p => p && p.enabled !== false);
       if (!probs.length) return;
-      nodes.push({ kind: 'folder', folder: f, count: probs.length });
+      nodes.push({ kind: 'camp', label: f.name, count: probs.length, icon: 'ti-flag', folder: f });
       probs.forEach(p => nodes.push({ kind: 'prob', prob: p, folder: f }));
     });
     const probNodes = nodes.filter(n => n.kind === 'prob');
     const counts = {};
     probNodes.forEach(n => { counts[n.prob.id] = (counts[n.prob.id] || 0) + 1; });
     const dups = Object.entries(counts).filter(([, c]) => c > 1);
-    console.log(LOG, 'orderedNodes:', probNodes.length, 'peaks across', folders.length, 'folders');
+    console.log(LOG, 'derivedNodes:', probNodes.length, 'peaks across', folders.length, 'folders');
     if (dups.length) {
       console.log(LOG, dups.length + ' problem(s) appear in multiple folders — each shows once per folder:',
         dups.map(([id, c]) => {
@@ -258,15 +481,18 @@
 
     const nodes = orderedNodes();
     const solved = solvedSet();
+    const read = readPosts();
     const probNodes = nodes.filter(n => n.kind === 'prob');
+    const postNodes = nodes.filter(n => n.kind === 'post');
     const total = probNodes.length;
     const done = probNodes.filter(n => solved.has(n.prob.id)).length;
+    const readDone = postNodes.filter(n => read.has(n.post.id)).length;
 
-    if (!total) {
+    if (!total && !postNodes.length) {
       main.innerHTML = `<div class="mtn-empty">
         <div class="mtn-empty-icon">⛰</div>
         <div class="mtn-empty-title">No trail yet</div>
-        <div class="mtn-empty-sub">Add problems to a topic folder in the Editor and they'll appear here as a climb.</div>
+        <div class="mtn-empty-sub">Add problems to a topic folder in the Editor and they'll appear here as a climb. Admins can arrange the route under Editor → Mountain.</div>
       </div>`;
       console.log(LOG, 'render: empty');
       return;
@@ -288,15 +514,30 @@
     const visual = nodes.slice().reverse();
 
     const rowsHTML = visual.map(n => {
-      if (n.kind === 'folder') {
-        return `<div class="mtn-camp">
+      if (n.kind === 'camp') {
+        return `<div class="mtn-camp${n.milestone ? ' is-milestone' : ''}">
           <span class="mtn-camp-line"></span>
           <span class="mtn-camp-label">
-            <i class="ti ti-flag"></i>${escHtml(n.folder.name)}
-            <span class="mtn-camp-count">${n.count} peak${n.count !== 1 ? 's' : ''}</span>
+            <i class="ti ${escHtml(n.icon || 'ti-flag')}"></i>${escHtml(n.label)}
+            ${n.count ? `<span class="mtn-camp-count">${n.count} peak${n.count !== 1 ? 's' : ''}</span>` : ''}
           </span>
           <span class="mtn-camp-line"></span>
         </div>`;
+      }
+      if (n.kind === 'post') {
+        const po = n.post;
+        const isRead = read.has(po.id);
+        return `<button type="button"
+            class="mtn-way ${isRead ? 'is-read' : ''}"
+            data-postid="${escHtml(po.id)}"
+            aria-label="Read ${escHtml(po.title)}${isRead ? ' (already read)' : ''}">
+          <span class="mtn-way-icon"><i class="ti ${isRead ? 'ti-book' : 'ti-book-2'}"></i></span>
+          <span class="mtn-way-body">
+            <span class="mtn-way-kicker">${isRead ? 'Read' : 'Trail note'}${po.status === 'draft' ? ' · draft' : ''}</span>
+            <span class="mtn-way-title">${escHtml(po.title)}</span>
+            ${po.excerpt ? `<span class="mtn-way-excerpt">${escHtml(po.excerpt)}</span>` : ''}
+          </span>
+        </button>`;
       }
       const p = n.prob;
       const num = n._num;
@@ -334,7 +575,7 @@
           <div class="mtn-header-top">
             <div>
               <div class="mtn-h-title">The Climb</div>
-              <div class="mtn-h-sub">${done} of ${total} peaks cleared${nextNode ? ` · next: ${escHtml(nextNode.prob.title)}` : ' · summit reached'}</div>
+              <div class="mtn-h-sub">${done} of ${total} peaks cleared${postNodes.length ? ` · ${readDone}/${postNodes.length} notes read` : ''}${nextNode ? ` · next: ${escHtml(nextNode.prob.title)}` : ' · summit reached'}</div>
             </div>
             <div class="mtn-h-pct">${pct}<span>%</span></div>
           </div>
@@ -367,6 +608,16 @@
       });
     });
 
+    // Waypoints → open the blog post, then mark it read. Repaint is deferred
+    // to the next time the trail is shown; we do not want to re-render the
+    // view the student is navigating away from.
+    main.querySelectorAll('.mtn-way').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const postId = btn.getAttribute('data-postid');
+        openWaypoint(postId);
+      });
+    });
+
     // Bring "you are here" into view (or the summit if everything's cleared).
     requestAnimationFrame(() => {
       const target = main.querySelector('.mtn-node[data-next="1"]') ||
@@ -387,6 +638,25 @@
     }
     window._fromMountain = true;
     window.loadFolderPractice(folderId, probId, null);
+  }
+
+  // ── Open a blog post from a waypoint ────────────────────────────────
+  // Routes through the existing blog view rather than rendering post content
+  // inline, so comments, MathJax typesetting and category pills all keep
+  // working with zero duplication.
+  function openWaypoint(postId) {
+    console.log(LOG, 'open waypoint', postId);
+    const post = (window.DB?.posts || []).find(p => p.id === postId);
+    if (!post) { console.warn(LOG, 'waypoint post not found:', postId); return; }
+    markRead(postId);
+    if (typeof window.showView !== 'function' || typeof window.openBlogPost !== 'function') {
+      console.warn(LOG, 'showView/openBlogPost missing — cannot open waypoint');
+      return;
+    }
+    window.showView('blog');
+    // Matches the deferral home.js already uses: the blog view needs a tick to
+    // finish rendering its list before the single-post view can take over.
+    setTimeout(() => window.openBlogPost(postId), 50);
   }
 
   // ── Sidebar view toggle (Trail / List) ──────────────────────────────
@@ -435,10 +705,21 @@
 
   // Called from app.js showView('practice').
   window.enterPracticeView = function enterPracticeView() {
-    console.log(LOG, 'enterPracticeView');
+    console.log(LOG, 'enterPracticeView · build', window.MTN.tag);
     injectStyles();
     injectToggle();
-    applyMode();
+    applyMode();                    // paint immediately from whatever we have
+    // Then fetch the authored structure (once per session) and repaint if it
+    // actually changed the picture. Painting first means a slow/failed read
+    // never leaves the student staring at a blank pane.
+    if (!_structLoaded) {
+      loadStructure().then(s => {
+        if (s && getMode() === 'mountain' && document.getElementById('mtn-trail')) {
+          console.log(LOG, 'repainting with authored structure');
+          window.renderMountain();
+        }
+      });
+    }
   };
 
   // ── Wrap existing globals once they exist ───────────────────────────

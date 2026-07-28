@@ -33,6 +33,7 @@ const featureScripts = [
   'js/notifications.js',
   'js/ratings.js',
   'js/adminlog.js',
+  'js/mountaineditor.js',
 ];
 
 function loadScript(src) {
