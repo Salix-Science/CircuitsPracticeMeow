@@ -1,7 +1,19 @@
 /* calendar.js — Calendar view with events (office hours, exams, etc.)
    Events stored in Firestore 'events' collection.
    Admins can create/edit/delete events. Students see them read-only.
+
+   2026-07-28: per-event custom colours (ev.color, 6-digit hex) overriding the
+   type palette. Falls back to EVENT_COLORS when unset/invalid.
 */
+
+console.log('[build] calendar.js 2026-07-28-color');
+
+// ── Debug ─────────────────────────────────────
+// Flip to false (or run window.CAL_DEBUG=false in console) to silence.
+window.CAL_DEBUG = true;
+function cdbg(...a) {
+  if (window.CAL_DEBUG) console.log('%c[cal]', 'color:#cf8a45;font-weight:700', ...a);
+}
 
 // ── State ─────────────────────────────────────
 const CAL = {
@@ -18,6 +30,26 @@ const EVENT_COLORS = {
   'other':        { bg:'rgba(96,165,250,.12)',  border:'rgba(96,165,250,.4)',  text:'var(--blue)',   label:'Other' },
 };
 
+const CAL_DEFAULT_HEX = '#cf8a45';
+const HEX6 = /^#[0-9a-fA-F]{6}$/;
+
+// Resolve the palette for one event: custom hex wins, else the type palette.
+// Always returns safe, pre-validated CSS — never interpolate ev.color directly.
+window.calEventStyle = function calEventStyle(ev) {
+  const base = EVENT_COLORS[ev?.type] || EVENT_COLORS.other;
+  const hex  = (ev?.color || '').trim();
+  if (!HEX6.test(hex)) return base;
+  const rgb = window.hexToRgb(hex);
+  return {
+    bg:     `rgba(${rgb},.12)`,
+    border: `rgba(${rgb},.40)`,
+    text:   hex,
+    label:  base.label,
+  };
+};
+
+const esc = s => (window.escHtml ? window.escHtml(s ?? '') : String(s ?? ''));
+
 // ── MathJax helper ─────────────────────────────
 window.typeset = function typeset(el) {
   if (window.MathJax?.typesetPromise) {
@@ -27,6 +59,7 @@ window.typeset = function typeset(el) {
 
 // ── Calendar render ────────────────────────────
 window.renderCalendar = function renderCalendar() {
+  cdbg('renderCalendar', { isAdmin: window.S?.isAdmin, events: (window.DB?.events || []).length });
   if (window.S.isAdmin) {
     const btn = document.getElementById('cal-add-btn');
     if (btn) btn.style.display = '';
@@ -57,6 +90,7 @@ window.calDrawGrid = function calDrawGrid() {
     .toLocaleDateString('en-US', { month:'long', year:'numeric' });
 
   const grid     = document.getElementById('calendar-grid');
+  if (!grid) { cdbg('calDrawGrid: #calendar-grid missing, bailing'); return; }
   const today    = new Date();
   const firstDay = new Date(CAL.year, CAL.month, 1).getDay(); // 0=Sun
   const daysInMonth = new Date(CAL.year, CAL.month + 1, 0).getDate();
@@ -66,6 +100,10 @@ window.calDrawGrid = function calDrawGrid() {
     const d = new Date(ev.start);
     return d.getFullYear() === CAL.year && d.getMonth() === CAL.month;
   });
+
+  cdbg('calDrawGrid', `${CAL.year}-${String(CAL.month+1).padStart(2,'0')}`,
+       `${monthEvents.length} event(s)`,
+       'custom-coloured:', monthEvents.filter(e => HEX6.test((e.color||'').trim())).length);
 
   // Group by day
   const byDay = {};
@@ -94,9 +132,9 @@ window.calDrawGrid = function calDrawGrid() {
     const isToday = today.getDate()===day && today.getMonth()===CAL.month && today.getFullYear()===CAL.year;
     const events  = byDay[day] || [];
     const evDots  = events.slice(0,3).map(ev => {
-      const c = EVENT_COLORS[ev.type] || EVENT_COLORS.other;
+      const c = window.calEventStyle(ev);
       return `<div style="font-size:10px;background:${c.bg};border:0.5px solid ${c.border};color:${c.text};border-radius:3px;padding:1px 5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;cursor:pointer;margin-bottom:2px"
-        onclick="calScrollToEvent('${ev.id}')">${ev.title}</div>`;
+        onclick="calScrollToEvent('${esc(ev.id)}')">${esc(ev.title)}</div>`;
     }).join('');
     const more = events.length > 3 ? `<div style="font-size:9px;color:var(--text4)">+${events.length-3} more</div>` : '';
 
@@ -119,6 +157,7 @@ window.calDrawGrid = function calDrawGrid() {
 
 window.calDrawEventList = function calDrawEventList() {
   const el = document.getElementById('cal-event-list');
+  if (!el) { cdbg('calDrawEventList: #cal-event-list missing, bailing'); return; }
   const now = new Date();
 
   // Show upcoming events (next 60 days) + this month's past events
@@ -132,6 +171,8 @@ window.calDrawEventList = function calDrawEventList() {
     })
     .sort((a,b) => new Date(a.start) - new Date(b.start));
 
+  cdbg('calDrawEventList', `${visible.length} visible`);
+
   if (!visible.length) {
     el.innerHTML = '<div style="color:var(--text4);font-size:12px;text-align:center;padding:1rem">No events this month.</div>';
     return;
@@ -140,29 +181,29 @@ window.calDrawEventList = function calDrawEventList() {
   el.innerHTML = `
     <div style="font-size:11px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.08em;margin-bottom:10px">Events this month</div>
     ${visible.map(ev => {
-      const c       = EVENT_COLORS[ev.type] || EVENT_COLORS.other;
+      const c       = window.calEventStyle(ev);
       const start   = new Date(ev.start);
       const end     = ev.end ? new Date(ev.end) : null;
       const isPast  = start < now;
       const dateStr = start.toLocaleDateString('en-US',{weekday:'short',month:'short',day:'numeric'});
       const timeStr = start.toLocaleTimeString('en-US',{hour:'2-digit',minute:'2-digit'});
       const endStr  = end ? ' – ' + end.toLocaleTimeString('en-US',{hour:'2-digit',minute:'2-digit'}) : '';
-      return `<div id="ev-${ev.id}" style="display:flex;gap:12px;align-items:flex-start;padding:12px;background:${c.bg};border:0.5px solid ${c.border};border-radius:var(--r2);margin-bottom:8px;opacity:${isPast?'0.6':'1'}">
+      return `<div id="ev-${esc(ev.id)}" style="display:flex;gap:12px;align-items:flex-start;padding:12px;background:${c.bg};border:0.5px solid ${c.border};border-radius:var(--r2);margin-bottom:8px;opacity:${isPast?'0.6':'1'}">
         <div style="flex-shrink:0;text-align:center;min-width:44px">
           <div style="font-size:10px;font-weight:700;color:${c.text};text-transform:uppercase">${start.toLocaleDateString('en-US',{month:'short'})}</div>
           <div style="font-size:22px;font-family:var(--mono);font-weight:700;color:${c.text};line-height:1">${start.getDate()}</div>
         </div>
         <div style="flex:1;min-width:0">
           <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-bottom:3px">
-            <span style="font-size:12px;font-weight:600;color:var(--text)">${ev.title}</span>
+            <span style="font-size:12px;font-weight:600;color:var(--text)">${esc(ev.title)}</span>
             <span style="font-size:10px;padding:1px 7px;border-radius:99px;background:${c.bg};border:0.5px solid ${c.border};color:${c.text}">${c.label}</span>
             ${isPast ? '<span style="font-size:9px;color:var(--text4)">past</span>' : ''}
           </div>
           <div style="font-size:11px;color:var(--text3);font-family:var(--mono)">${dateStr} · ${timeStr}${endStr}</div>
-          ${ev.notes ? `<div style="font-size:11px;color:var(--text3);margin-top:3px">${ev.notes}</div>` : ''}
-          ${ev.recurring ? `<div style="font-size:10px;color:var(--text4);margin-top:2px"><i class="ti ti-refresh" style="font-size:10px"></i> Repeats ${ev.repeat||'weekly'}</div>` : ''}
+          ${ev.notes ? `<div style="font-size:11px;color:var(--text3);margin-top:3px">${esc(ev.notes)}</div>` : ''}
+          ${ev.recurring ? `<div style="font-size:10px;color:var(--text4);margin-top:2px"><i class="ti ti-refresh" style="font-size:10px"></i> Repeats ${esc(ev.repeat||'weekly')}</div>` : ''}
         </div>
-        ${window.S.isAdmin ? `<button class="btn btn-sm" onclick="calEditEvent('${ev.id}')" style="flex-shrink:0;padding:4px 8px;font-size:11px"><i class="ti ti-edit"></i></button>` : ''}
+        ${window.S.isAdmin ? `<button class="btn btn-sm" onclick="calEditEvent('${esc(ev.id)}')" style="flex-shrink:0;padding:4px 8px;font-size:11px"><i class="ti ti-edit"></i></button>` : ''}
       </div>`;
     }).join('')}`;
 }
@@ -170,6 +211,38 @@ window.calDrawEventList = function calDrawEventList() {
 window.calScrollToEvent = function calScrollToEvent(id) {
   const el = document.getElementById(`ev-${id}`);
   if (el) el.scrollIntoView({ behavior:'smooth', block:'center' });
+}
+
+// ── Colour controls ────────────────────────────
+window.calToggleColor = function calToggleColor() {
+  const on   = document.getElementById('cal-ev-custom-color')?.checked;
+  const opts = document.getElementById('cal-color-opts');
+  if (opts) opts.style.display = on ? 'flex' : 'none';
+  cdbg('calToggleColor', on ? 'custom' : 'type default');
+  calPreviewColor();
+}
+
+window.calPreviewColor = function calPreviewColor() {
+  const prev = document.getElementById('cal-color-preview');
+  if (!prev) return;
+  const c = window.calEventStyle({
+    type:  document.getElementById('cal-ev-type')?.value,
+    color: calReadFormColor(),
+  });
+  prev.style.cssText = `font-size:10px;padding:2px 9px;border-radius:99px;background:${c.bg};border:0.5px solid ${c.border};color:${c.text}`;
+  prev.textContent = document.getElementById('cal-ev-title')?.value.trim() || c.label;
+}
+
+// Returns a validated hex string, or null when "custom colour" is off.
+window.calReadFormColor = function calReadFormColor() {
+  if (!document.getElementById('cal-ev-custom-color')?.checked) return null;
+  const raw = document.getElementById('cal-ev-color')?.value || '';
+  const hex = raw.trim().toLowerCase();
+  if (!HEX6.test(hex)) {
+    cdbg('calReadFormColor: rejected', JSON.stringify(raw), '→ falling back to', CAL_DEFAULT_HEX);
+    return CAL_DEFAULT_HEX;
+  }
+  return hex;
 }
 
 // ── Event form ─────────────────────────────────
@@ -183,15 +256,22 @@ window.calOpenEventForm = function calOpenEventForm(dateStr) {
   document.getElementById('cal-ev-end').value    = '';
   document.getElementById('cal-ev-recurring').checked = false;
   document.getElementById('cal-recurring-opts').style.display = 'none';
+  const cc = document.getElementById('cal-ev-custom-color');
+  if (cc) cc.checked = false;
+  const ci = document.getElementById('cal-ev-color');
+  if (ci) ci.value = CAL_DEFAULT_HEX;
+  calToggleColor();
   document.getElementById('cal-delete-btn').style.display = 'none';
   document.getElementById('cal-err').classList.add('hidden');
   const m = document.getElementById('cal-modal');
   m.style.display = 'flex';
+  cdbg('calOpenEventForm', dateStr || '(no date)');
 }
 
 window.calEditEvent = function calEditEvent(id) {
   const ev = (window.DB.events||[]).find(e => e.id===id);
-  if (!ev) return;
+  if (!ev) { cdbg('calEditEvent: no event with id', id); return; }
+  cdbg('calEditEvent', id, { type: ev.type, color: ev.color ?? null, recurring: !!ev.recurring });
   CAL.editingId = id;
   document.getElementById('cal-modal-title').textContent = 'Edit event';
   document.getElementById('cal-ev-title').value  = ev.title || '';
@@ -206,6 +286,12 @@ window.calEditEvent = function calEditEvent(id) {
     document.getElementById('cal-ev-repeat').value = ev.repeat || 'weekly';
     document.getElementById('cal-ev-until').value  = ev.until  || '';
   }
+  const hasColor = HEX6.test((ev.color || '').trim());
+  const cc = document.getElementById('cal-ev-custom-color');
+  if (cc) cc.checked = hasColor;
+  const ci = document.getElementById('cal-ev-color');
+  if (ci) ci.value = hasColor ? ev.color.trim().toLowerCase() : CAL_DEFAULT_HEX;
+  calToggleColor();
   document.getElementById('cal-delete-btn').style.display = '';
   document.getElementById('cal-err').classList.add('hidden');
   document.getElementById('cal-modal').style.display = 'flex';
@@ -238,6 +324,7 @@ window.calSaveEvent = async function calSaveEvent() {
     id:        CAL.editingId || `ev-${Date.now()}`,
     title,
     type:      document.getElementById('cal-ev-type').value,
+    color:     window.calReadFormColor(),   // null = inherit the type palette
     start:     new Date(start).toISOString(),
     end:       document.getElementById('cal-ev-end').value
                  ? new Date(document.getElementById('cal-ev-end').value).toISOString() : null,
@@ -248,8 +335,11 @@ window.calSaveEvent = async function calSaveEvent() {
                  ? document.getElementById('cal-ev-until').value : null,
   };
 
+  cdbg('calSaveEvent payload', JSON.parse(JSON.stringify(ev)));
+
   // Expand recurring events into individual DB entries
   const toSave = recurring ? expandRecurring(ev) : [ev];
+  cdbg('calSaveEvent writing', toSave.length, 'doc(s)');
 
   if (!window.DB.events) window.DB.events = [];
 
@@ -259,12 +349,19 @@ window.calSaveEvent = async function calSaveEvent() {
     await deleteFromDB('events', CAL.editingId);
   }
 
-  for (const e of toSave) {
-    window.DB.events.push(e);
-    await setEventInDB(e);
+  try {
+    for (const e of toSave) {
+      window.DB.events.push(e);
+      await setEventInDB(e);
+    }
+  } catch (err) {
+    console.error('[cal] calSaveEvent write failed:', err);
+    errEl.querySelector('span').textContent = 'Save failed — see console for details.';
+    errEl.classList.remove('hidden');
+    return;
   }
 
-  logAdminAction('save_event', { title, type: ev.type, recurring });
+  logAdminAction('save_event', { title, type: ev.type, recurring, color: ev.color });
   calCloseModal();
   calDrawGrid();
   calDrawEventList();
@@ -282,7 +379,7 @@ window.expandRecurring = function expandRecurring(ev) {
   while (cur <= until) {
     const endTime = dur ? new Date(cur.getTime() + dur) : null;
     events.push({
-      ...ev,
+      ...ev,                          // carries `color` onto every occurrence
       id:    idx === 0 ? ev.id : `${ev.id}_${idx}`,
       start: cur.toISOString(),
       end:   endTime ? endTime.toISOString() : null,
@@ -303,6 +400,7 @@ window.calDeleteEvent = async function calDeleteEvent() {
   // Delete this event and any recurrences
   const toDelete = (window.DB.events||[]).filter(e => e.id===CAL.editingId || e.id.startsWith(CAL.editingId+'_'));
   window.DB.events = (window.DB.events||[]).filter(e => e.id!==CAL.editingId && !e.id.startsWith(CAL.editingId+'_'));
+  cdbg('calDeleteEvent', CAL.editingId, `removing ${toDelete.length} doc(s)`);
   for (const e of toDelete) await deleteFromDB('events', e.id);
   logAdminAction('delete_event', { id: CAL.editingId });
   calCloseModal();
