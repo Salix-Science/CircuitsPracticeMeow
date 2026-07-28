@@ -1044,15 +1044,27 @@
     <div id="cal-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:100;align-items:center;justify-content:center">
       <div style="background:var(--bg2);border:0.5px solid var(--border);border-radius:var(--r2);padding:24px;width:420px;max-width:95vw">
         <div style="font-size:13px;font-weight:700;color:var(--text);margin-bottom:16px" id="cal-modal-title">Add event</div>
-        <div class="field"><label>Title</label><input type="text" id="cal-ev-title" placeholder="e.g. Office Hours"/></div>
+        <div class="field"><label>Title</label><input type="text" id="cal-ev-title" placeholder="e.g. Office Hours" oninput="calPreviewColor()"/></div>
         <div class="field"><label>Type</label>
-          <select id="cal-ev-type">
+          <select id="cal-ev-type" onchange="calPreviewColor()">
             <option value="office-hours">Office Hours</option>
             <option value="exam">Exam</option>
             <option value="deadline">Deadline</option>
             <option value="lecture">Lecture</option>
             <option value="other">Other</option>
           </select>
+        </div>
+        <div class="field">
+          <label style="display:flex;align-items:center;gap:8px;cursor:pointer;text-transform:none;letter-spacing:0;font-size:13px;color:var(--text2)">
+            <input type="checkbox" id="cal-ev-custom-color" style="width:auto" onchange="calToggleColor()"/>
+            Custom colour
+          </label>
+          <div id="cal-color-opts" style="display:none;align-items:center;gap:10px;margin-top:6px">
+            <input type="color" id="cal-ev-color" value="#cf8a45" title="Event colour"
+              style="width:40px;height:34px;padding:2px;background:var(--bg3);border:0.5px solid var(--border);border-radius:var(--r2);cursor:pointer"
+              oninput="calPreviewColor()"/>
+            <span id="cal-color-preview"></span>
+          </div>
         </div>
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
           <div class="field"><label>Start</label><input type="datetime-local" id="cal-ev-start"/></div>
