@@ -374,6 +374,57 @@ window.buildProbCardEl = function buildProbCardEl(p, isFolder) {
 }
 
 // ── Answer checking ───────────────────────────
+
+/* Diagnostics — call a global without letting a missing/throwing dependency
+   abort the rest of the handler.
+
+   This exists because window.recordAttempt / window.recordCorrect were called
+   here but defined nowhere: the resulting TypeError killed checkMainAnswer
+   mid-flight, so the streak, the ✓ banner and the mountain's solve hook (all
+   further down the function) silently never ran. A missing dependency should
+   log loudly and let the rest of the solve path complete.
+   BUILD TAG: practice-2026-07-28-solvefix */
+window._missingGlobals = window._missingGlobals || new Set();
+
+function _callGlobal(name, ...args) {
+  const fn = window[name];
+  if (typeof fn !== 'function') {
+    if (!window._missingGlobals.has(name)) {
+      window._missingGlobals.add(name);
+      console.error(`[practice] MISSING GLOBAL: window.${name}() is called but not ` +
+        `defined. The solve was NOT persisted. Check that the file defining it is ` +
+        `listed in featureScripts in main.js and actually loaded (Network tab).`);
+    }
+    return undefined;
+  }
+  try {
+    return fn(...args);
+  } catch (e) {
+    console.error(`[practice] window.${name}() threw — continuing anyway:`, e);
+    return undefined;
+  }
+}
+
+// Startup contract check: verifies every global the solve path depends on is
+// present once all feature scripts have loaded. Runs 3s after load so parallel
+// script loading has settled. Cheap, and turns a silent runtime abort into an
+// obvious console error at boot.
+setTimeout(() => {
+  const required = ['recordAttempt', 'recordCorrect', 'recordStreak', 'logAttempt', 'escHtml'];
+  const optional = ['onProblemSolved', 'renderMountain', 'showDifficultyRating'];
+  const missing  = required.filter(n => typeof window[n] !== 'function');
+  const missOpt  = optional.filter(n => typeof window[n] !== 'function');
+  if (missing.length) {
+    console.error('[practice] solve path is BROKEN — missing globals:', missing);
+  } else {
+    console.log('[practice] solve-path contract OK');
+  }
+  if (missOpt.length) {
+    console.warn('[practice] optional solve hooks absent (mountain will not ' +
+      'advance live):', missOpt);
+  }
+}, 3000);
+
 window.checkMainAnswer = function checkMainAnswer() {
   const p = window._currentMainProb; if (!p) return;
   const fb = document.getElementById('main-fb');
@@ -438,20 +489,57 @@ window.checkMainAnswer = function checkMainAnswer() {
     if (!p._attemptScored) {
       p._attemptScored = true;
       u.scores[key].attempted++;
-      window.recordAttempt(key);
+      _callGlobal('recordAttempt', key);
     }
     // "Correct" = problem solved — counted the first time the answer is right.
     if (allOk && !p._correctScored) {
       p._correctScored = true;
       u.scores[key].correct++;
-      window.recordCorrect(key);
+      _callGlobal('recordCorrect', key);
     }
     // Streak updates once per problem, when it's resolved (solved or out of attempts).
     if ((allOk || noMore) && !p._streakScored) {
       p._streakScored = true;
       if (allOk) u.streak = (parseInt(u.streak) || 0) + 1; else u.streak = 0;
       const sv = document.getElementById('streak-val'); if (sv) sv.textContent = u.streak;
-      window.recordStreak(allOk);
+      _callGlobal('recordStreak', allOk);
+    }
+
+    // Persist the solve PER PROBLEM. u.scores is topic-level only, so without
+    // this there is no durable record of *which* problem was solved and the
+    // mountain trail resets to zero on every reload. attemptLog already carries
+    // probId and is whitelisted in sanitizeUser, so no schema change is needed.
+    // Practice entries have no assignId, which is what distinguishes them from
+    // assignment submissions.
+    if (allOk && !p._loggedSolve) {
+      p._loggedSolve = true;
+      _callGlobal('logAttempt', {
+        ts:         Date.now(),
+        assignId:   '',
+        probId:     p.probId || p.id || '',
+        probTitle:  p.title || '',
+        attemptNum: used,
+        correct:    true,
+        late:       false,
+        answers:    results.map(r => ({
+          label: r.label, submitted: r.raw, expected: r.answer, unit: r.unit, ok: r.ok,
+        })),
+      });
+    }
+  }
+
+  // Solve hook — fires for EVERY user including admins, and independently of
+  // the difficulty-rating UI. mountain.js listens on this to advance the trail
+  // without a page refresh. Kept outside the `if (u)` block on purpose.
+  if (allOk && !p._solveBroadcast) {
+    p._solveBroadcast = true;
+    const solvedId = p.probId || p.id;
+    if (solvedId) {
+      console.log('[solve] problem solved:', solvedId, p.title || '');
+      try { window.onProblemSolved?.(solvedId, p); }
+      catch (e) { console.error('[solve] onProblemSolved handler threw:', e); }
+    } else {
+      console.warn('[solve] problem has no probId/id — trail cannot record it', p);
     }
   }
 

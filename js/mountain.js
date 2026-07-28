@@ -141,6 +141,72 @@
     return s;
   }
 
+  // ── Solve hook ──────────────────────────────────────────────────────
+  // Called by practice.js the moment a problem is answered correctly, for
+  // EVERY user. Previously the trail's only live signal was the
+  // showDifficultyRating wrapper below, which practice.js gates behind
+  // `!isAdmin` — so admins never advanced at all — and which is a UI side
+  // effect rather than a solve event. This is the primary hook now; the
+  // wrapper is kept as a harmless backstop.
+  window.onProblemSolved = function onProblemSolved(probId, prob) {
+    if (!probId) { console.warn(LOG, 'onProblemSolved called with no probId'); return; }
+    window._mtnSolved.add(probId);
+    console.log(LOG, 'solve recorded:', probId, (prob && prob.title) || '',
+      '· session solves:', window._mtnSolved.size);
+
+    // Warn if this problem isn't on the trail at all — a solve that can never
+    // light a peak (problem disabled, or in no folder).
+    const onTrail = (window.DB?.folders || []).some(f =>
+      (f.problemIds || []).includes(probId));
+    if (!onTrail) {
+      console.warn(LOG, 'solved problem', probId, 'is not in any folder — ' +
+        'it has no peak on the trail and progress will not change.');
+    }
+
+    // Repaint only if the trail itself is what's on screen — never yank a
+    // student out of the problem card they just solved.
+    if (document.getElementById('mtn-trail')) {
+      window.renderMountain();
+    }
+  };
+
+  // ── Diagnostics ─────────────────────────────────────────────────────
+  // MTN.diag() in the console: shows exactly which signals mark each peak
+  // solved, so a "why isn't this lit?" question is answerable in one call.
+  window.MTN = {
+    tag: 'mtn-2026-07-28-solvefix',
+    diag() {
+      const u = window.DB?.users?.[window.S?.user];
+      const alog = Array.isArray(u?.attemptLog) ? u.attemptLog : [];
+      const src = {
+        session: [...window._mtnSolved],
+        diffRatings: Object.keys(u?.diffRatings || {}),
+        probRatings: Object.keys(u?.probRatings || {}),
+        attemptLogCorrect: [...new Set(alog.filter(e => e && e.correct && e.probId).map(e => e.probId))],
+        attemptLogPracticeCorrect: [...new Set(alog.filter(e => e && e.correct && e.probId && !e.assignId).map(e => e.probId))],
+      };
+      const solved = solvedSet();
+      const nodes = orderedNodes().filter(n => n.kind === 'prob');
+      console.group(LOG + ' diag');
+      console.log('user:', window.S?.user, '· admin:', !!window.S?.isAdmin);
+      console.log('solved signal sources:', src);
+      console.log('peaks:', nodes.length, '· lit:', nodes.filter(n => solved.has(n.prob.id)).length);
+      const ghosts = [...solved].filter(id => !nodes.some(n => n.prob.id === id));
+      if (ghosts.length) console.warn('solved ids with no peak on the trail:', ghosts);
+      if (!src.attemptLogPracticeCorrect.length && src.session.length) {
+        console.warn('session solves exist but NOTHING is persisted for practice ' +
+          'problems — the trail will reset on reload. (Practice solves must reach ' +
+          'attemptLog via logAttempt.)');
+      }
+      console.table(nodes.map(n => ({
+        title: n.prob.title, id: n.prob.id, folder: n.folder.name,
+        lit: solved.has(n.prob.id),
+      })));
+      console.groupEnd();
+      return { solved: [...solved], sources: src };
+    },
+  };
+
   // ── Ordered nodes: every enabled problem, folder-grouped, ascending ──
   // index 0 = first thing to study (rendered at the BOTTOM = trailhead).
   function orderedNodes() {
@@ -443,9 +509,9 @@
       console.log(LOG, 'wrapped showDifficultyRating');
     }
 
-    return window.buildPracticeSidebar._mtnWrapped &&
-           window.renderFolderProblem._mtnWrapped &&
-           window.showDifficultyRating._mtnWrapped;
+    return !!(window.buildPracticeSidebar?._mtnWrapped &&
+              window.renderFolderProblem?._mtnWrapped &&
+              window.showDifficultyRating?._mtnWrapped);
   }
 
   // Poll until practice.js has defined its globals (parallel load = no order
@@ -457,7 +523,10 @@
       return;
     }
     if (++tries > 100) {
-      console.warn(LOG, 'gave up waiting for practice.js globals after', tries, 'tries');
+      const missing = ['buildPracticeSidebar', 'renderFolderProblem', 'showDifficultyRating']
+        .filter(n => typeof window[n] !== 'function');
+      console.warn(LOG, 'gave up waiting for practice.js globals after', tries,
+        'tries · still missing:', missing.length ? missing : '(none — already wrapped?)');
       return;
     }
     setTimeout(waitForPractice, 50);

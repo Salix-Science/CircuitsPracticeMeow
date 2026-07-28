@@ -670,6 +670,44 @@ window.recordStreak = async function(correct) {
   } catch(e) { console.warn('recordStreak failed:', e); }
 };
 
+/* ── Practice score persistence ────────────────────────────────────────────
+   recordAttempt / recordCorrect were CALLED by practice.js but never defined
+   anywhere in the codebase, so every practice solve threw
+   "TypeError: window.recordAttempt is not a function" and aborted the rest of
+   checkAnswer — killing the streak update, the ✓ banner and the mountain's
+   solve hook. Defined here alongside recordStreak, which they mirror.
+
+   Writes a single leaf via dot-notation so concurrent updates to other topics
+   (or to attemptLog) can't clobber each other. Topic keys are author-supplied,
+   so keys containing '.' or backticks fall back to a deep-merge setDoc.
+   BUILD TAG: fb-2026-07-28-recordfns
+*/
+const SAFE_SCORE_KEY = /^[A-Za-z0-9 _\-()/+]+$/;
+
+async function _bumpScore(topicKey, field) {
+  const uid = window.S?.uid;
+  if (!uid) { console.warn(`[score] ${field}++ skipped — no uid`); return; }
+  const key = String(topicKey || 'custom');
+  try {
+    if (SAFE_SCORE_KEY.test(key)) {
+      await updateDoc(doc(db, 'users', uid), { [`scores.${key}.${field}`]: increment(1) });
+    } else {
+      // Unusual key — dot-path would be misparsed. Deep-merge instead.
+      await setDoc(doc(db, 'users', uid),
+        { scores: { [key]: { [field]: increment(1) } } }, { merge: true });
+    }
+    console.log(`[score] ${key}.${field} +1`);
+  } catch (e) {
+    console.error(`[score] ${key}.${field} write FAILED:`, e);
+  }
+}
+
+// Called on a student's FIRST submission for a problem (right or wrong).
+window.recordAttempt = function(topicKey) { return _bumpScore(topicKey, 'attempted'); };
+
+// Called the first time a problem is answered correctly.
+window.recordCorrect = function(topicKey) { return _bumpScore(topicKey, 'correct'); };
+
 
 window._fetchAllUsers = async function() {
   if (!window.S.isAdmin) {
