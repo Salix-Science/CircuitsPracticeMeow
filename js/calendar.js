@@ -50,6 +50,62 @@ window.calEventStyle = function calEventStyle(ev) {
 
 const esc = s => (window.escHtml ? window.escHtml(s ?? '') : String(s ?? ''));
 
+// ── Timezone (everything below is Eastern, wherever the browser is) ──
+// Firestore always stores full UTC ISO strings. These helpers are the ONLY
+// place naive "YYYY-MM-DDTHH:mm" input strings get interpreted, and they
+// always interpret them as Eastern wall-clock time.
+const CAL_TZ       = 'America/New_York';
+const CAL_TZ_LABEL = 'ET';
+const _pad = n => String(n).padStart(2, '0');
+
+const _calTzFmt = new Intl.DateTimeFormat('en-US', {
+  timeZone: CAL_TZ, year:'numeric', month:'2-digit', day:'2-digit',
+  hour:'2-digit', minute:'2-digit', second:'2-digit', hour12:false,
+});
+
+// Wall-clock calendar parts for a Date, as seen in Eastern.
+window.calParts = function calParts(d) {
+  const p = {};
+  for (const { type, value } of _calTzFmt.formatToParts(d)) p[type] = value;
+  if (p.hour === '24') p.hour = '00';   // some engines emit 24 for midnight
+  return {
+    year: +p.year, month: +p.month, day: +p.day,
+    hour: +p.hour, minute: +p.minute, second: +p.second,
+  };
+};
+
+// Eastern's UTC offset in ms at a given instant (-5h EST, -4h EDT).
+function _calTzOffsetMs(d) {
+  const p = window.calParts(d);
+  const asUTC = Date.UTC(p.year, p.month - 1, p.day, p.hour, p.minute, p.second);
+  return asUTC - Math.floor(d.getTime() / 1000) * 1000;
+}
+
+// "YYYY-MM-DDTHH:mm" (Eastern wall time) → full UTC ISO string.
+window.calInputToIso = function calInputToIso(s) {
+  if (!s) return null;
+  const m = /^(\d{4})-(\d{2})-(\d{2})[T ](\d{2}):(\d{2})/.exec(s);
+  if (!m) { cdbg('calInputToIso: unparseable', JSON.stringify(s)); return null; }
+  const [, Y, Mo, D, H, Mi] = m.map(Number);
+  const wall = Date.UTC(Y, Mo - 1, D, H, Mi);
+  // Two passes: the offset itself depends on the instant (DST boundaries).
+  let utc = wall;
+  for (let i = 0; i < 2; i++) utc = wall - _calTzOffsetMs(new Date(utc));
+  return new Date(utc).toISOString();
+};
+
+// Full UTC ISO string → "YYYY-MM-DDTHH:mm" for a datetime-local input, in Eastern.
+window.calIsoToInput = function calIsoToInput(iso) {
+  if (!iso) return '';
+  const d = new Date(iso);
+  if (isNaN(d)) { cdbg('calIsoToInput: bad date', JSON.stringify(iso)); return ''; }
+  const p = window.calParts(d);
+  return `${p.year}-${_pad(p.month)}-${_pad(p.day)}T${_pad(p.hour)}:${_pad(p.minute)}`;
+};
+
+// Shorthand for the Intl options every display call needs.
+const _tzOpt = o => ({ ...o, timeZone: CAL_TZ });
+
 // ── MathJax helper ─────────────────────────────
 window.typeset = function typeset(el) {
   if (window.MathJax?.typesetPromise) {
@@ -91,14 +147,16 @@ window.calDrawGrid = function calDrawGrid() {
 
   const grid     = document.getElementById('calendar-grid');
   if (!grid) { cdbg('calDrawGrid: #calendar-grid missing, bailing'); return; }
-  const today    = new Date();
+  // CAL.year/CAL.month are plain grid coordinates, so these stay local-Date math.
   const firstDay = new Date(CAL.year, CAL.month, 1).getDay(); // 0=Sun
   const daysInMonth = new Date(CAL.year, CAL.month + 1, 0).getDate();
+  // "Today" must be today in Eastern, not in the browser's zone.
+  const today    = window.calParts(new Date());
 
-  // Get events for this month
+  // Get events for this month — bucketed by their Eastern calendar date.
   const monthEvents = (window.DB.events || []).filter(ev => {
-    const d = new Date(ev.start);
-    return d.getFullYear() === CAL.year && d.getMonth() === CAL.month;
+    const p = window.calParts(new Date(ev.start));
+    return p.year === CAL.year && p.month - 1 === CAL.month;
   });
 
   cdbg('calDrawGrid', `${CAL.year}-${String(CAL.month+1).padStart(2,'0')}`,
@@ -108,7 +166,7 @@ window.calDrawGrid = function calDrawGrid() {
   // Group by day
   const byDay = {};
   monthEvents.forEach(ev => {
-    const d = new Date(ev.start).getDate();
+    const d = window.calParts(new Date(ev.start)).day;
     if (!byDay[d]) byDay[d] = [];
     byDay[d].push(ev);
   });
@@ -129,7 +187,7 @@ window.calDrawGrid = function calDrawGrid() {
 
   // Day cells
   for (let day = 1; day <= daysInMonth; day++) {
-    const isToday = today.getDate()===day && today.getMonth()===CAL.month && today.getFullYear()===CAL.year;
+    const isToday = today.day===day && today.month-1===CAL.month && today.year===CAL.year;
     const events  = byDay[day] || [];
     const evDots  = events.slice(0,3).map(ev => {
       const c = window.calEventStyle(ev);
@@ -160,9 +218,10 @@ window.calDrawEventList = function calDrawEventList() {
   if (!el) { cdbg('calDrawEventList: #cal-event-list missing, bailing'); return; }
   const now = new Date();
 
-  // Show upcoming events (next 60 days) + this month's past events
-  const monthStart = new Date(CAL.year, CAL.month, 1);
-  const monthEnd   = new Date(CAL.year, CAL.month + 1, 0, 23, 59, 59);
+  // Month bounds as Eastern wall time, so the list matches the grid exactly.
+  const lastDay    = new Date(CAL.year, CAL.month + 1, 0).getDate();
+  const monthStart = new Date(window.calInputToIso(`${CAL.year}-${_pad(CAL.month+1)}-01T00:00`));
+  const monthEnd   = new Date(window.calInputToIso(`${CAL.year}-${_pad(CAL.month+1)}-${_pad(lastDay)}T23:59`));
 
   const visible = (window.DB.events || [])
     .filter(ev => {
@@ -185,13 +244,13 @@ window.calDrawEventList = function calDrawEventList() {
       const start   = new Date(ev.start);
       const end     = ev.end ? new Date(ev.end) : null;
       const isPast  = start < now;
-      const dateStr = start.toLocaleDateString('en-US',{weekday:'short',month:'short',day:'numeric'});
-      const timeStr = start.toLocaleTimeString('en-US',{hour:'2-digit',minute:'2-digit'});
-      const endStr  = end ? ' – ' + end.toLocaleTimeString('en-US',{hour:'2-digit',minute:'2-digit'}) : '';
+      const dateStr = start.toLocaleDateString('en-US',_tzOpt({weekday:'short',month:'short',day:'numeric'}));
+      const timeStr = start.toLocaleTimeString('en-US',_tzOpt({hour:'2-digit',minute:'2-digit'}));
+      const endStr  = end ? ' – ' + end.toLocaleTimeString('en-US',_tzOpt({hour:'2-digit',minute:'2-digit'})) : '';
       return `<div id="ev-${esc(ev.id)}" style="display:flex;gap:12px;align-items:flex-start;padding:12px;background:${c.bg};border:0.5px solid ${c.border};border-radius:var(--r2);margin-bottom:8px;opacity:${isPast?'0.6':'1'}">
         <div style="flex-shrink:0;text-align:center;min-width:44px">
-          <div style="font-size:10px;font-weight:700;color:${c.text};text-transform:uppercase">${start.toLocaleDateString('en-US',{month:'short'})}</div>
-          <div style="font-size:22px;font-family:var(--mono);font-weight:700;color:${c.text};line-height:1">${start.getDate()}</div>
+          <div style="font-size:10px;font-weight:700;color:${c.text};text-transform:uppercase">${start.toLocaleDateString('en-US',_tzOpt({month:'short'}))}</div>
+          <div style="font-size:22px;font-family:var(--mono);font-weight:700;color:${c.text};line-height:1">${window.calParts(start).day}</div>
         </div>
         <div style="flex:1;min-width:0">
           <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-bottom:3px">
@@ -199,7 +258,7 @@ window.calDrawEventList = function calDrawEventList() {
             <span style="font-size:10px;padding:1px 7px;border-radius:99px;background:${c.bg};border:0.5px solid ${c.border};color:${c.text}">${c.label}</span>
             ${isPast ? '<span style="font-size:9px;color:var(--text4)">past</span>' : ''}
           </div>
-          <div style="font-size:11px;color:var(--text3);font-family:var(--mono)">${dateStr} · ${timeStr}${endStr}</div>
+          <div style="font-size:11px;color:var(--text3);font-family:var(--mono)">${dateStr} · ${timeStr}${endStr} ${CAL_TZ_LABEL}</div>
           ${ev.notes ? `<div style="font-size:11px;color:var(--text3);margin-top:3px">${esc(ev.notes)}</div>` : ''}
           ${ev.recurring ? `<div style="font-size:10px;color:var(--text4);margin-top:2px"><i class="ti ti-refresh" style="font-size:10px"></i> Repeats ${esc(ev.repeat||'weekly')}</div>` : ''}
         </div>
@@ -277,8 +336,10 @@ window.calEditEvent = function calEditEvent(id) {
   document.getElementById('cal-ev-title').value  = ev.title || '';
   document.getElementById('cal-ev-type').value   = ev.type  || 'other';
   document.getElementById('cal-ev-notes').value  = ev.notes || '';
-  document.getElementById('cal-ev-start').value  = ev.start ? ev.start.slice(0,16) : '';
-  document.getElementById('cal-ev-end').value    = ev.end   ? ev.end.slice(0,16)   : '';
+  // Was `ev.start.slice(0,16)` — that fed a raw UTC string into a local-time
+  // input, shifting the event forward by the offset on every edit+save cycle.
+  document.getElementById('cal-ev-start').value  = window.calIsoToInput(ev.start);
+  document.getElementById('cal-ev-end').value    = window.calIsoToInput(ev.end);
   const rec = !!ev.recurring;
   document.getElementById('cal-ev-recurring').checked = rec;
   document.getElementById('cal-recurring-opts').style.display = rec ? '' : 'none';
@@ -325,9 +386,8 @@ window.calSaveEvent = async function calSaveEvent() {
     title,
     type:      document.getElementById('cal-ev-type').value,
     color:     window.calReadFormColor(),   // null = inherit the type palette
-    start:     new Date(start).toISOString(),
-    end:       document.getElementById('cal-ev-end').value
-                 ? new Date(document.getElementById('cal-ev-end').value).toISOString() : null,
+    start:     window.calInputToIso(start),
+    end:       window.calInputToIso(document.getElementById('cal-ev-end').value) || null,
     notes:     document.getElementById('cal-ev-notes').value.trim(),
     recurring,
     repeat:    recurring ? document.getElementById('cal-ev-repeat').value : null,
@@ -336,6 +396,11 @@ window.calSaveEvent = async function calSaveEvent() {
   };
 
   cdbg('calSaveEvent payload', JSON.parse(JSON.stringify(ev)));
+  cdbg('calSaveEvent time check',
+       'you typed:', start,
+       '| stored UTC:', ev.start,
+       '| reads back as ET:', window.calIsoToInput(ev.start),
+       '| browser tz:', Intl.DateTimeFormat().resolvedOptions().timeZone);
 
   // Expand recurring events into individual DB entries
   const toSave = recurring ? expandRecurring(ev) : [ev];
@@ -368,25 +433,38 @@ window.calSaveEvent = async function calSaveEvent() {
 }
 
 window.expandRecurring = function expandRecurring(ev) {
-  const events = [];
+  const events   = [];
   const repeatMs = { weekly: 7, biweekly: 14, daily: 1 };
   const days     = repeatMs[ev.repeat] || 7;
-  let   cur      = new Date(ev.start);
-  const until    = ev.until ? new Date(ev.until) : new Date(cur.getTime() + 90 * 86400000);
   const dur      = ev.end ? new Date(ev.end) - new Date(ev.start) : 0;
-  let   idx      = 0;
 
-  while (cur <= until) {
-    const endTime = dur ? new Date(cur.getTime() + dur) : null;
+  // Anchor on the Eastern wall-clock time of the first occurrence. Stepping by
+  // calendar days (not by 86400000 ms) keeps a 3pm office hour at 3pm across
+  // the March/November DST transitions instead of drifting an hour.
+  const p0 = window.calParts(new Date(ev.start));
+  // `until` is a date-only input; treat it as end-of-day Eastern.
+  const untilMs = ev.until
+    ? new Date(window.calInputToIso(`${ev.until}T23:59`)).getTime()
+    : new Date(ev.start).getTime() + 90 * 86400000;
+
+  for (let idx = 0; idx < 400; idx++) {
+    const step  = new Date(Date.UTC(p0.year, p0.month - 1, p0.day + idx * days));
+    const iso   = window.calInputToIso(
+      `${step.getUTCFullYear()}-${_pad(step.getUTCMonth()+1)}-${_pad(step.getUTCDate())}`
+      + `T${_pad(p0.hour)}:${_pad(p0.minute)}`
+    );
+    const startMs = new Date(iso).getTime();
+    if (startMs > untilMs) break;
     events.push({
       ...ev,                          // carries `color` onto every occurrence
       id:    idx === 0 ? ev.id : `${ev.id}_${idx}`,
-      start: cur.toISOString(),
-      end:   endTime ? endTime.toISOString() : null,
+      start: iso,
+      end:   dur ? new Date(startMs + dur).toISOString() : null,
     });
-    cur = new Date(cur.getTime() + days * 86400000);
-    idx++;
   }
+
+  cdbg('expandRecurring', ev.repeat || 'weekly', `→ ${events.length} occurrence(s)`,
+       events.length ? `first ${window.calIsoToInput(events[0].start)} ET, last ${window.calIsoToInput(events[events.length-1].start)} ET` : '');
   return events;
 }
 
