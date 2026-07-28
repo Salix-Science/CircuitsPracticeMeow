@@ -8,14 +8,31 @@
    SETUP REQUIRED (one-time, ~30 minutes):
    1. Upgrade Firebase project to Blaze plan (pay-as-you-go, free at this scale)
    2. Firebase Console → Extensions → install "Trigger Email from Firestore"
-        • SMTP URI:              smtps://noreply%40circuitspractice.org:APP_PASSWORD@YOUR_SMTP_HOST:465
+        • SMTP URI:              smtp://admin%40circuitspractice.org:APP_PASSWORD@smtppro.zoho.com:587
+                                 (the @ in the username MUST be %40-encoded, or the
+                                  URI mis-parses and Zoho returns 535 Authentication Failed)
         • Email documents collection: mail
-        • Default FROM address:  Circuits Practice <noreply@circuitspractice.org>
+        • Default FROM address:  Circuits Practice <admin@circuitspractice.org>
+                                 (must match the authenticated SMTP user — a mismatch
+                                  is rejected at send time, not at auth time)
+
+      NOTE: the password must be a Zoho *app password* (16 chars, generated under
+      Zoho Mail → Settings → Security → App Passwords). The account password is
+      rejected with 535 whenever 2FA is enabled. App passwords are also revoked
+      silently by any account-password change or 2FA toggle.
    3. Add Firestore rule for the mail collection:
         match /mail/{docId} {
           allow create: if request.auth != null;
-          allow read, update, delete: if false;
+          allow read:   if request.auth != null &&
+                        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.isAdmin == true;
+          allow update, delete: if false;
         }
+      The admin read is what makes failures diagnosable: the extension writes a
+      `delivery` map back onto each mail doc containing state (PENDING →
+      PROCESSING → SUCCESS/ERROR), the raw SMTP error string, attempts, and
+      info.accepted/rejected. Without read access, a failed send is invisible
+      from the client — _addMailDoc returns ok:true as soon as the *write*
+      succeeds, which says nothing about whether the mail actually left.
 
    Student notification preferences are saved in their profile
    (Profile tab → Email notifications). Admins send from the Notifications subtab.
@@ -225,7 +242,7 @@ window.renderAdminNotifPanel = async function renderAdminNotifPanel() {
 
   wrap.innerHTML = `
     <div style="background:rgba(74,222,128,.08);border:0.5px solid rgba(74,222,128,.25);border-radius:var(--r2);padding:10px 14px;margin-bottom:14px;font-size:12px;color:var(--green);line-height:1.7">
-      ✓ Sending via Firebase Trigger Email · <code style="font-size:11px">noreply@circuitspractice.org</code>
+      ✓ Sending via Firebase Trigger Email · <code style="font-size:11px">admin@circuitspractice.org</code>
     </div>
 
     <div style="display:flex;gap:8px;margin-bottom:14px;flex-wrap:wrap">

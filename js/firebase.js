@@ -582,6 +582,9 @@ window._addMailDoc = async function(to, subject, bodyText) {
   const unsubUrl   = `https://circuitspractice.org/?unsubscribe=${token}`;
   const cfUnsubUrl = `https://us-central1-circuitspractice-b4cb0.cloudfunctions.net/unsubscribe?token=${token}`;
   const profileUrl = 'https://circuitspractice.org/?tab=profile';
+  // Sending mailbox — must match the authenticated SMTP user and the
+  // extension's default FROM address, or Zoho rejects the send.
+  const SENDER     = 'admin@circuitspractice.org';
   const footerHtml = `<div style="font-size:11px;color:#888;text-align:center;padding:16px;border-top:1px solid #333;margin-top:16px">
     <a href="${profileUrl}" style="color:#9d7de8;text-decoration:none">Manage notifications</a> &nbsp;&middot;&nbsp;
     <a href="${unsubUrl}" style="color:#9d7de8;text-decoration:none">Unsubscribe</a>
@@ -627,7 +630,7 @@ window._addMailDoc = async function(to, subject, bodyText) {
         text,
         html,
         headers: {
-          'List-Unsubscribe':      `<${cfUnsubUrl}>, <mailto:noreply@circuitspractice.org?subject=unsubscribe>`,
+          'List-Unsubscribe':      `<${cfUnsubUrl}>, <mailto:${SENDER}?subject=unsubscribe>`,
           'List-Unsubscribe-Post': 'List-Unsubscribe=One-Click',
         },
       },
