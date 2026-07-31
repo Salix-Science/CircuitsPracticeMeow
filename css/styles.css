@@ -487,7 +487,7 @@ label {
 .pm-row.dragging  { opacity: .40; }
 .pm-row.drag-over { border-color: var(--accent); border-style: dashed; }
 .pm-drag-handle   { color: var(--text4); cursor: grab; font-size: 15px; display: flex; align-items: center; }
-.pm-row-body      { flex: 1; min-width: 0; }
+.pm-row-info      { flex: 1; min-width: 0; }
 .pm-row-title     { font-size: 12px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: var(--text); }
 .pm-row-meta      { font-size: 10px; color: var(--text3); font-family: var(--mono); margin-top: 1px; }
 .pm-row-actions   { display: flex; gap: 3px; flex-shrink: 0; align-items: center; }
