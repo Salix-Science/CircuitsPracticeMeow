@@ -328,6 +328,11 @@ window.loadProbToForm = function loadProbToForm(prob){
 }
 
 // ── Problem manager (right panel) ─────────────
+const PM_BUILD_TAG = 'editor-pm-2026-07-31-debug';
+window.PM_DEBUG = window.PM_DEBUG ?? true;
+function pmdbg(...args){ if(window.PM_DEBUG) console.log('%c[pm]', 'color:#c77;font-weight:bold', ...args); }
+console.log('%c[editor.js build]', 'color:#c77', PM_BUILD_TAG);
+
 let _dragSrcIdx=null;
 window.renderPmList = function renderPmList(){
   try {
@@ -393,6 +398,14 @@ window.renderPmList = function renderPmList(){
         <button class="pm-icon-btn" onclick="event.stopPropagation();duplicateProb(${i})"><i class="ti ti-copy"></i></button>
         <button class="pm-icon-btn del" onclick="event.stopPropagation();deleteProb('${p.id}')"><i class="ti ti-trash"></i></button>
       </div>`;
+
+    if (i === filtered[0].i) {
+      const infoEl = row.querySelector('.pm-row-info');
+      if (infoEl) {
+        const cs = getComputedStyle(infoEl);
+        pmdbg('row-info computed style', { flex: cs.flex, minWidth: cs.minWidth, width: cs.width, classList: infoEl.className });
+      }
+    }
 
     row.onclick = () => loadProbToForm(p);
     row.addEventListener('dragstart', e => { _dragSrcIdx=i; row.classList.add('dragging'); e.dataTransfer.effectAllowed='move'; });
