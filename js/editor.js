@@ -404,6 +404,26 @@ window.saveProblem = async function saveProblem(){
   logAdminAction(isNew ? 'create_problem' : 'edit_problem', { id: prob.id, title: prob.title, topic: prob.topic, enabled: prob.enabled, answerCount: (prob.answers||[]).length });
   buildPracticeSidebar();renderPmList();renderFolderList();
 
+  // Refresh any already-open Practice folder session that contains this
+  // problem. window.S.folderProblems is snapshotted ONCE by loadFolderPractice
+  // when a folder is opened, then never resynced with window.DB.problems —
+  // so edits saved here previously never showed up in an already-open
+  // practice card ("despite saving, problem isn't updated") until the folder
+  // was closed and reopened from the sidebar. BUILD TAG: editor-tbl-2026-08-07
+  if(window.S.folderProblems && window.S.activeFolderId){
+    const folder=window.DB.folders.find(f=>f.id===window.S.activeFolderId);
+    if(folder && folder.problemIds.includes(prob.id)){
+      const slot=window.S.folderProblems.findIndex(fp=>fp.probId===prob.id);
+      if(slot>=0){
+        window.S.folderProblems[slot]=genAuthoredVariant(prob);
+        tbldbg('live-refreshed open folder session for', prob.id, 'at slot', slot);
+        if(window.S.folderIdx===slot && typeof renderFolderProblem==='function'){
+          renderFolderProblem();
+        }
+      }
+    }
+  }
+
   // Preview
   const v=genAuthoredVariant(prob);
   const wrap=document.getElementById('editor-preview-card');
