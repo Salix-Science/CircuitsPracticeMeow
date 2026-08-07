@@ -735,6 +735,101 @@ label {
   font-weight: 600;
   color: var(--accent2) !important;
 }
+
+/* ── Table answer mode (editor grid) ───────────
+   Previously undefined — the editor table markup rendered as an
+   unstyled default HTML table before this block existed. */
+.editor-table {
+  border-collapse: separate;
+  border-spacing: 4px;
+}
+.editor-table th, .editor-table td {
+  padding: 0;
+  vertical-align: top;
+}
+.editor-table th input, .editor-table td input, .editor-table td select {
+  background: var(--bg4);
+  border: 0.5px solid var(--border);
+  border-radius: var(--r2);
+  color: var(--text);
+}
+.editor-table th input:focus, .editor-table td input:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+
+/* ── Table answer mode (student-facing grid) ───
+   Rendered by buildAnswerTableHTML() in practice.js — had zero CSS before,
+   so it rendered as raw unstyled browser table chrome. Class names below
+   (at-corner, at-rowlabel, at-cell, at-icon, at-unit, at-unit-h) are read
+   directly from that function's markup, not invented here. */
+.answer-table-wrap {
+  overflow-x: auto;
+  margin: 10px 0;
+}
+.answer-table {
+  border-collapse: separate;
+  border-spacing: 6px;
+}
+.answer-table th {
+  font-family: var(--font);
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text3);
+  text-align: center;
+  padding: 4px 6px;
+}
+.answer-table .at-corner,
+.answer-table .at-unit-h {
+  color: var(--text4);
+}
+.answer-table .at-rowlabel {
+  text-align: right;
+  font-weight: 600;
+  color: var(--accent2);
+  white-space: nowrap;
+  padding-right: 8px;
+}
+.answer-table td {
+  padding: 0;
+  text-align: center;
+}
+.answer-table .at-unit {
+  font-size: 11px;
+  color: var(--text3);
+  white-space: nowrap;
+}
+.answer-table .at-cell {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  background: var(--bg3);
+  border: 0.5px solid var(--border);
+  border-radius: var(--r2);
+  padding: 4px;
+}
+.answer-table .at-cell input {
+  width: 72px;
+  padding: 6px 8px;
+  font-size: 12px;
+  font-family: var(--mono);
+  text-align: center;
+  background: var(--bg4);
+  border: 0.5px solid var(--border);
+  border-radius: var(--r2);
+  color: var(--text);
+}
+.answer-table .at-cell input:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+.answer-table .at-icon {
+  position: absolute;
+  right: -18px;
+  font-size: 14px;
+  display: none;
+}
+
 /* In practice card */
 .multi-ans-row {
   margin-bottom: 4px;
