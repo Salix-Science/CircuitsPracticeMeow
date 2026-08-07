@@ -19,6 +19,7 @@ window.resetForm = function resetForm(){
   window.S.editorImg=null;
   window.S.formEnabled=true;
   window.S.editorAnswers=[{id:`ans-${Date.now()}`,label:'Answer',formula:'',unit:'V',tol:'2'}];
+  window.S.editorTable=_defaultEditorTable();
   ['e-title','e-topic','e-question','e-hint'].forEach(id=>{
     const el=document.getElementById(id); if(el) el.value='';
   });
@@ -34,6 +35,7 @@ window.resetForm = function resetForm(){
   document.getElementById('form-toggle-label').textContent='Enabled';
   renderVarInsertChips();
   renderAnswerBoxes();
+  renderTableEditor();
   setAnswerMode(window.S.editorAnswerMode||'boxes');
   rebuildTopicDropdown(); // ← always rebuild on form reset so dropdown is current
   document.getElementById('e-title')?.focus();
@@ -177,6 +179,115 @@ window.removeAnswerBox = function removeAnswerBox(i){
   renderAnswerBoxes();
 }
 
+// ── Table answer mode ─────────────────────────
+// S.editorTable = { corner, tol, cols:[{label}], rows:[{label,unit,cells:[formula,...]}] }
+//
+// This entire block was MISSING. index.html has always called addTableRow(),
+// addTableCol(), and read/wrote window.S.editorTable directly (see the
+// answer-mode-table section), but none of it existed anywhere in the JS —
+// every click threw a ReferenceError and died silently in the console.
+// On top of that, saveProblem() never wrote a `table` key onto the saved
+// problem at all, so even a hand-built table object would've been discarded
+// on save. Both are fixed here + in saveProblem/loadProbToForm below.
+// BUILD TAG: editor-tbl-2026-08-07
+const TBL_BUILD_TAG = 'editor-tbl-2026-08-07';
+window.TBL_DEBUG = window.TBL_DEBUG ?? true;
+function tbldbg(...args){ if(window.TBL_DEBUG) console.log('%c[tbl]', 'color:#4ade80;font-weight:bold', ...args); }
+console.log('%c[editor.js build]', 'color:#4ade80', TBL_BUILD_TAG);
+
+function _defaultEditorTable(){
+  return { corner:'', tol:'2', cols:[{label:'Col 1'}], rows:[{label:'Row 1', unit:'V', cells:['']}] };
+}
+if(!window.S.editorTable) window.S.editorTable=_defaultEditorTable();
+
+window.renderTableEditor = function renderTableEditor(){
+  const wrap=document.getElementById('table-editor-wrap');
+  if(!wrap){ tbldbg('renderTableEditor: #table-editor-wrap not in DOM, skipping'); return; }
+  const t=window.S.editorTable;
+  tbldbg('render', JSON.parse(JSON.stringify(t)));
+
+  // Keep the standalone corner/tolerance inputs (outside the grid) in sync
+  const cornerInp=document.getElementById('tbl-corner'); if(cornerInp) cornerInp.value=t.corner||'';
+  const tolInp=document.getElementById('tbl-tol'); if(tolInp) tolInp.value=t.tol||'2';
+
+  const table=document.createElement('table');
+  table.className='editor-table';
+
+  const thead=document.createElement('tr');
+  thead.appendChild(document.createElement('th')); // blank corner cell above row labels
+  t.cols.forEach((col,c)=>{
+    const th=document.createElement('th');
+    th.innerHTML=`<div style="display:flex;gap:2px;align-items:center;justify-content:center">
+        <input type="text" value="${col.label||''}" placeholder="Col ${c+1}"
+          style="width:76px;padding:5px 6px;font-size:11px"
+          oninput="window.S.editorTable.cols[${c}].label=this.value"/>
+        ${t.cols.length>1?`<button class="pm-icon-btn del" title="Remove column" onclick="removeTableCol(${c})"><i class="ti ti-x"></i></button>`:''}
+      </div>`;
+    thead.appendChild(th);
+  });
+  table.appendChild(thead);
+
+  t.rows.forEach((row,r)=>{
+    if(!row.cells) row.cells=[];
+    const tr=document.createElement('tr');
+    const rowHead=document.createElement('td');
+    rowHead.innerHTML=`<div style="display:flex;flex-direction:column;gap:3px">
+        <input type="text" value="${row.label||''}" placeholder="Row ${r+1}"
+          style="width:76px;padding:5px 6px;font-size:11px"
+          oninput="window.S.editorTable.rows[${r}].label=this.value"/>
+        <div style="display:flex;gap:2px;align-items:center">
+          <select style="width:58px;padding:4px;font-size:10px"
+            onchange="window.S.editorTable.rows[${r}].unit=this.value">
+            ${ANSWER_UNITS.map(u=>`<option value="${u}" ${u===row.unit?'selected':''}>${u}</option>`).join('')}
+          </select>
+          ${t.rows.length>1?`<button class="pm-icon-btn del" title="Remove row" onclick="removeTableRow(${r})"><i class="ti ti-x"></i></button>`:''}
+        </div>
+      </div>`;
+    tr.appendChild(rowHead);
+    t.cols.forEach((col,c)=>{
+      const td=document.createElement('td');
+      const val=row.cells[c]||'';
+      td.innerHTML=`<input type="text" value="${val}" placeholder="formula"
+        style="width:98px;padding:5px 6px;font-size:11px;font-family:var(--mono)"
+        oninput="window.S.editorTable.rows[${r}].cells[${c}]=this.value"/>`;
+      tr.appendChild(td);
+    });
+    table.appendChild(tr);
+  });
+
+  wrap.innerHTML='';
+  wrap.appendChild(table);
+}
+
+window.addTableRow = function addTableRow(){
+  const t=window.S.editorTable;
+  t.rows.push({label:`Row ${t.rows.length+1}`, unit:t.rows[0]?.unit||'V', cells:t.cols.map(()=>'')});
+  tbldbg('addTableRow ->', t.rows.length, 'rows');
+  renderTableEditor();
+}
+window.removeTableRow = function removeTableRow(i){
+  const t=window.S.editorTable;
+  if(t.rows.length<=1){ tbldbg('removeTableRow blocked — table needs at least one row'); return; }
+  t.rows.splice(i,1);
+  tbldbg('removeTableRow', i, '->', t.rows.length, 'rows');
+  renderTableEditor();
+}
+window.addTableCol = function addTableCol(){
+  const t=window.S.editorTable;
+  t.cols.push({label:`Col ${t.cols.length+1}`});
+  t.rows.forEach(row=>{ if(!row.cells) row.cells=[]; row.cells.push(''); });
+  tbldbg('addTableCol ->', t.cols.length, 'cols');
+  renderTableEditor();
+}
+window.removeTableCol = function removeTableCol(c){
+  const t=window.S.editorTable;
+  if(t.cols.length<=1){ tbldbg('removeTableCol blocked — table needs at least one column'); return; }
+  t.cols.splice(c,1);
+  t.rows.forEach(row=> row.cells && row.cells.splice(c,1));
+  tbldbg('removeTableCol', c, '->', t.cols.length, 'cols');
+  renderTableEditor();
+}
+
 // ── Answer mode toggle (Boxes / Table / Both) ─
 // Sets S.editorAnswerMode and updates button active states + panel visibility.
 window.setAnswerMode = function setAnswerMode(mode){
@@ -229,10 +340,39 @@ window.saveProblem = async function saveProblem(){
   const title=document.getElementById('e-title').value.trim();
   const question=document.getElementById('e-question').value.trim();
   if(!title||!question){alert('Title and Question are required.');return;}
+
+  const mode=window.S.editorAnswerMode||'boxes';
   const answers=window.S.editorAnswers;
-  if(!answers.length||!answers[0].formula.trim()){alert('At least one answer formula is required.');return;}
-  const badFormulas=answers.filter(a=>!a.formula.trim());
-  if(badFormulas.length){alert(`Answer box "${badFormulas[0].label}" has no formula.`);return;}
+
+  // Box-formula validation only applies when boxes are actually shown.
+  // Previously this ran unconditionally, so a pure "Table" mode problem
+  // could never be saved — it always tripped on the hidden, still-default,
+  // still-empty box answer that resetForm() seeds every time.
+  if(mode==='boxes'||mode==='both'){
+    if(!answers.length||!answers[0].formula.trim()){alert('At least one answer formula is required.');return;}
+    const badFormulas=answers.filter(a=>!a.formula.trim());
+    if(badFormulas.length){alert(`Answer box "${badFormulas[0].label}" has no formula.`);return;}
+  }
+
+  // Table validation + the actual persistence that was missing entirely —
+  // window.S.editorTable was never read into the saved problem before.
+  let tableToSave=null;
+  if(mode==='table'||mode==='both'){
+    const t=window.S.editorTable;
+    if(!t||!(t.rows||[]).length||!(t.cols||[]).length){
+      alert('Table mode requires at least one row and one column.');return;
+    }
+    for(const row of t.rows){
+      for(let c=0;c<t.cols.length;c++){
+        if(!row.cells||!row.cells[c]||!row.cells[c].trim()){
+          alert(`Table cell "${row.label||'row'} · ${t.cols[c].label||'col'}" needs a formula.`);
+          return;
+        }
+      }
+    }
+    tableToSave=JSON.parse(JSON.stringify(t));
+  }
+  tbldbg('saveProblem — mode:', mode, 'table:', tableToSave);
 
   const maxAttempts=parseInt(document.getElementById('e-max-attempts').value)||0;
   const prob={
@@ -240,18 +380,19 @@ window.saveProblem = async function saveProblem(){
     title,
     topic:document.getElementById('e-topic').value.trim(),
     question,
-    answers:answers.map(a=>({...a})),   // array of answer boxes
+    answers:(mode==='boxes'||mode==='both') ? answers.map(a=>({...a})) : [],   // array of answer boxes
     // Legacy single-answer fields kept for compatibility with old problems
-    formula:answers[0].formula,
-    unit:answers[0].unit,
-    tol:answers[0].tol,
+    formula:answers[0]?.formula||'',
+    unit:answers[0]?.unit||'V',
+    tol:answers[0]?.tol||'2',
+    table:tableToSave,   // ← was never written before; table mode silently discarded on save
     vars:window.S.editorVars.map(v=>({...v})),
     defaultPts:parseInt(document.getElementById('e-pts').value)||10,
     maxAttempts,
     hint:document.getElementById('e-hint').value,
     imgDataUrl:window.S.editorImg||null,
     enabled:window.S.formEnabled,
-    answerMode:window.S.editorAnswerMode||'boxes',
+    answerMode:mode,
   };
   const idx=window.DB.problems.findIndex(p=>p.id===prob.id);
   const isNew=idx<0;
@@ -302,6 +443,10 @@ window.loadProbToForm = function loadProbToForm(prob){
     }];
   }
 
+  // Deep-clone so in-form edits don't mutate window.DB.problems until Save is hit
+  window.S.editorTable=prob.table ? JSON.parse(JSON.stringify(prob.table)) : _defaultEditorTable();
+  tbldbg('loadProbToForm', prob.id, '-> table:', window.S.editorTable);
+
   document.getElementById('e-title').value=prob.title||'';
   document.getElementById('e-question').value=prob.question||'';
   document.getElementById('e-hint').value=prob.hint||'';
@@ -322,7 +467,7 @@ window.loadProbToForm = function loadProbToForm(prob){
   const topicInp=document.getElementById('e-topic');
   if(topicInp) topicInp.value=prob.topic||'';
 
-  renderVarRows();renderVarInsertChips();renderAnswerBoxes();
+  renderVarRows();renderVarInsertChips();renderAnswerBoxes();renderTableEditor();
   setAnswerMode(prob.answerMode||'boxes');
   showEdTab('problems',document.querySelector('.editor-top-tab'));
 }
