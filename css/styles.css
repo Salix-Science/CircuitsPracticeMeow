@@ -381,6 +381,10 @@ label {
 .post-content blockquote { border-left: 2px solid var(--accent3); padding: .75rem 1.25rem; margin: 1.25rem 0; background: var(--bg3); border-radius: 0 var(--r) var(--r) 0; color: var(--text2); font-style: italic; }
 .post-content code { font-family: var(--mono); font-size: 12px; background: var(--bg3); border: 0.5px solid var(--border); padding: 2px 6px; border-radius: 4px; color: var(--accent2); }
 .post-content hr { border: none; border-top: 0.5px solid var(--border); margin: 2rem 0; }
+.post-content a  { color: var(--accent2); text-decoration: none; border-bottom: 1px solid var(--accent3); transition: all .15s; word-break: break-word; }
+.post-content a:hover { color: var(--accent); border-bottom-color: var(--accent); }
+/* Mark links that leave the site so students know before they click */
+.post-content a[target="_blank"]::after { content: "\2197"; font-size: .8em; margin-left: 2px; opacity: .6; }
 
 /* ── Comments ── */
 #post-comments { margin-top: 2.5rem; padding-top: 2rem; border-top: 0.5px solid var(--border); }
@@ -432,6 +436,8 @@ label {
 #rte-body blockquote { border-left: 2px solid var(--accent3); padding: .5rem 1rem; margin: .5rem 0; background: var(--bg4); border-radius: 0 var(--r) var(--r) 0; font-style: italic; color: var(--text2); }
 #rte-body code { font-family: var(--mono); font-size: 12px; background: var(--bg4); border: 0.5px solid var(--border); padding: 1px 5px; border-radius: 3px; color: var(--accent2); }
 #rte-body[data-placeholder]:empty::before { content: attr(data-placeholder); color: var(--text4); pointer-events: none; }
+#rte-body a { color: var(--accent2); text-decoration: underline; text-decoration-color: var(--accent3); text-underline-offset: 2px; cursor: text; word-break: break-word; }
+#rte-body a:hover { color: var(--accent); }
 
 /* ── Editor shell ── */
 .editor-shell { display: flex; flex-direction: column; min-height: calc(100vh - 49px); }
