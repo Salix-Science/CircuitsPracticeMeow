@@ -1,0 +1,139 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Redirecting to Discord — CircuitsPractice</title>
+
+<!-- No-JS / pre-JS fallback. Fires immediately. -->
+<meta http-equiv="refresh" content="0; url=https://discord.gg/ChJAkhxkaZ">
+<link rel="canonical" href="https://discord.gg/ChJAkhxkaZ">
+<meta name="robots" content="noindex, follow">
+
+<!-- Social unfurl (Discord/Slack/iMessage preview when the link is pasted) -->
+<meta property="og:title" content="CircuitsPractice Discord">
+<meta property="og:description" content="Join the CircuitsPractice server.">
+<meta property="og:url" content="https://circuitspractice.org/discord/">
+
+<style>
+  :root{
+    --bg:#14161a; --fg:#e8e6e3; --muted:#9aa0a6; --accent:#c47a4a;
+    --mono:"IBM Plex Mono",ui-monospace,SFMono-Regular,Menlo,monospace;
+  }
+  html,body{margin:0;height:100%}
+  body{
+    background:var(--bg); color:var(--fg);
+    font-family:"IBM Plex Sans",system-ui,-apple-system,sans-serif;
+    display:flex; align-items:center; justify-content:center;
+    text-align:center; padding:1.5rem; box-sizing:border-box;
+  }
+  .wrap{max-width:34rem}
+  h1{font-family:"Space Grotesk",system-ui,sans-serif;font-size:1.25rem;font-weight:600;margin:0 0 .5rem}
+  p{color:var(--muted);margin:.35rem 0 1rem;font-size:.95rem}
+  a.btn{
+    display:inline-block;padding:.6rem 1.1rem;border-radius:.5rem;
+    background:var(--accent);color:#14161a;text-decoration:none;font-weight:600;
+  }
+  a.btn:hover{filter:brightness(1.08)}
+  #dbgpanel{
+    display:none;margin-top:1.5rem;padding:.75rem 1rem;text-align:left;
+    border:1px solid #333;border-radius:.5rem;background:#1b1e24;
+    font-family:var(--mono);font-size:.78rem;color:var(--muted);white-space:pre-wrap;
+  }
+</style>
+</head>
+<body>
+  <div class="wrap">
+    <h1>Taking you to Discord…</h1>
+    <p>If nothing happens, use the button below.</p>
+    <a class="btn" id="dsc-link" href="https://discord.gg/ChJAkhxkaZ" rel="noopener">Open the invite</a>
+    <div id="dbgpanel"></div>
+  </div>
+
+<script>
+(function () {
+  'use strict';
+
+  var DISCORD_BUILD_TAG = 'dsc-2026-08-22-a';
+  var TARGET = 'https://discord.gg/ChJAkhxkaZ';
+
+  // Debug mode: ?debug=1 in the URL, or localStorage.DISCORD_DEBUG = '1'.
+  // In debug mode the auto-redirect is SUPPRESSED so you can inspect state.
+  var DEBUG = false;
+  try {
+    DEBUG = /[?&]debug=1\b/.test(location.search) ||
+            localStorage.getItem('DISCORD_DEBUG') === '1';
+  } catch (e) { /* storage blocked; stay false */ }
+  window.DISCORD_DEBUG = DEBUG;
+
+  function dscdbg() {
+    if (!window.DISCORD_DEBUG) return;
+    var args = ['%c[discord]%c ' + DISCORD_BUILD_TAG,
+                'color:#14161a;background:#c47a4a;padding:1px 5px;border-radius:3px;font-weight:600',
+                'color:#9aa0a6'];
+    console.log.apply(console, args.concat([].slice.call(arguments)));
+  }
+  window.dscdbg = dscdbg;
+
+  function panel(lines) {
+    var el = document.getElementById('dbgpanel');
+    if (!el) return;
+    el.style.display = 'block';
+    el.textContent = lines.join('\n');
+  }
+
+  dscdbg('loaded', {
+    href: location.href,
+    target: TARGET,
+    referrer: document.referrer || '(none)',
+    swController: !!(navigator.serviceWorker && navigator.serviceWorker.controller)
+  });
+
+  // Cancel the <meta refresh> fallback while debugging so the page stays put.
+  if (DEBUG) {
+    var mr = document.querySelector('meta[http-equiv="refresh"]');
+    if (mr && mr.parentNode) mr.parentNode.removeChild(mr);
+
+    var sw = navigator.serviceWorker;
+    panel([
+      'DISCORD_DEBUG = on  (auto-redirect suppressed)',
+      'build tag     : ' + DISCORD_BUILD_TAG,
+      'location      : ' + location.href,
+      'target        : ' + TARGET,
+      'referrer      : ' + (document.referrer || '(none)'),
+      'sw supported  : ' + (!!sw),
+      'sw controller : ' + (!!(sw && sw.controller)),
+      'sw script     : ' + ((sw && sw.controller && sw.controller.scriptURL) || '(none)'),
+      '',
+      'If "sw controller" is true and you are seeing the main app shell',
+      'instead of this page, sw.js is intercepting the navigation.',
+      '',
+      'Disable with: localStorage.removeItem("DISCORD_DEBUG"); location.reload();'
+    ]);
+
+    if (sw && sw.getRegistrations) {
+      sw.getRegistrations().then(function (regs) {
+        dscdbg('sw registrations', regs.map(function (r) { return r.scope; }));
+      }).catch(function (err) { dscdbg('sw getRegistrations failed', err); });
+    }
+    if (window.caches && caches.keys) {
+      caches.keys().then(function (keys) {
+        dscdbg('cache keys', keys);
+      }).catch(function (err) { dscdbg('caches.keys failed', err); });
+    }
+    return; // stop here — no redirect
+  }
+
+  // replace() keeps this hop out of history, so Back returns to the referrer
+  // rather than bouncing the user forward again.
+  dscdbg('redirecting now');
+  try {
+    location.replace(TARGET);
+  } catch (e) {
+    dscdbg('location.replace threw, falling back to href', e);
+    location.href = TARGET;
+  }
+}());
+</script>
+</body>
+</html>
