@@ -2,6 +2,14 @@
    blog.js — Blog reader and rich text editor
    ═══════════════════════════════════════════ */
 
+const BLOG_BUILD_TAG = 'blog-2026-08-22-links';
+// Flip window.BLOG_DEBUG = true in the console to trace RTE link insertion.
+function blogdbg(...a) {
+  if (window.BLOG_DEBUG) console.log('%c[blog]', 'color:#c87941;font-weight:700', ...a);
+}
+window.blogdbg = blogdbg;
+blogdbg('loaded', BLOG_BUILD_TAG);
+
 // ── Category pills ────────────────────────────
 // catPill() and the category colour map now live in firebase.js so the blog
 // page and the home page render identical pills from one editable source.
@@ -367,6 +375,181 @@ window.rteInsertHR = function rteInsertHR() {
   document.getElementById('rte-body').focus();
   document.execCommand('insertHTML', false, '<hr/><p><br></p>');
 }
+
+// ── Links ─────────────────────────────────────
+// prompt() steals focus and browsers may drop the contenteditable selection the
+// moment the toolbar button is pressed, so we continuously remember the last
+// range that lived inside #rte-body and restore it before touching the DOM.
+let _rteSavedRange = null;
+
+document.addEventListener('selectionchange', () => {
+  const body = document.getElementById('rte-body');
+  if (!body) return;
+  const sel = window.getSelection();
+  if (!sel || !sel.rangeCount) return;
+  const r = sel.getRangeAt(0);
+  if (body.contains(r.commonAncestorContainer)) _rteSavedRange = r.cloneRange();
+});
+
+function _rteRestoreRange() {
+  const body = document.getElementById('rte-body');
+  if (!body) return null;
+  body.focus();
+  const sel = window.getSelection();
+
+  if (_rteSavedRange && body.contains(_rteSavedRange.commonAncestorContainer)) {
+    sel.removeAllRanges();
+    sel.addRange(_rteSavedRange);
+    blogdbg('range restored', {
+      collapsed: _rteSavedRange.collapsed,
+      text: _rteSavedRange.toString()
+    });
+    return _rteSavedRange;
+  }
+
+  // Nothing usable saved — drop a collapsed range at the very end of the body
+  // so the link still lands somewhere sensible instead of silently vanishing.
+  const r = document.createRange();
+  r.selectNodeContents(body);
+  r.collapse(false);
+  sel.removeAllRanges();
+  sel.addRange(r);
+  blogdbg('range fallback: appending at end of body');
+  return r;
+}
+
+// Find an enclosing <a> so we edit it instead of nesting anchors.
+function _rteAnchorAt(node) {
+  const body = document.getElementById('rte-body');
+  let n = node;
+  while (n && n !== body) {
+    if (n.nodeType === 1 && n.tagName === 'A') return n;
+    n = n.parentNode;
+  }
+  return null;
+}
+
+// Normalise what the user typed, then let the browser parse it and veto
+// anything that isn't a scheme we trust. Returns null if unusable.
+window.rteNormalizeUrl = function rteNormalizeUrl(raw) {
+  // Strip control characters first — "java\tscript:" is a real bypass.
+  let u = String(raw == null ? '' : raw).replace(/[\u0000-\u001F\u007F]/g, '').trim();
+  if (!u) { blogdbg('url rejected: empty'); return null; }
+
+  // Reject these outright rather than letting the https:// fallback below turn
+  // them into inert-but-broken links the user gets no warning about.
+  if (/^(javascript|data|vbscript|file):/i.test(u)) {
+    blogdbg('url rejected: blocked scheme', u);
+    return null;
+  }
+
+  if (/^[\w.+-]+@[\w-]+\.[\w.-]+$/.test(u)) u = 'mailto:' + u;
+  else if (!/^(https?:|mailto:|tel:|#|\/)/i.test(u)) u = 'https://' + u;
+
+  // Browser-parsed scheme check — more reliable than any regex we write.
+  let proto;
+  try {
+    const probe = document.createElement('a');
+    probe.href = u;
+    proto = probe.protocol;
+  } catch (e) {
+    blogdbg('url rejected: unparseable', u, e);
+    return null;
+  }
+
+  const ok = ['http:', 'https:', 'mailto:', 'tel:'];
+  if (u.startsWith('#') || u.startsWith('/')) {
+    blogdbg('url ok (relative)', u);
+    return u;
+  }
+  if (!ok.includes(proto)) { blogdbg('url rejected: scheme', proto, u); return null; }
+  blogdbg('url ok', { raw, normalized: u, protocol: proto });
+  return u;
+};
+
+window.rteInsertLink = function rteInsertLink() {
+  const body = document.getElementById('rte-body');
+  if (!body) { blogdbg('insertLink aborted: no #rte-body'); return; }
+
+  const range    = _rteRestoreRange();
+  const selected = range ? range.toString() : '';
+  const existing = _rteAnchorAt(range && range.commonAncestorContainer);
+  blogdbg('insertLink start', {
+    selected,
+    collapsed: range && range.collapsed,
+    editingExisting: !!existing,
+    existingHref: existing && existing.getAttribute('href')
+  });
+
+  const rawUrl = prompt(
+    existing ? 'Edit link URL:' : 'Link URL:',
+    existing ? existing.getAttribute('href') : 'https://'
+  );
+  if (rawUrl === null) { blogdbg('insertLink cancelled at URL prompt'); return; }
+
+  const url = rteNormalizeUrl(rawUrl);
+  if (!url) { alert('That does not look like a usable link.'); return; }
+
+  // Editing a link that already exists — just repoint it.
+  if (existing) {
+    existing.href = url;
+    existing.target = '_blank';
+    existing.rel = 'noopener noreferrer';
+    blogdbg('insertLink: updated existing anchor', existing.outerHTML);
+    return;
+  }
+
+  let label = selected;
+  if (!label.trim()) {
+    const typed = prompt('Link text:', url.replace(/^https?:\/\//i, ''));
+    if (typed === null) { blogdbg('insertLink cancelled at text prompt'); return; }
+    label = typed.trim() || url;
+  }
+
+  const a = document.createElement('a');
+  a.href   = url;
+  a.target = '_blank';
+  a.rel    = 'noopener noreferrer';
+
+  if (selected.trim()) {
+    // Wrap whatever was highlighted, preserving its inner formatting.
+    const frag = range.extractContents();
+    a.appendChild(frag);
+  } else {
+    a.textContent = label;
+  }
+  range.insertNode(a);
+
+  // Drop the caret just after the new link, with a space so continued typing
+  // doesn't get swallowed into the anchor.
+  const after = document.createTextNode('\u00A0');
+  a.parentNode.insertBefore(after, a.nextSibling);
+  const sel   = window.getSelection();
+  const caret = document.createRange();
+  caret.setStartAfter(after);
+  caret.collapse(true);
+  sel.removeAllRanges();
+  sel.addRange(caret);
+  _rteSavedRange = caret.cloneRange();
+
+  blogdbg('insertLink done', { path: selected.trim() ? 'wrap-selection' : 'new-text', html: a.outerHTML });
+};
+
+window.rteRemoveLink = function rteRemoveLink() {
+  const range = _rteRestoreRange();
+  const a = _rteAnchorAt(range && range.commonAncestorContainer);
+  blogdbg('removeLink', { found: !!a, href: a && a.getAttribute('href') });
+
+  if (a) {
+    // Unwrap the anchor in place — execCommand('unlink') needs the selection to
+    // actually span the link, which it won't if the caret is merely inside it.
+    const parent = a.parentNode;
+    while (a.firstChild) parent.insertBefore(a.firstChild, a);
+    parent.removeChild(a);
+    return;
+  }
+  document.execCommand('unlink', false, null);
+};
 
 // Category custom tag toggle
 window.toggleCustomTag = function toggleCustomTag(sel) {
