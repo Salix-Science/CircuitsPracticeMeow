@@ -1,4 +1,4 @@
-console.log('[BUILD] firebase.js loaded — build tag: 2026-07-07T03:19:48.549Z');
+console.log('[BUILD] firebase.js loaded — build tag: fb-2026-09-01-noverify');
 
 /* firebase.js — Firebase initialisation + DB layer
    All other JS files call saveDB() / loadDB() / window.S / window.DB
@@ -51,6 +51,35 @@ const firebaseConfig = {
   appId:             "1:14921793805:web:146e3685cb1af09e847044",
   measurementId:     "G-BVTRKSKQBJ"
 };
+
+// ── Email verification kill switch ────────────
+// UConn's Microsoft Defender ATP tenant policy swallows verification mail, so
+// @uconn.edu registrants can never complete the flow. Set to false to let
+// self-registered accounts into the app immediately after registration.
+//
+// This MUST stay in sync with verified() in firestore.rules:
+//   VERIFY_REQUIRED = false  ⟷  verified() { return request.auth != null; }
+//   VERIFY_REQUIRED = true   ⟷  verified() with the email_verified check restored
+// Flipping only one side either locks self-registered users out of all content
+// (rules strict, client lax) or lets them into a UI they can't read data for.
+//
+// The #screen-verify UI and its handlers (resendVerificationEmail,
+// checkVerificationAndContinue, verifySignOutAndReturn) are left in place and
+// still work — they're simply never reached while this is false.
+const VERIFY_BUILD_TAG  = 'fb-2026-09-01-noverify';
+const VERIFY_REQUIRED   = false;
+
+// Debug helper — set window.VERIFY_DEBUG = false in console to silence.
+if (window.VERIFY_DEBUG === undefined) window.VERIFY_DEBUG = true;
+function vdbg(...a) {
+  if (window.VERIFY_DEBUG) console.log('%c[verify]', 'color:#c87137;font-weight:600', ...a);
+}
+vdbg('module init — VERIFY_REQUIRED:', VERIFY_REQUIRED, '| build:', VERIFY_BUILD_TAG);
+if (!VERIFY_REQUIRED) {
+  vdbg('email verification is DISABLED — firestore.rules verified() must also be relaxed, ' +
+       'or self-registered users will sign in successfully but read nothing');
+}
+window.CP_VERIFY_REQUIRED = VERIFY_REQUIRED; // read-only mirror for console inspection
 
 const app       = initializeApp(firebaseConfig);
 const auth      = getAuth(app);
@@ -941,6 +970,42 @@ window.doRegister = async function() {
     });
     console.log('[doRegister] Firestore profile written OK');
 
+    if (!VERIFY_REQUIRED) {
+      // Verification disabled — go straight into the app. The auth observer is
+      // still suppressed at this point and would not fire on its own (the user
+      // is already signed in from createUserWithEmailAndPassword), so we drive
+      // the same entry sequence checkVerificationAndContinue() uses.
+      vdbg('[doRegister] verification skipped — entering app directly. uid:', cred.user.uid,
+           '| email:', email, '| emailVerified:', cred.user.emailVerified);
+
+      window._suppressAuthObserver = false;
+      document.getElementById('screen-auth')?.classList.add('hidden');
+      document.getElementById('screen-verify')?.classList.add('hidden');
+
+      const profile = await loadUserProfile(cred.user.uid);
+      if (!profile) {
+        console.error('[doRegister] loadUserProfile returned null right after write — aborting entry');
+        showAuthErr('r-err', 'Account created but profile could not be loaded. Try signing in.');
+        return;
+      }
+      vdbg('[doRegister] profile loaded — username:', profile.username,
+           '| selfRegistered:', profile.selfRegistered);
+
+      window.S.uid       = cred.user.uid;
+      window.S.user      = profile.username;
+      window.S.isAdmin   = !!profile.isAdmin;
+      window.S.authEmail = cred.user.email || '';
+
+      await loadSharedData();
+      vdbg('[doRegister] shared data loaded — problems:', window.DB?.problems?.length,
+           '| appReady:', !!window._appReady);
+
+      const go = () => enterApp();
+      if (window._appReady) go(); else window._pendingAuthUser = go;
+      console.log('[doRegister] DONE — entered app without verification');
+      return;
+    }
+
     console.log('[doRegister] sending verification email to:', email);
     await sendEmailVerification(cred.user);
     console.log('[doRegister] verification email sent');
@@ -1045,7 +1110,7 @@ onAuthStateChanged(auth, async (firebaseUser) => {
     // live here (not just in doRegister) because Firebase Auth sessions persist
     // across reloads — a user who closes/reloads the verify screen before
     // clicking the email link would otherwise sail straight into the app.
-    if (profile.selfRegistered && !firebaseUser.emailVerified) {
+    if (VERIFY_REQUIRED && profile.selfRegistered && !firebaseUser.emailVerified) {
       console.warn('[authObserver] self-registered user NOT verified yet — uid:', firebaseUser.uid,
                     '| redirecting to verify screen instead of entering app');
       document.getElementById('screen-auth')?.classList.add('hidden');
@@ -1058,8 +1123,14 @@ onAuthStateChanged(auth, async (firebaseUser) => {
       }
       return;
     }
+    if (!VERIFY_REQUIRED && profile.selfRegistered && !firebaseUser.emailVerified) {
+      vdbg('[authObserver] verify gate BYPASSED (VERIFY_REQUIRED=false) — uid:', firebaseUser.uid,
+           '| email:', firebaseUser.email, '| emailVerified:', firebaseUser.emailVerified,
+           '— this user would have been blocked under the old rules');
+    }
     console.log('[authObserver] verification check passed — selfRegistered:', !!profile.selfRegistered,
-                '| emailVerified:', firebaseUser.emailVerified);
+                '| emailVerified:', firebaseUser.emailVerified,
+                '| VERIFY_REQUIRED:', VERIFY_REQUIRED);
 
     window.S.uid     = firebaseUser.uid;
     window.S.user    = profile.username;
